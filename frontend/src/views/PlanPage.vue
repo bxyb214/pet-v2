@@ -16,12 +16,9 @@
       </div>
 
       <template v-if="hasPlan">
-        <div class="planrow">
-          <span class="stage">{{ progressPct >= 100 ? "🌳" : progressPct >= 60 ? "🌿" : "🌱" }}</span>
-          <span class="big">{{ learning.data.plan.length }} 天计划</span>
-          <span class="muted">已完成 {{ doneCount }} / {{ learning.data.plan.length }} 天</span>
-        </div>
-        <n-progress type="line" :percentage="progressPct" :height="12" :border-radius="6" indicator-placement="inside" />
+        <!-- 进度用「可数的格子」而不是百分比：看得出哪天做了、还剩几格 -->
+        <PlanWall :length="planLen" :days-done="learning.data.plan.days_done" />
+
         <div class="actions">
           <n-button type="primary" secondary @click="goStudy">去学习</n-button>
           <n-popconfirm @positive-click="deletePlan">
@@ -58,8 +55,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { NButton, NCard, NInputNumber, NPopconfirm, NProgress, NTag } from "naive-ui";
+import { NButton, NCard, NInputNumber, NPopconfirm, NTag } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
+import PlanWall from "../components/PlanWall.vue";
 import { availableBankKeys, loadBanks, EMPTY_BANKS, type BankMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import { splitPlan, validatePlan, type PlanDay, type WordBanks } from "../core/plan";
@@ -93,11 +91,8 @@ function dayBreakdown(d: PlanDay): string {
 }
 
 const hasPlan = computed(() => learning.data.plan.length > 0);
+const planLen = computed(() => learning.data.plan.length);
 const validDays = computed(() => Number.isInteger(days.value) && days.value >= 1 && days.value <= 180);
-const doneCount = computed(() => learning.data.plan.days_done.length);
-const progressPct = computed(() =>
-  learning.data.plan.length ? Math.round((doneCount.value / learning.data.plan.length) * 100) : 0,
-);
 const avgTotal = computed(() =>
   previewDays.value.length
     ? Math.round(previewDays.value.reduce((s, d) => s + d.total, 0) / previewDays.value.length)
@@ -132,9 +127,6 @@ function goStudy(): void {
 .empty { text-align: center; padding: 22px 8px 10px; }
 .empty-t { margin: 0 0 4px; font-weight: 700; font-size: 17px; color: var(--c-text); }
 .empty-s { margin: 0 0 16px; font-size: 13.5px; color: var(--c-text-2); }
-.planrow { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
-.big { font-size: 21px; font-weight: 800; color: var(--c-text); }
-.stage { font-size: 24px; }
 .muted { color: var(--c-text-2); font-size: 13.5px; }
 .actions { display: flex; gap: 12px; margin-top: 14px; align-items: center; }
 .genrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -143,4 +135,5 @@ function goStudy(): void {
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
 .daycard { background: var(--c-mint-bg, #f6faf7); border-radius: 10px; padding: 10px 12px; }
 .daynum { margin: 0 0 2px; font-weight: 700; font-size: 13.5px; }
+
 </style>

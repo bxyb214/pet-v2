@@ -17,11 +17,7 @@
 
     <template v-else>
       <template v-if="hasPlan">
-        <div class="planrow">
-          <span class="big">{{ plan.reading_length }} 天计划</span>
-          <span class="muted">已完成 {{ doneCount }} / {{ plan.reading_length }} 天</span>
-        </div>
-        <n-progress type="line" :percentage="progressPct" :height="10" :border-radius="5" indicator-placement="inside" />
+        <PlanWall :length="plan.reading_length" :days-done="plan.reading_days_done" />
         <div class="actions">
           <n-button type="primary" secondary @click="goReading">去阅读</n-button>
           <n-popconfirm @positive-click="remove">
@@ -56,7 +52,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { NButton, NCard, NInputNumber, NPopconfirm, NProgress, NTag } from "naive-ui";
+import { NButton, NCard, NInputNumber, NPopconfirm, NTag } from "naive-ui";
+import PlanWall from "./PlanWall.vue";
 import { useLearningStore } from "../stores/learning";
 import { loadReading } from "../core/reading";
 import { buildReadingPlan, validateReadingPlan, type ReadingPlanDay, type ReadingPartRef } from "../core/plan";
@@ -80,10 +77,6 @@ onMounted(async () => {
 
 const validDays = computed(() => Number.isInteger(days.value) && days.value >= 1 && days.value <= 180);
 const totalParts = computed(() => allParts.value.length);
-const doneCount = computed(() => plan.value.reading_days_done.length);
-const progressPct = computed(() =>
-  plan.value.reading_length ? Math.round((doneCount.value / plan.value.reading_length) * 100) : 0,
-);
 
 function preview(): void {
   const p = buildReadingPlan(allParts.value, days.value);
@@ -109,8 +102,6 @@ function goReading(): void {
 .empty { text-align: center; padding: 18px 8px 8px; }
 .empty-t { margin: 0 0 4px; font-weight: 700; font-size: 16px; color: var(--c-text); }
 .empty-s { margin: 0 0 14px; font-size: 13.5px; color: var(--c-text-2); }
-.planrow { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
-.big { font-size: 20px; font-weight: 800; color: var(--c-text); }
 .muted { color: var(--c-text-2); font-size: 13.5px; }
 .actions { display: flex; gap: 12px; margin-top: 14px; align-items: center; }
 .genrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

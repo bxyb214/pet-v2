@@ -20,5 +20,14 @@ onMounted(() => void auth.restore());
 
 <style>
 * { box-sizing: border-box; }
-body { margin: 0; font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; background: var(--c-mint-bg); color: var(--c-text); }
+body {
+  margin: 0;
+  font-family: var(--font-base);
+  background: var(--c-mint-bg);
+  color: var(--c-text);
+  /* 字重更实、边缘更清晰，视觉上更“精密” */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
 </style>

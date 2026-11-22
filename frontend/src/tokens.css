@@ -1,31 +1,104 @@
-/* 「绿野成长」Design Tokens v2（docs/05 + docs/09）——唯一色彩/字号来源 */
-/* v2（2026-11-22 Naive UI 重构）：更大圆角、更柔阴影、层级更清晰；语义不变 */
+/* 「绿野成长」Design Tokens v3（docs/05 + docs/09）——唯一色彩/字号来源
+ * v3（2026-11-22）：主色不变；圆角 10/14/20/24 收敛、阴影改冷绿黑三档、引入自托管 Nunito、
+ * 增加动效 token。基调从「糖果」调向「简洁 + 精密」，靠留白与线条做高级感，不靠大圆角和大阴影。 */
+
+@font-face {
+  font-family: "Nunito";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("/fonts/nunito-latin.woff2") format("woff2");
+}
+
 :root {
-  --c-primary: #16a34a;
-  --c-primary-strong: #15803d;
+  /* ---------- 品牌绿 ---------- */
+  --c-primary: #16a34a;         /* 填充色（配白字需 ≥18px 加粗） */
+  --c-primary-strong: #15803d;  /* 文字/链接：对白 5.3:1 */
   --c-primary-soft: #e7f6ec;
   --c-mint-bg: #f2faf5;
-  --c-accent: #d97706;
+
+  /* ---------- 功能色 ---------- */
+  --c-accent: #d97706;          /* 暖橙：提示、断签 */
+  --c-accent-soft: #fff7ed;
   --c-danger: #dc2626;
   --c-danger-soft: #fef2f2;
   --c-info: #2563eb;
-  --c-text: #1f2d26;
-  --c-text-2: #6b7f74;
+  --c-info-soft: #eff6ff;
+
+  /* ---------- 中性（偏冷，拉开与绿的层次） ---------- */
+  --c-text: #16211c;
+  --c-text-2: #64756c;
+  --c-text-3: #94a49b;
   --c-card: #ffffff;
-  --c-bg: #f7faf8;
-  --c-line: #e5efe9;
+  --c-bg: #f6f9f7;
+  --c-line: #e6eee9;
+  --c-line-strong: #d3e0d8;
   --c-surface: #ffffff;
-  --r-card: 16px;
-  --r-btn: 12px;
+
+  /* ---------- 圆角（收敛，靠一致性而非夸张弧度） ---------- */
+  --r-sm: 10px;
+  --r-btn: 14px;
+  --r-card: 20px;
+  --r-xl: 24px;
   --r-pill: 999px;
-  --r-sm: 8px;
-  --shadow-card: 0 2px 10px rgba(22, 163, 74, 0.08);
-  --shadow-sm: 0 2px 10px rgba(22, 163, 74, 0.08);
+
+  /* ---------- 阴影（冷绿黑打底，三层，低对比） ---------- */
+  --shadow-1: 0 1px 2px rgba(16, 40, 28, 0.04), 0 4px 12px rgba(16, 40, 28, 0.05);
+  --shadow-2: 0 2px 6px rgba(16, 40, 28, 0.06), 0 12px 28px rgba(16, 40, 28, 0.08);
+  --shadow-3: 0 8px 20px rgba(16, 40, 28, 0.1), 0 24px 48px rgba(16, 40, 28, 0.12);
+  /* 兼容旧变量名 */
+  --shadow-card: var(--shadow-1);
+  --shadow-sm: var(--shadow-1);
+
+  /* ---------- 字体 ---------- */
+  --font-en: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --font-base: "Nunito", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-word: "Nunito", Georgia, "Times New Roman", serif;
+
   --fs-display: 28px;
   --fs-title: 22px;
-  --fs-body: 16px; /* 正文基准，不低于 16 */
-  --fs-sub: 14px; /* 辅助文字上移一档，儿童可读 */
+  --fs-body: 16px;   /* 正文基准，不低于 16 */
+  --fs-sub: 14px;
+
+  /* ---------- 动效 ---------- */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 300ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* 数字统一等宽，进度/计数不跳动 */
+.tnum {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ---------- 全局交互态（补 Naive UI token 覆盖不到的部分） ---------- */
+/* 键盘焦点统一用品牌绿光晕；鼠标点击不触发，避免噪点 */
+:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+/* 按下缩一下，给触屏"按到了"的手感 */
+.n-button:not(.n-button--disabled):active,
+.n-radio-button:not(.n-radio-button--disabled):active {
+  transform: scale(0.985);
+  transition: transform var(--dur-1) var(--ease-out);
 }
 
 /* 容器规则（docs/10 §3.1）：页面宽度只由布局层 .stack 决定，页面内一律 width:100% */
 .page { width: 100%; }
+
+/* 尊重系统降低动效偏好：全部降级为淡入淡出 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
