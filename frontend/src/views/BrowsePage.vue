@@ -139,26 +139,31 @@ import {
 } from "@vicons/ionicons5";
 import { api } from "../core/api";
 import { splitExample, say } from "../core/say";
-import { loadBanks } from "../core/banks";
+import { availableBankKeys, loadBanks, type BankMeta, type ExamMeta } from "../core/banks";
+import { useAuthStore } from "../stores/auth";
 import type { WordBanks, BankKey, PlanWord } from "../core/plan";
 import type { CustomWordItem } from "../core/merge";
 import { useLearningStore } from "../stores/learning";
 
 type CatKey = BankKey | "custom";
-const CATS: Array<{ key: CatKey; label: string }> = [
-  { key: "bimo", label: "必默" },
-  { key: "gaopin", label: "高频" },
-  { key: "guding", label: "固定搭配" },
-  { key: "tongyi", label: "同义替换" },
-  { key: "custom", label: "我的生词" },
-];
 
 const learning = useLearningStore();
+const auth = useAuthStore();
 const router = useRouter();
-const banks = ref<WordBanks>({ bimo: [], gaopin: [], guding: [], tongyi: [] });
-void loadBanks().then((r) => (banks.value = r.banks));
+const banks = ref<WordBanks>({});
+const bankMeta = ref<Record<string, BankMeta>>({});
+const exams = ref<ExamMeta[]>([]);
 
-const current = ref<CatKey>("bimo");
+/** 词库分类：当前级别下的词库 + 我的生词（词库顺序来自 banks.json） */
+const CATS = computed<Array<{ key: CatKey; label: string }>>(() => {
+  const keys = availableBankKeys(banks.value, bankMeta.value, auth.exam);
+  return [
+    ...keys.map((k) => ({ key: k as CatKey, label: bankMeta.value[k]?.short || k })),
+    { key: "custom" as CatKey, label: "我的生词" },
+  ];
+});
+
+const current = ref<CatKey>("");
 const isCustom = computed(() => current.value === "custom");
 // 手机屏默认用卡片视图（表格在窄屏只能横向滑动，不适合孩子）
 const view = ref<"list" | "card">(typeof window !== "undefined" && window.innerWidth < 768 ? "card" : "list");
@@ -172,6 +177,13 @@ const filled = ref<Omit<CustomWordItem, "id"> | null>(null);
 const myWords = ref<CustomWordItem[]>([]);
 const busy = ref(false);
 const err = ref("");
+void loadBanks().then((r) => {
+  banks.value = r.banks;
+  bankMeta.value = r.bankMeta;
+  exams.value = r.exams;
+  const keys = availableBankKeys(r.banks, r.bankMeta, auth.exam);
+  current.value = (keys[0] as CatKey) ?? "custom";
+});
 void api<CustomWordItem[]>("/words/custom").then((r) => (myWords.value = r)).catch(() => (myWords.value = []));
 
 function pickCat(k: CatKey): void {
@@ -181,7 +193,7 @@ function pickCat(k: CatKey): void {
   keyword.value = "";
 }
 function countOf(k: CatKey): number {
-  return k === "custom" ? myWords.value.length : banks.value[k].length;
+  return k === "custom" ? myWords.value.length : (banks.value[k]?.length ?? 0);
 }
 
 // 掌握度查询
@@ -210,12 +222,14 @@ function exOf(w: PlanWord): { en: string; cn: string } {
 }
 /** 只保留一个「去学习」入口：带上当前词库，学习页自动选中 */
 function studyCurrent(): void {
-  const bank = current.value === "custom" ? "bimo" : current.value;
+  const bank = current.value === "custom"
+    ? (availableBankKeys(banks.value, bankMeta.value, auth.exam)[0] ?? "bimo")
+    : current.value;
   void router.push({ path: "/english/words/study", query: { bank } });
 }
 
 const filtered = computed<PlanWord[]>(() => {
-  const list = current.value === "custom" ? [] : banks.value[current.value];
+  const list = current.value === "custom" ? [] : (banks.value[current.value] ?? []);
   const kw = keyword.value.trim().toLowerCase();
   if (!kw) return list;
   return list.filter((w) => w.en.toLowerCase().includes(kw) || w.cn.toLowerCase().includes(kw));
@@ -237,7 +251,7 @@ function next(): void {
 
 // 统计卡
 const statCards = computed(() => {
-  const total = CATS.filter((c) => c.key !== "custom").reduce((s, c) => s + banks.value[c.key as BankKey].length, 0);
+  const total = CATS.value.filter((c) => c.key !== "custom").reduce((s, c) => s + (banks.value[c.key as BankKey]?.length ?? 0), 0);
   const masteredAll = [...masteryMap.value.values()].filter((n) => n >= 3).length;
   const due = learning.dueMistakes.length;
   const custom = myWords.value.length;

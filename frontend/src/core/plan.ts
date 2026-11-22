@@ -2,7 +2,8 @@
  * 计划切分（F-1）：四库按天切分，任意天数，不重不漏（V1/P1）。
  * 沿用现站语义推广：每库按 ceil(库长/N) 配额顺序切片，末天吸收余量。
  */
-export type BankKey = "bimo" | "gaopin" | "guding" | "tongyi";
+/** 词库 id（bimo/gaopin/guding/tongyi/kword/kcore/kphrase/kconfuse/ksyn…），可扩展 */
+export type BankKey = string;
 
 export interface PlanWord {
   id: string;
@@ -16,14 +17,10 @@ export type WordBanks = Record<BankKey, PlanWord[]>;
 
 export interface PlanDay {
   day: number; // 1-based
-  bimo: PlanWord[];
-  gaopin: PlanWord[];
-  guding: PlanWord[];
-  tongyi: PlanWord[];
+  /** 每库当天的词；键即词库 id（PET 四库 / KET 五库都走这一套） */
+  banks: Record<BankKey, PlanWord[]>;
   total: number;
 }
-
-const BANK_KEYS: BankKey[] = ["bimo", "gaopin", "guding", "tongyi"];
 
 function chunk<T>(arr: T[], size: number): T[][] {
   if (size <= 0) return arr.length ? [arr] : [];
@@ -32,39 +29,34 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-export function splitPlan(banks: WordBanks, days: number): PlanDay[] {
+export function splitPlan(banks: WordBanks, days: number, keys?: BankKey[]): PlanDay[] {
   if (!Number.isInteger(days) || days <= 0) throw new Error("天数必须为正整数");
-  const perBank: Record<BankKey, PlanWord[][]> = {
-    bimo: [],
-    gaopin: [],
-    guding: [],
-    tongyi: [],
-  };
-  for (const key of BANK_KEYS) {
+  const order = (keys ?? Object.keys(banks)).filter((k) => (banks[k] ?? []).length > 0);
+  const perBank: Record<BankKey, PlanWord[][]> = {};
+  for (const key of order) {
     const quota = Math.ceil(banks[key].length / days);
     perBank[key] = chunk(banks[key], quota);
   }
   const out: PlanDay[] = [];
   for (let d = 1; d <= days; d++) {
-    const day: PlanDay = {
-      day: d,
-      bimo: perBank.bimo[d - 1] ?? [],
-      gaopin: perBank.gaopin[d - 1] ?? [],
-      guding: perBank.guding[d - 1] ?? [],
-      tongyi: perBank.tongyi[d - 1] ?? [],
-      total: 0,
-    };
-    day.total = day.bimo.length + day.gaopin.length + day.guding.length + day.tongyi.length;
-    out.push(day);
+    const dayBanks: Record<BankKey, PlanWord[]> = {};
+    let total = 0;
+    for (const key of order) {
+      const slice = perBank[key][d - 1] ?? [];
+      dayBanks[key] = slice;
+      total += slice.length;
+    }
+    out.push({ day: d, banks: dayBanks, total });
   }
   return out;
 }
 
 /** 不变量校验：各库拼回 = 原库且无重复（生成计划后前端自检） */
 export function validatePlan(banks: WordBanks, plan: PlanDay[]): boolean {
-  for (const key of BANK_KEYS) {
+  for (const key of Object.keys(banks)) {
+    if (!banks[key].length) continue;
     const original = banks[key].map((w) => w.id);
-    const rebuilt = plan.flatMap((d) => d[key]).map((w) => w.id);
+    const rebuilt = plan.flatMap((d) => d.banks[key] ?? []).map((w) => w.id);
     if (original.length !== rebuilt.length) return false;
     if (new Set(rebuilt).size !== rebuilt.length) return false;
     for (let i = 0; i < original.length; i++) {

@@ -22,6 +22,8 @@ class User(Base):
     perms: Mapped[str] = mapped_column(String(256), default="")
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     data_rev: Mapped[int] = mapped_column(Integer, default=1)  # 同步乐观锁版本号
+    # 当前学习的考试级别：pet / ket /（预留 fce / junior）；决定显示哪套词库与教材
+    exam: Mapped[str] = mapped_column(String(16), default="pet")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 

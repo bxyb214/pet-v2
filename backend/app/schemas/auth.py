@@ -20,6 +20,7 @@ class TokenOut(BaseModel):
     display_name: str
     perms: str
     is_admin: bool
+    exam: str = "pet"
 
 
 class RefreshIn(BaseModel):
@@ -32,5 +33,10 @@ class UserOut(BaseModel):
     display_name: str
     perms: str
     is_admin: bool
+    exam: str = "pet"
 
     model_config = {"from_attributes": True}
+
+
+class ExamIn(BaseModel):
+    exam: str = Field(pattern="^(pet|ket|fce|junior)$")

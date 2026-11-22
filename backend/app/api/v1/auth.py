@@ -14,7 +14,7 @@ from app.core.security import (
 )
 from app.db import get_db
 from app.models.user import InviteCode, User
-from app.schemas.auth import LoginIn, RefreshIn, RegisterIn, TokenOut, UserOut
+from app.schemas.auth import ExamIn, LoginIn, RefreshIn, RegisterIn, TokenOut, UserOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -28,6 +28,7 @@ def _token_out(user: User) -> TokenOut:
         display_name=user.display_name,
         perms=user.perms,
         is_admin=user.is_admin,
+        exam=user.exam or "pet",
     )
 
 
@@ -127,3 +128,15 @@ def claim(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)) -> UserOut:
     return UserOut.model_validate(user)
+
+
+@router.put("/me/exam")
+def set_exam(
+    body: ExamIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """切换当前学习的考试级别（KET / PET / 预留 FCE、初中英语）。"""
+    user.exam = body.exam
+    db.commit()
+    return {"exam": user.exam}

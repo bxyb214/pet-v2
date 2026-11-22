@@ -57,22 +57,27 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { NButton, NCard, NEmpty, NRadioButton, NRadioGroup, NTag } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
-import { loadBanks, EMPTY_BANKS } from "../core/banks";
+import { loadBanks, EMPTY_BANKS, type BankMeta } from "../core/banks";
 import { DIM_LABEL } from "../core/quiz";
 import type { WordBanks, BankKey, PlanWord } from "../core/plan";
 
 const learning = useLearningStore();
 const router = useRouter();
 const banks = ref<WordBanks>(EMPTY_BANKS);
-void loadBanks().then((r) => (banks.value = r.banks));
+const bankMeta = ref<Record<string, BankMeta>>({});
+void loadBanks().then((r) => {
+  banks.value = r.banks;
+  bankMeta.value = r.bankMeta;
+});
 
 const filter = ref<"due" | "all">("due");
-const BANK_LABEL: Record<BankKey, string> = { bimo: "必默", gaopin: "高频", guding: "固搭", tongyi: "同义" };
 
 const wordIndex = computed(() => {
   const m = new Map<string, { w: PlanWord; bank: string }>();
   for (const k of Object.keys(banks.value) as BankKey[]) {
-    for (const w of banks.value[k]) m.set(w.id, { w, bank: BANK_LABEL[k] });
+    for (const w of banks.value[k] ?? []) {
+      m.set(w.id, { w, bank: bankMeta.value[k]?.short || k });
+    }
   }
   return m;
 });

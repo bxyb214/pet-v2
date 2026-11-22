@@ -103,26 +103,35 @@ import {
 } from "naive-ui";
 import { useRoute } from "vue-router";
 import { useLearningStore } from "../stores/learning";
-import { loadBanks } from "../core/banks";
+import { availableBankKeys, loadBanks, type BankMeta } from "../core/banks";
+import { useAuthStore } from "../stores/auth";
 import { makeRound, checkAnswer, DIM_LABEL, type QuizDim, type QuizQuestion } from "../core/quiz";
 import type { WordBanks, BankKey, PlanWord } from "../core/plan";
 
-const BANK_TABS: Array<{ key: BankKey; label: string }> = [
-  { key: "bimo", label: "必默" },
-  { key: "gaopin", label: "高频" },
-  { key: "guding", label: "固搭" },
-  { key: "tongyi", label: "同义" },
-];
-
 const learning = useLearningStore();
-const banks = ref<WordBanks>({ bimo: [], gaopin: [], guding: [], tongyi: [] });
-void loadBanks().then((r) => (banks.value = r.banks));
+const auth = useAuthStore();
+const banks = ref<WordBanks>({});
+const bankMeta = ref<Record<string, BankMeta>>({});
+/** 当前级别下的词库标签（PET 四库 / KET 五库） */
+const BANK_TABS = computed<Array<{ key: BankKey; label: string }>>(() =>
+  availableBankKeys(banks.value, bankMeta.value, auth.exam).map((k) => ({
+    key: k,
+    label: bankMeta.value[k]?.short || k,
+  })),
+);
 
-const bank = ref<BankKey>("bimo");
-// 从词库页「学习本词库」进入时带上词库（bimo/gaopin/guding/tongyi）
+const bank = ref<BankKey>("");
+// 从词库页「学习本词库」进入时带上词库
 const route = useRoute();
 const qBank = String(route.query.bank ?? "");
-if (["bimo", "gaopin", "guding", "tongyi"].includes(qBank)) bank.value = qBank as BankKey;
+if (qBank) bank.value = qBank as BankKey;
+
+void loadBanks().then((r) => {
+  banks.value = r.banks;
+  bankMeta.value = r.bankMeta;
+  const keys = availableBankKeys(r.banks, r.bankMeta, auth.exam);
+  if (!bank.value || !keys.includes(bank.value)) bank.value = (keys[0] as BankKey) ?? "";
+});
 const count = ref(10);
 const mistakeFirst = ref(true);
 
@@ -137,16 +146,16 @@ const correctCount = ref(0);
 const q = computed(() => round.value[qIndex.value] ?? null);
 const dueInBank = computed(() => {
   const ids = new Set(learning.dueMistakes);
-  return banks.value[bank.value].filter((w) => ids.has(w.id));
+  return (banks.value[bank.value] ?? []).filter((w) => ids.has(w.id));
 });
 
 function start(): void {
-  const list = banks.value[bank.value];
+  const list = banks.value[bank.value] ?? [];
   let picked: PlanWord[] | undefined;
   if (mistakeFirst.value && dueInBank.value.length) {
     picked = [...dueInBank.value, ...list.filter((w) => !idsOf(dueInBank.value).has(w.id))];
   }
-  round.value = makeRound(list, count.value, [...ALL_DIMS], picked);
+  round.value = makeRound(list, count.value, [...ALL_DIMS.value], picked);
   qIndex.value = 0;
   correctCount.value = 0;
   answered.value = false;
@@ -169,7 +178,7 @@ function submit(ans: string): void {
     learning.recordRight(wordId, q.value.dim); // 错题本划维度（不在错题本时无副作用）
     learning.recordMastery(wordId, [q.value.dim]);
   } else {
-    learning.recordWrong(wordId, [...ALL_DIMS]); // 答错全维度重欠 + 回 1 天间隔
+    learning.recordWrong(wordId, [...ALL_DIMS.value]); // 答错全维度重欠 + 回 1 天间隔
   }
 }
 
@@ -198,7 +207,12 @@ function playAudio(word: PlanWord): void {
   if (word.audio) void new Audio(`/media/audio/${word.audio}`).play().catch(() => {});
 }
 
-const ALL_DIMS: QuizDim[] = ["w2m", "m2w", "spell"];
+const FULL_DIMS: QuizDim[] = ["w2m", "m2w", "spell"];
+/** 本次要考的维度：KET 按旧站规则不考拼写 */
+const ALL_DIMS = computed<QuizDim[]>(() => {
+  const dims = bankMeta.value[bank.value]?.dims;
+  return (dims && dims.length ? dims : FULL_DIMS) as QuizDim[];
+});
 </script>
 
 <style scoped>

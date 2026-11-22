@@ -2,7 +2,7 @@
   <nav class="nav">
     <div class="sider-title">学科</div>
     <button
-      v-for="s in SUBJECTS"
+      v-for="s in subjects"
       :key="s.key"
       class="subj"
       :class="[s.key, { active: subject === s.key }]"
@@ -45,12 +45,13 @@ import {
   ReaderOutline, LibraryOutline, HeadsetOutline, MicOutline,
 } from "@vicons/ionicons5";
 import type { Component } from "vue";
+import { useAuthStore } from "../stores/auth";
 
 type Module = { key: string; name: string; icon: Component; first: string };
 type Subject = { key: "english" | "chinese" | "math"; name: string; icon: Component; desc: string; first: string };
 
 const SUBJECTS: Subject[] = [
-  { key: "english", name: "英语", icon: LanguageOutline, desc: "PET 备考进行中", first: "/english/words/browse" },
+  { key: "english", name: "英语", icon: LanguageOutline, desc: "", first: "/english/words/browse" },
   { key: "chinese", name: "语文", icon: BookOutline, desc: "筹备中", first: "/chinese" },
   { key: "math", name: "数学", icon: CalculatorOutline, desc: "筹备中", first: "/math" },
 ];
@@ -65,6 +66,20 @@ const EN_MODULES: Module[] = [
 const emit = defineEmits<{ (e: "go"): void }>();
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
+
+/** 侧栏副标题跟随「我在备考」的级别 */
+const EXAM_LABEL: Record<string, string> = {
+  pet: "PET 备考进行中",
+  ket: "KET 备考进行中",
+  fce: "FCE 备考进行中",
+  junior: "初中英语同步",
+};
+const subjects = computed(() =>
+  SUBJECTS.map((s) =>
+    s.key === "english" ? { ...s, desc: EXAM_LABEL[auth.exam] ?? "PET 备考进行中" } : s,
+  ),
+);
 
 const subject = computed(() => (route.meta.subject as string | undefined) ?? "english");
 const module = computed(() => (route.meta.module as string | undefined) ?? "");

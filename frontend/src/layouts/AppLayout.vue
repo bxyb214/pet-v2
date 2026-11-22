@@ -14,6 +14,7 @@
       <div class="spacer"></div>
       <div v-if="auth.username" class="userbox">
         <span class="username">{{ auth.displayName || auth.username }}</span>
+        <router-link to="/settings" class="chip ghost">设置</router-link>
         <router-link v-if="auth.isAdmin" to="/admin" class="chip ghost">管理</router-link>
         <button class="chip ghost" @click="logout">退出</button>
         <div class="avatar">{{ (auth.displayName || auth.username || "学")[0] }}</div>

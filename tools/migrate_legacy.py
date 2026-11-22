@@ -40,6 +40,21 @@ _BOOK_BY_TEST = lambda n: "t2" if n <= 6 else "t1"  # noqa: E731  1-6=Trainer 2�
 
 # ---------- 纯映射函数（可单测，不依赖 DB） ----------
 
+def _dt(v):
+    """MySQL 驱动给的是 datetime，JSON 存档给的是字符串，统一成 datetime。"""
+    if not v:
+        return None
+    if isinstance(v, datetime):
+        return v
+    s = str(v).strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def map_users(rows: list[dict]) -> tuple[list[dict], list[str]]:
     """返回 (users, warnings)。只迁 active 用户。"""
     out: list[dict] = []
@@ -57,7 +72,7 @@ def map_users(rows: list[dict]) -> tuple[list[dict], list[str]]:
                 "perms": str(r.get("perms") or ""),
                 "is_admin": str(r.get("role")) == "admin",
                 "data_rev": max(int(r.get("data_rev") or 1), 1),
-                "created_at": r.get("created_at"),
+                "created_at": _dt(r.get("created_at")),
             }
         )
     return out, warns
@@ -146,8 +161,14 @@ def map_progress(rows: list[dict]) -> tuple[dict[int, list[dict]], list[str]]:
     return out, warns
 
 
-def map_plan(rows: list[dict]) -> tuple[dict[int, dict], list[str]]:
-    """user_id → plans 行（length + days_done）。exam='ket' 跳过。"""
+def map_plan(rows: list[dict], plan_days: int = 0) -> tuple[dict[int, dict], list[str]]:
+    """user_id → plans 行（length + days_done）。
+
+    旧站计划天数是代码里写死的 `PLAN_DAYS = 30`（js/app.js），库里只存已经动过的那些天，
+    所以 CLI 传 plan_days=30 兜底，否则「做完 23 天」会被当成「23 天计划已全部完成」。
+    plan_days=0 时按最大天数推断（纯函数默认，单测用）。
+    阅读计划是 v2 才有的，旧库没有对应数据，reading_length 保持 0。
+    """
     out: dict[int, dict] = {}
     warns: list[str] = []
     by_user: dict[int, dict[int, list[dict]]] = {}
@@ -159,7 +180,7 @@ def map_plan(rows: list[dict]) -> tuple[dict[int, dict], list[str]]:
             continue
         by_user.setdefault(uid, {}).setdefault(int(r["day"]), []).append(r)
     for uid, days in by_user.items():
-        length = max(days)
+        length = max(max(days), plan_days) if plan_days else max(days)
         done = sorted(d for d, rs in days.items() if any(str(x.get("state")) == "done" for x in rs))
         out[uid] = {"length": length, "days_done": done}
     return out, warns
@@ -195,7 +216,7 @@ def map_speak_logs(rows: list[dict]) -> dict[int, list[dict]]:
                 "score": int(r.get("score") or 0),
                 "issues": json.dumps(norm(issues if isinstance(issues, list) else []), ensure_ascii=False),
                 "transcript": json.dumps([it for it in transcript if isinstance(it, dict)] if isinstance(transcript, list) else [], ensure_ascii=False),
-                "created_at": r.get("created_at"),
+                "created_at": _dt(r.get("created_at")),
             }
         )
     return out
@@ -238,12 +259,18 @@ def fetch_old(mysql_url: str) -> dict[str, list[dict]]:
     return tables
 
 
+def load_json_dump(path: str) -> dict[str, list[dict]]:
+    """读 PHP 导出的 JSON 存档（旧库在内网、本机连不上时的推荐方式）。"""
+    doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    return {t: doc.get(t, []) for t in _OLD_TABLES}
+
+
 # ---------- 写入新库 ----------
 
-def build_mapped(old: dict[str, list[dict]]) -> tuple[dict, list[str]]:
+def build_mapped(old: dict[str, list[dict]], plan_days: int = 0) -> tuple[dict, list[str]]:
     users, warns = map_users(old["pet_users"])
     progress, pw = map_progress(old["pet_progress"])
-    plans, plw = map_plan(old["pet_plan"])
+    plans, plw = map_plan(old["pet_plan"], plan_days)
     warns += pw + plw
     return {
         "users": users,
@@ -294,6 +321,7 @@ def write_new(mapped: dict) -> dict[str, int]:
             continue
         row = User(
             username=u["username"], password_hash=u["password_hash"],
+            display_name=u.get("display_name") or u["username"],
             perms=u["perms"], is_admin=u["is_admin"], data_rev=u["data_rev"],
         )
         if u.get("created_at"):
@@ -376,19 +404,24 @@ def write_new(mapped: dict) -> dict[str, int]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="旧站 MySQL → pet-v2 SQLite 数据迁移")
-    ap.add_argument("--mysql", required=True, help="旧库 SQLAlchemy URL（mysql+pymysql://…）")
+    ap.add_argument("--mysql", default="", help="旧库 SQLAlchemy URL（mysql+pymysql://…）")
+    ap.add_argument("--json", default="", help="改用 PHP 导出的 JSON 存档（与 --mysql 二选一）")
     ap.add_argument("--sqlite", default="", help="新库 SQLite 文件路径（默认 PET_DATABASE_URL / backend/data/pet.db）")
+    ap.add_argument("--plan-days", type=int, default=30,
+                    help="旧站计划天数（旧版 js/app.js 里 PLAN_DAYS 写死 30），默认 30")
     ap.add_argument("--execute", action="store_true", help="实际写库（默认 dry-run）")
     args = ap.parse_args()
 
+    if not args.mysql and not args.json:
+        ap.error("必须给 --mysql 或 --json 之一")
     if args.sqlite:
         _rebind_engine(args.sqlite)
 
     from app.db import SessionLocal  # noqa: F401  _rebind 后再取
 
-    old = fetch_old(args.mysql)
+    old = load_json_dump(args.json) if args.json else fetch_old(args.mysql)
     print(f"旧库行数：{ {k: len(v) for k, v in old.items()} }")
-    mapped, warns = build_mapped(old)
+    mapped, warns = build_mapped(old, args.plan_days)
     for w in warns:
         print(f"[warn] {w}")
 
@@ -399,6 +432,8 @@ def main() -> None:
     print(f"mistakes 条数: {sum(len(v) for v in mapped['mistakes'].values())}")
     print(f"progress 行: {sum(len(v) for v in mapped['progress'].values())}")
     print(f"plans 用户: {len(mapped['plans'])}")
+    for uid, p in mapped["plans"].items():
+        print(f"   user#{uid}: {p['length']} 天计划，已完成 {len(p['days_done'])} 天")
     print(f"speak_logs 条: {sum(len(v) for v in mapped['speak_logs'].values())}")
     print(f"speak_days 天: {sum(len(v) for v in mapped['speak_days'].values())}")
 

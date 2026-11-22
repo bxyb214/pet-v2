@@ -16,23 +16,23 @@ describe("splitPlan", () => {
   it("30 天切分：第 1 天 23+16+8+10 → 4 天后必默空", () => {
     const plan = splitPlan(banks, 30);
     expect(plan.length).toBe(30);
-    expect(plan[0].bimo.length).toBe(1); // ceil(23/30)=1
-    expect(plan[0].gaopin.length).toBe(1);
-    expect(plan[0].guding.length).toBe(1);
-    expect(plan[0].tongyi.length).toBe(1);
+    expect(plan[0].banks.bimo.length).toBe(1); // ceil(23/30)=1
+    expect(plan[0].banks.gaopin.length).toBe(1);
+    expect(plan[0].banks.guding.length).toBe(1);
+    expect(plan[0].banks.tongyi.length).toBe(1);
     expect(plan[0].total).toBe(4);
     // 必默 23 词每天 1 个覆盖前 23 天，第 24 天起为空
-    expect(plan[22].bimo.length).toBe(1);
-    expect(plan[23].bimo.length).toBe(0);
+    expect(plan[22].banks.bimo.length).toBe(1);
+    expect(plan[23].banks.bimo.length).toBe(0);
   });
 
   it("10 天切分：末天吸收余量", () => {
     const plan = splitPlan(banks, 10);
     // 必默 ceil(23/10)=3 → 7 天×3 + 末块 2 → 第 8 天 2 个，第 9 天起 0
-    const flat = plan.flatMap((d) => d.bimo).map((w) => w.id);
+    const flat = plan.flatMap((d) => d.banks.bimo).map((w) => w.id);
     expect(flat.length).toBe(23);
-    expect(plan[7].bimo.length).toBe(2);
-    expect(plan[8].bimo.length).toBe(0);
+    expect(plan[7].banks.bimo.length).toBe(2);
+    expect(plan[8].banks.bimo.length).toBe(0);
   });
 
   it("任意天数（45）不抛错且总天数正确", () => {
@@ -56,7 +56,7 @@ describe("validatePlan 不变量（不重不漏、顺序不变）", () => {
 
   it("篡改后校验失败", () => {
     const plan = splitPlan(banks, 3);
-    plan[0].bimo.pop();
+    plan[0].banks.bimo.pop();
     expect(validatePlan(banks, plan)).toBe(false);
   });
 });

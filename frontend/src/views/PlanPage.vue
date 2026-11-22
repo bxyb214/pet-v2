@@ -11,7 +11,7 @@
       <!-- 空状态：与创建表单分开，只给一个主动作 -->
       <div v-if="!hasPlan && !creating && !previewDays.length" class="empty">
         <p class="empty-t">还没有词汇计划</p>
-        <p class="empty-s">按天数把四个词库不重不漏切好，每天学一部分，完成后自动打勾</p>
+        <p class="empty-s">按天数把词库不重不漏切好，每天学一部分，完成后自动打勾</p>
         <n-button type="primary" size="large" @click="creating = true">创建词汇计划</n-button>
       </div>
 
@@ -41,13 +41,13 @@
           <n-button v-if="!hasPlan" quaternary @click="cancelCreate">取消</n-button>
         </div>
         <p v-if="previewDays.length" class="muted">
-          共 {{ previewDays.length }} 天，每天约 {{ avgTotal }} 词（必默 / 高频 / 固搭 / 同义）。
+          共 {{ previewDays.length }} 天，每天约 {{ avgTotal }} 词（{{ bankNames }}）。
           <n-tag v-if="!validateOk" type="error" size="small">切分校验未通过，请重试</n-tag>
         </p>
         <div v-if="previewDays.length" class="grid">
           <div v-for="d in previewDays.slice(0, 8)" :key="d.day" class="daycard">
             <p class="daynum">第 {{ d.day }} 天</p>
-            <p class="muted">{{ d.total }} 词 · {{ d.bimo.length }}+{{ d.gaopin.length }}+{{ d.guding.length }}+{{ d.tongyi.length }}</p>
+            <p class="muted">{{ d.total }} 词 · {{ dayBreakdown(d) }}</p>
           </div>
         </div>
       </template>
@@ -60,17 +60,37 @@ import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { NButton, NCard, NInputNumber, NPopconfirm, NProgress, NTag } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
-import { loadBanks, EMPTY_BANKS } from "../core/banks";
+import { availableBankKeys, loadBanks, EMPTY_BANKS, type BankMeta } from "../core/banks";
+import { useAuthStore } from "../stores/auth";
 import { splitPlan, validatePlan, type PlanDay, type WordBanks } from "../core/plan";
 
 const learning = useLearningStore();
 const router = useRouter();
 const days = ref(30);
 const banks = ref<WordBanks>(EMPTY_BANKS);
+const bankMeta = ref<Record<string, BankMeta>>({});
 const previewDays = ref<PlanDay[]>([]);
 const validateOk = ref(false);
 const creating = ref(false);
-void loadBanks().then((r) => (banks.value = r.banks));
+const auth = useAuthStore();
+
+/** 当前级别下要参与计划的词库（PET 四库 / KET 五库），顺序即切分顺序 */
+const activeKeys = ref<string[]>([]);
+void loadBanks().then((r) => {
+  banks.value = r.banks;
+  bankMeta.value = r.bankMeta;
+  activeKeys.value = availableBankKeys(r.banks, r.bankMeta, auth.exam);
+});
+
+const bankNames = computed(() =>
+  activeKeys.value.map((k) => bankMeta.value[k]?.short || k).join(" / "),
+);
+function dayBreakdown(d: PlanDay): string {
+  return activeKeys.value
+    .map((k) => (d.banks[k]?.length ?? 0))
+    .filter((n) => n > 0)
+    .join("+");
+}
 
 const hasPlan = computed(() => learning.data.plan.length > 0);
 const validDays = computed(() => Number.isInteger(days.value) && days.value >= 1 && days.value <= 180);
@@ -85,7 +105,7 @@ const avgTotal = computed(() =>
 );
 
 function preview(): void {
-  const plan = splitPlan(banks.value, days.value);
+  const plan = splitPlan(banks.value, days.value, activeKeys.value);
   previewDays.value = plan;
   validateOk.value = validatePlan(banks.value, plan);
 }

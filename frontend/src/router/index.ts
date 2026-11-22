@@ -56,6 +56,11 @@ export const router = createRouter({
       path: "/",
       component: () => import("../layouts/AppLayout.vue"),
       children: [
+        {
+          path: "settings",
+          component: () => import("../views/SettingsPage.vue"),
+          meta: { crumbs: ["设置"], narrow: true },
+        },
         // ---------- 英语 · 单词 ----------
         {
           path: "english/words/browse",
