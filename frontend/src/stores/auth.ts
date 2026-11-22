@@ -34,8 +34,8 @@ export const useAuthStore = defineStore("auth", {
       this.perms = resp.perms;
       this.isAdmin = resp.is_admin;
       this.exam = resp.exam || "pet";
-      // 登录后建立同步引擎（首次 pull 合并 + 45s 静默拉取）
-      await useLearningStore().connect();
+      // 登录后建立同步引擎（首次 pull 合并 + 45s 静默拉取），本地快照按用户隔离
+      await useLearningStore().connect(resp.username);
     },
     logout(): void {
       useLearningStore().disconnect();
@@ -52,17 +52,23 @@ export const useAuthStore = defineStore("auth", {
     },
     /** 刷新页面后恢复登录态（perms 决定口语权限弹框，必须还原） */
     async restore(): Promise<void> {
-      if (!getToken() || this.username) return;
-      try {
-        const me = await api<{ username: string; display_name: string; perms: string; is_admin: boolean; exam: string }>("/auth/me");
-        this.username = me.username;
-        this.displayName = me.display_name;
-        this.perms = me.perms;
-        this.isAdmin = me.is_admin;
-        this.exam = me.exam || "pet";
-      } catch {
-        // token 失效等：保持未登录态，路由守卫会跳登录页
+      if (!getToken()) return;
+      if (!this.username) {
+        try {
+          const me = await api<{ username: string; display_name: string; perms: string; is_admin: boolean; exam: string }>("/auth/me");
+          this.username = me.username;
+          this.displayName = me.display_name;
+          this.perms = me.perms;
+          this.isAdmin = me.is_admin;
+          this.exam = me.exam || "pet";
+        } catch {
+          // token 失效等：保持未登录态，路由守卫会跳登录页
+          return;
+        }
       }
+      // 刷新后同样要接上同步引擎，否则本次会话只写本地、永远不推服务端。
+      // 不 await：先渲染本地快照，pull 回来再合并，避免弱网时白屏等待。
+      void useLearningStore().connect(this.username);
     },
   },
 });

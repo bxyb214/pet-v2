@@ -42,7 +42,7 @@ import { computed } from "vue";
 import { NIcon } from "naive-ui";
 import {
   LanguageOutline, BookOutline, CalculatorOutline,
-  ReaderOutline, LibraryOutline, HeadsetOutline, MicOutline,
+  ReaderOutline, LibraryOutline, HeadsetOutline, MicOutline, CreateOutline,
 } from "@vicons/ionicons5";
 import type { Component } from "vue";
 import { useAuthStore } from "../stores/auth";
@@ -59,6 +59,7 @@ const SUBJECTS: Subject[] = [
 const EN_MODULES: Module[] = [
   { key: "words", name: "单词", icon: ReaderOutline, first: "/english/words/browse" },
   { key: "reading", name: "阅读", icon: LibraryOutline, first: "/english/reading/home" },
+  { key: "grammar", name: "语法", icon: CreateOutline, first: "/english/grammar" },
   { key: "listening", name: "听力", icon: HeadsetOutline, first: "/english/listening/home" },
   { key: "speak", name: "口语", icon: MicOutline, first: "/english/speak" },
 ];

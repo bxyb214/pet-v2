@@ -1,7 +1,7 @@
 <template>
   <main class="page">
     <h1>阅读精读</h1>
-    <p class="sub" v-if="data">{{ data.meta.sentences }} 句 · {{ data.meta.gq }} 道语法题 · 考点覆盖 {{ data.meta.points_covered }}/42</p>
+    <p class="sub" v-if="data">{{ data.meta.sentences }} 句 · {{ totalTests }} 套 · 按 Part 精读，或整套测</p>
 
     <!-- 错题复习入口 -->
     <n-alert v-if="dueCount" type="warning" class="review-card" :bordered="false">
@@ -13,42 +13,6 @@
 
     <!-- 阅读计划（从单词计划页迁来，属于阅读板块） -->
     <ReadingPlanCard class="plan-card" />
-
-    <!-- 语法专项：10 天手风琴，默认只展开一天 -->
-    <section v-if="data" class="card">
-      <div class="card-h">
-        <div>
-          <p class="title">语法专项 · 按考点</p>
-          <p class="desc">《{{ data.grammar.book }}》 · 10 天 · {{ data.meta.points_covered }} 个考点</p>
-        </div>
-        <n-button size="small" quaternary @click="toggleAllDays">{{ allDaysOpen ? "全部收起" : "全部展开" }}</n-button>
-      </div>
-      <div class="gdays">
-        <div v-for="d in data.grammar.days" :key="d.day" class="gday">
-          <button class="gday-h" :aria-expanded="isDayOpen(d.day)" @click="toggleDay(d.day)">
-            <svg class="chev" :class="{ open: isDayOpen(d.day) }" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
-            <b class="gday-n">DAY {{ d.day }}</b>
-            <span class="gday-name">{{ d.name }}</span>
-            <span class="gday-cnt">{{ d.points.length }} 个考点</span>
-            <span class="gday-act">{{ isDayOpen(d.day) ? "收起" : "展开" }}</span>
-          </button>
-          <div class="gbody" :class="{ open: isDayOpen(d.day) }">
-            <div class="ginner">
-              <div class="chips">
-                <button
-                  v-for="p in d.points"
-                  :key="p.c"
-                  class="chip"
-                  :disabled="!(gIndex[p.c]?.length)"
-                  :title="gIndex[p.c]?.length ? `${p.name}（${gIndex[p.c].length} 题）` : '暂无题'"
-                  @click="startGrammar(p.c, p.name)"
-                ><b>{{ p.c }}</b>{{ p.name }}<i v-if="gIndex[p.c]?.length">{{ gIndex[p.c].length }}</i></button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <!-- 教材分组 -->
     <section v-for="b in bookGroups" :key="b.id" class="fold">
@@ -96,7 +60,7 @@ import { NAlert, NButton } from "naive-ui";
 import ReadingPlanCard from "../components/ReadingPlanCard.vue";
 import { useLearningStore } from "../stores/learning";
 import {
-  grammarIndex, loadReading, testSentences, withCustomSentences,
+  loadReading, testSentences, withCustomSentences,
   type ReadingData, type RTest,
 } from "../core/reading";
 
@@ -104,32 +68,6 @@ const router = useRouter();
 const learning = useLearningStore();
 const data = ref<ReadingData | null>(null);
 const openMap = reactive<Record<string, boolean>>({});
-/** 语法专项手风琴：只展开一天，默认上次看的那天 */
-const DAY_KEY = "pet_grammar_day";
-const lastDay = Number(localStorage.getItem(DAY_KEY) ?? "1");
-const openDays = reactive<Record<number, boolean>>({ [Number.isFinite(lastDay) && lastDay > 0 ? lastDay : 1]: true });
-
-function isDayOpen(day: number): boolean {
-  return !!openDays[day];
-}
-function toggleDay(day: number): void {
-  const willOpen = !openDays[day];
-  for (const k of Object.keys(openDays)) openDays[Number(k)] = false;
-  if (willOpen) {
-    openDays[day] = true;
-    localStorage.setItem(DAY_KEY, String(day));
-  }
-}
-const allDaysOpen = computed(() => {
-  const days = data.value?.grammar.days ?? [];
-  return days.length > 0 && days.every((d) => openDays[d.day]);
-});
-function toggleAllDays(): void {
-  const days = data.value?.grammar.days ?? [];
-  const next = !allDaysOpen.value;
-  for (const d of days) openDays[d.day] = next;
-}
-
 onMounted(async () => {
   const base = await loadReading();
   data.value = withCustomSentences(base, learning.data.custom_sentences);
@@ -148,7 +86,7 @@ function startReview(): void {
   void router.push({ path: "/english/reading/quiz/0", query: { review: "1" } });
 }
 
-const gIndex = computed(() => grammarIndex(data.value?.tests ?? []));
+const totalTests = computed(() => data.value?.tests.length ?? 0);
 
 const bookGroups = computed(() => {
   const d = data.value;
@@ -177,14 +115,11 @@ function startQuiz(testNo: number, part: number): void {
   void router.push({ path: `/english/reading/quiz/${testNo}`, query: part ? { part: String(part) } : {} });
 }
 
-function startGrammar(c: number, name: string): void {
-  void router.push({ path: `/english/reading/quiz/0`, query: { gc: String(c), label: name } });
-}
 </script>
 
 <style scoped>
 .page { width: 100%; }
-h1 { font-size: var(--fs-display); color: var(--c-primary-strong); margin-bottom: 4px; }
+h1 { font-size: var(--fs-display); font-weight: 800; letter-spacing: .2px; color: var(--c-text); margin: 0 0 4px; }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 16px; }
 .review-card { margin-bottom: 14px; }
 .review-card .card-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -194,26 +129,6 @@ h1 { font-size: var(--fs-display); color: var(--c-primary-strong); margin-bottom
 .muted { color: var(--c-text-2); font-weight: 400; font-size: var(--fs-sub); }
 .desc { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0; }
 .btn { background: var(--c-primary); color: #fff; border: 0; border-radius: var(--r-btn); padding: 10px 18px; font-size: var(--fs-body); min-height: 44px; cursor: pointer; white-space: nowrap; }
-.gdays { display: flex; flex-direction: column; }
-.gday + .gday { border-top: 1px solid var(--c-line); }
-.gday-h {
-  display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 4px; background: none;
-  border: 0; cursor: pointer; text-align: left; min-height: 48px; font: inherit;
-}
-.gday-h:hover { background: var(--c-mint-bg, #f2faf5); border-radius: 8px; }
-.gday-n { font-size: 13.5px; color: var(--c-primary-strong); letter-spacing: .5px; flex: none; width: 62px; }
-.gday-name { font-size: 15px; font-weight: 600; color: var(--c-text); flex: 1; min-width: 0; }
-.gday-cnt { font-size: 13px; color: var(--c-text-2); white-space: nowrap; }
-.gday-act { font-size: 13px; color: var(--c-primary-strong); background: var(--c-primary-soft); padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
-.gbody { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .24s ease; }
-.gbody.open { grid-template-rows: 1fr; }
-.ginner { overflow: hidden; min-height: 0; }
-.gbody.open .ginner { padding: 2px 0 12px 72px; }
-@media (max-width: 767px) {
-  .gday-name { font-size: 14px; }
-  .gday-cnt { display: none; }
-  .gbody.open .ginner { padding-left: 0; }
-}
 
 /* 悬浮「加句」入口（加句是操作，不占页签） */
 .fab {
@@ -228,11 +143,6 @@ h1 { font-size: var(--fs-display); color: var(--c-primary-strong); margin-bottom
   .fab { right: 14px; bottom: 16px; padding: 10px 14px; font-size: 14px; }
   .page { padding-bottom: 56px; }
 }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { background: var(--c-primary-soft); color: var(--c-primary-strong); border: 0; border-radius: var(--r-pill); padding: 7px 12px; font-size: var(--fs-sub); cursor: pointer; }
-.chip b { margin-right: 4px; }
-.chip i { font-style: normal; margin-left: 4px; opacity: 0.7; }
-.chip:disabled { opacity: 0.35; cursor: not-allowed; }
 .plan-card { margin-bottom: 14px; }
 .fold { border: 1px solid var(--c-line); border-radius: var(--r-card); margin-bottom: 14px; background: var(--c-card); overflow: hidden; }
 .fold-h { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; background: none; border: 0; cursor: pointer; text-align: left; min-height: 60px; }

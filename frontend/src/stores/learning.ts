@@ -1,22 +1,43 @@
 /**
  * 学习数据 store：本地持久化 + SyncEngine 接线。
- * 持久化键 pet_sync_v2（单活跃用户，登出清空 rev 基线）。
+ *
+ * 持久化键按用户隔离：`pet_sync_v2::<用户名>`。
+ * 早先是一个全局单键，换账号登录时会把上一个人的数据 merge 进来并推到自己名下
+ * （admin 看到 felix 的 30 天计划就是这么来的），所以必须一人一份。
  */
 import { defineStore } from "pinia";
 import { api } from "../core/api";
 import type { SyncData } from "../core/merge";
 import { createSyncEngine, EMPTY_SYNC_DATA, type SyncEngine } from "../core/sync";
 
-const LS_KEY = "pet_sync_v2";
+const LS_PREFIX = "pet_sync_v2::";
+/** 旧版全局键：无法判断归属，只在首次见到时归档，不自动继承 */
+const LS_LEGACY = "pet_sync_v2";
+const LS_LEGACY_ARCHIVED = "pet_sync_v2::__legacy__";
 
 interface Persisted {
   rev: number;
   data: SyncData;
 }
 
-function loadPersisted(): Persisted {
+function keyOf(user: string): string {
+  return LS_PREFIX + user;
+}
+
+/** 老键（不分用户）不能猜归属，改名归档后不再读取 */
+function archiveLegacyKey(): void {
+  const legacy = localStorage.getItem(LS_LEGACY);
+  if (!legacy) return;
+  if (!localStorage.getItem(LS_LEGACY_ARCHIVED)) {
+    localStorage.setItem(LS_LEGACY_ARCHIVED, legacy);
+  }
+  localStorage.removeItem(LS_LEGACY);
+}
+
+function loadPersisted(user: string): Persisted {
+  if (!user) return { rev: 0, data: structuredClone(EMPTY_SYNC_DATA) };
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(keyOf(user));
     if (raw) return JSON.parse(raw) as Persisted;
   } catch {
     /* 损坏则丢弃 */
@@ -24,21 +45,24 @@ function loadPersisted(): Persisted {
   return { rev: 0, data: structuredClone(EMPTY_SYNC_DATA) };
 }
 
-function savePersisted(p: Persisted): void {
-  localStorage.setItem(LS_KEY, JSON.stringify(p));
+function savePersisted(user: string, p: Persisted): void {
+  if (!user) return; // 没有归属就不落盘，避免写到别人的键上
+  localStorage.setItem(keyOf(user), JSON.stringify(p));
 }
 
+/** 同一时刻只允许一次连接（restore 与 login 可能并发） */
+let inflight: Promise<void> | null = null;
+
 export const useLearningStore = defineStore("learning", {
-  state: () => {
-    const p = loadPersisted();
-    return {
-      data: p.data,
-      rev: p.rev,
-      status: "idle" as "idle" | "synced" | "offline" | "error",
-      localOnly: localStorage.getItem("pet_local_only") === "true",
-      engine: null as SyncEngine | null,
-    };
-  },
+  state: () => ({
+    /** 本地快照归属的用户名；空串表示尚未登录，此时不读写本地 */
+    owner: "",
+    data: structuredClone(EMPTY_SYNC_DATA) as SyncData,
+    rev: 0,
+    status: "idle" as "idle" | "synced" | "offline" | "error",
+    localOnly: localStorage.getItem("pet_local_only") === "true",
+    engine: null as SyncEngine | null,
+  }),
   getters: {
     dueMistakes(state): string[] {
       const today = new Date().toISOString().slice(0, 10);
@@ -49,14 +73,35 @@ export const useLearningStore = defineStore("learning", {
   },
   actions: {
     _persist(): void {
-      savePersisted({ rev: this.rev, data: this.data });
+      savePersisted(this.owner, { rev: this.rev, data: this.data });
     },
-    /** 登录成功后调用：建立引擎并做首次 pull 合并 */
-    async connect(): Promise<void> {
-      if (this.localOnly) return;
-      const persisted = loadPersisted();
+    /**
+     * 登录/刷新恢复后调用：切到该用户自己的本地快照，建立引擎并首次 pull 合并。
+     * 幂等 + 并发安全（restore 与 login 可能同时触发）。
+     */
+    async connect(username: string): Promise<void> {
+      if (this.localOnly || !username) return;
+      if (this.engine && this.owner === username) return;
+      if (inflight) return inflight;
+      inflight = this._doConnect(username).finally(() => {
+        inflight = null;
+      });
+      return inflight;
+    },
+    /** 只切换本地快照（不建引擎），登录前与单测都用它 */
+    hydrate(username: string): void {
+      if (this.owner && this.owner !== username) this._persist(); // 换人前先落盘上一位
+      archiveLegacyKey();
+      this.owner = username;
+      const persisted = loadPersisted(username);
       this.rev = persisted.rev;
       this.data = persisted.data;
+    },
+    async _doConnect(username: string): Promise<void> {
+      this.hydrate(username);
+
+      this.engine?.stopPolling();
+      this.engine?.reset();
       this.engine = createSyncEngine({
         pull: () => api<{ rev: number; data: SyncData }>("/sync/pull"),
         push: (rev, data) =>
@@ -80,11 +125,15 @@ export const useLearningStore = defineStore("learning", {
       await this.engine.init();
       this.engine.startPolling();
     },
-    /** 登出：停轮询、清基线 */
+    /** 登出：落盘本人快照、停引擎、清内存，避免下一个账号读到别人的数据 */
     disconnect(): void {
+      if (this.owner) this._persist();
       this.engine?.stopPolling();
       this.engine?.reset();
       this.engine = null;
+      this.owner = "";
+      this.rev = 0;
+      this.data = structuredClone(EMPTY_SYNC_DATA);
       this.status = "idle";
     },
     /** 任何本地数据修改后调用 */

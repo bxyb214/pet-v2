@@ -6,7 +6,7 @@ declare module "vue-router" {
     /** 所属学科（布局侧边栏高亮） */
     subject?: "english" | "chinese" | "math";
     /** 所属二级板块 */
-    module?: "words" | "reading" | "listening" | "speak";
+    module?: "words" | "reading" | "grammar" | "listening" | "speak";
     /** 面包屑 */
     crumbs?: string[];
     /** 三级页签条（内容区顶部） */
@@ -107,6 +107,12 @@ export const router = createRouter({
           path: "english/reading/mistakes",
           component: () => import("../views/ReadingMistakes.vue"),
           meta: { subject: "english", module: "reading", crumbs: ["英语", "阅读", "错题"], tabs: READING_TABS },
+        },
+        // ---------- 英语 · 语法 ----------
+        {
+          path: "english/grammar",
+          component: () => import("../views/GrammarHome.vue"),
+          meta: { subject: "english", module: "grammar", crumbs: ["英语", "语法"] },
         },
         // ---------- 英语 · 听力 ----------
         {

@@ -36,13 +36,36 @@ describe("learning store（无网络，纯本地逻辑）", () => {
     expect(s.data.plan).toEqual({ length: 0, days_done: [], reading_length: 0, reading_days_done: [] });
   });
 
-  it("本地持久化：刷新后数据仍在", () => {
+  it("本地持久化：同一用户刷新后数据仍在", () => {
     let s = useLearningStore();
+    s.hydrate("felix");
     s.recordMastery("w1", ["spell"]);
     // 模拟重新加载
     setActivePinia(createPinia());
     s = useLearningStore();
+    s.hydrate("felix");
     expect(s.data.mastery[0]).toEqual({ word_id: "w1", mastered_dims: ["spell"] });
+  });
+
+  it("本地快照按用户隔离：换账号读不到上一个人的数据（admin 曾看到 felix 计划）", () => {
+    let s = useLearningStore();
+    s.hydrate("felix");
+    s.setPlan(30);
+    s.markPlanDayDone(1);
+    s.recordMastery("w1", ["spell"]);
+
+    setActivePinia(createPinia());
+    s = useLearningStore();
+    s.hydrate("admin");
+    expect(s.data.plan.length).toBe(0);
+    expect(s.data.mastery).toHaveLength(0);
+
+    // 换回 felix 仍能看到自己的
+    setActivePinia(createPinia());
+    s = useLearningStore();
+    s.hydrate("felix");
+    expect(s.data.plan.length).toBe(30);
+    expect(s.data.plan.days_done).toEqual(["1"]);
   });
 
   it("dueMistakes：到期错题筛选", () => {

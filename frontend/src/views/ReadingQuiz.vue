@@ -24,7 +24,15 @@
         <p class="label">{{ label }}</p>
         <span class="pos tnum">{{ idx + 1 }} / {{ items.length }}</span>
       </div>
-      <div class="bar"><i :style="{ width: ((idx + 1) / items.length) * 100 + '%' }"></i></div>
+      <!-- 一题一段：对=实绿、错=暖橙、正在做=流动绿 -->
+      <div class="segs" aria-hidden="true">
+        <i
+          v-for="(it, i) in items"
+          :key="i"
+          class="seg"
+          :class="{ ok: results[i] === true, bad: results[i] === false, now: i === idx && results[i] == null }"
+        ></i>
+      </div>
 
       <section class="card">
         <p class="dimlabel">{{ TYPE_LABEL[q.type] }}</p>
@@ -112,6 +120,8 @@ const answered = ref(false);
 const lastCorrect = ref(false);
 /** 选了第几个选项（用于答错时标记） */
 const picked = ref(-1);
+/** 每题结果：true 对 / false 错 / null 未答——驱动顶部分段条 */
+const results = ref<Array<boolean | null>>([]);
 const finished = ref(false);
 const correct = ref(0);
 const rate = computed(() =>
@@ -171,6 +181,7 @@ onMounted(async () => {
     const rev = reviewItems(sentences, allSentences);
     const rest = buildQuizItems(sentences, allSentences);
     items.value = [...rev, ...rest];
+    results.value = new Array(items.value.length).fill(null);
     label.value = `${t.title}${partQ ? " · Part " + partQ : " · 全套"}${rev.length ? `（含 ${rev.length} 道错题）` : ""}`;
     progressKey.value = `read:${t.book || "t2"}:${t.no}:${partQ || "all"}`;
     if (partQ) partRef.value = { book: t.book || "t2", testNo: t.no, part: partQ };
@@ -198,6 +209,7 @@ function submit(i: number): void {
   answered.value = true;
   picked.value = i;
   lastCorrect.value = q.value.options[i].correct;
+  results.value[idx.value] = lastCorrect.value;
   const dim = dimOf(q.value);
   if (lastCorrect.value) {
     correct.value += 1;
@@ -247,6 +259,7 @@ function restart(): void {
   correct.value = 0;
   answered.value = false;
   picked.value = -1;
+  results.value = [];
   finished.value = false;
 }
 
@@ -260,8 +273,18 @@ function back(): void {
 .topbar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .label { flex: 1; margin: 0; color: var(--c-text-2); font-size: var(--fs-sub); }
 .pos { color: var(--c-text-2); font-size: var(--fs-sub); }
-.bar { height: 6px; background: var(--c-line); border-radius: 3px; margin-bottom: 16px; overflow: hidden; }
-.bar i { display: block; height: 100%; background: var(--c-primary); transition: width var(--dur-2); }
+.segs { display: flex; gap: 4px; margin-bottom: 16px; }
+.seg {
+  flex: 1 1 0; height: 5px; border-radius: 999px; background: var(--c-line);
+  transition: background var(--dur-2) var(--ease-out);
+}
+.seg.ok { background: var(--c-primary); }
+.seg.bad { background: #e5a13c; }
+.seg.now { background: linear-gradient(90deg, #4ade80 0%, #86efac 50%, #4ade80 100%); background-size: 220% 100%; animation: flow 1.8s linear infinite; }
+@keyframes flow {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
 .card {
   background: var(--c-card);
   border: 1px solid var(--c-line);
