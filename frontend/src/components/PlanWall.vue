@@ -130,8 +130,8 @@ const cells = computed<Cell[]>(() => {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 .cell.done .n {
-  position: absolute; top: 5px; left: 7px;
-  font-size: 11px; font-weight: 700; color: rgba(255, 255, 255, 0.85);
+  position: absolute; top: 6px; left: 8px;
+  font-size: 11.5px; font-weight: 700; color: rgba(255, 255, 255, 0.9);
 }
 .cell.today {
   background: var(--c-primary-soft);

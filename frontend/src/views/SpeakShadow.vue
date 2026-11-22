@@ -261,9 +261,9 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .say { color: var(--c-text); margin-top: 4px; }
 .heard { color: var(--c-text-2); font-size: var(--fs-sub); margin-top: 6px; }
 .words { margin-top: 10px; }
-.w { display: inline-block; margin: 0 6px 6px 0; padding: 3px 8px; border-radius: var(--r-sm); background: var(--c-bg-mint); color: var(--c-primary); font-weight: 600; }
+.w { display: inline-block; margin: 0 6px 6px 0; padding: 3px 8px; border-radius: var(--r-sm); background: var(--c-mint-bg); color: var(--c-primary); font-weight: 600; }
 .w.bad { background: var(--c-danger-soft); color: var(--c-danger); text-decoration: line-through; }
 .tips { color: var(--c-text-2); font-size: var(--fs-sub); margin: 8px 0 0; padding-left: 18px; }
 .res-actions { margin-top: 12px; display: flex; gap: 8px; }
-.chip { background: var(--c-bg-mint); border: 1px solid var(--c-border); border-radius: 999px; padding: 5px 12px; cursor: pointer; color: var(--c-text-2); }
+.chip { background: var(--c-mint-bg); border: 1px solid var(--c-line); border-radius: 999px; padding: 5px 12px; cursor: pointer; color: var(--c-text-2); }
 </style>

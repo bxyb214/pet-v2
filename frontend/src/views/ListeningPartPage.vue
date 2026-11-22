@@ -217,7 +217,7 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .player { padding: 14px; margin-bottom: 14px; }
 .p-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .ptime { color: var(--c-text-2); font-size: var(--fs-sub); margin-left: auto; font-variant-numeric: tabular-nums; }
-.p-bar { height: 8px; background: var(--c-bg-mint); border-radius: 4px; cursor: pointer; position: relative; }
+.p-bar { height: 8px; background: var(--c-mint-bg); border-radius: 4px; cursor: pointer; position: relative; }
 .p-fill { height: 100%; background: var(--c-primary); border-radius: 4px; }
 
 .card.sub { max-height: 260px; overflow-y: auto; padding: 10px 14px; margin-bottom: 14px; }
@@ -242,17 +242,17 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .qstem { color: var(--c-text); flex: 1; }
 .qimg { max-width: 100%; border-radius: var(--r-sm); margin-bottom: 10px; }
 .fill-input {
-  width: 100%; min-height: 44px; border: 1px solid var(--c-border); border-radius: var(--r-sm);
+  width: 100%; min-height: 44px; border: 1px solid var(--c-line); border-radius: var(--r-sm);
   padding: 8px 12px; font-size: var(--fs-body);
 }
 .opt {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  background: var(--c-bg-mint); border: 1px solid var(--c-border); border-radius: var(--r-sm);
+  background: var(--c-mint-bg); border: 1px solid var(--c-line); border-radius: var(--r-sm);
   padding: 10px 12px; margin-bottom: 6px; cursor: pointer; text-align: left; min-height: 44px;
 }
 .opt.picked { border-color: var(--c-primary); background: var(--c-primary-soft); }
 .opt.correct { border-color: var(--c-primary); background: var(--c-primary-soft); }
-.opt.wrongPick { border-color: var(--c-danger); background: var(--c-danger-soft); }
+.opt.wrongPick { border-color: #e8a13c; background: #fdf6ec; }
 .opt-key { font-weight: 700; color: var(--c-primary); }
 .opt-img { max-height: 120px; border-radius: var(--r-sm); }
 .opt-text { color: var(--c-text); }
@@ -263,7 +263,7 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .result { padding: 12px 20px; font-weight: 700; color: var(--c-text); }
 .result.pass { color: var(--c-primary); }
 .chip {
-  background: var(--c-bg-mint); border: 1px solid var(--c-border); border-radius: 999px;
+  background: var(--c-mint-bg); border: 1px solid var(--c-line); border-radius: 999px;
   padding: 4px 12px; font-size: var(--fs-sub); cursor: pointer; color: var(--c-text-2);
 }
 .chip.on { background: var(--c-primary-soft); color: var(--c-primary); border-color: var(--c-primary); }

@@ -51,6 +51,19 @@ export const themeOverrides: GlobalThemeOverrides = {
     borderRadiusTiny: "8px",
     fontWeight: "600",
     fontWeightStrong: "700",
+    // 填充按钮：白字压在 #16a34a 上只有 3.4:1，降到 #15803d 才够 4.5:1
+    colorPrimary: "#15803d",
+    colorHoverPrimary: "#166534",
+    colorPressedPrimary: "#14532d",
+    colorFocusPrimary: "#166534",
+    borderPrimary: "1px solid #15803d",
+    borderHoverPrimary: "1px solid #166534",
+    borderPressedPrimary: "1px solid #14532d",
+    borderFocusPrimary: "1px solid #166534",
+    textColorPrimary: "#ffffff",
+    textColorHoverPrimary: "#ffffff",
+    textColorPressedPrimary: "#ffffff",
+    textColorFocusPrimary: "#ffffff",
   },
   Tabs: {
     tabFontWeightActive: "700",
@@ -72,6 +85,8 @@ export const themeOverrides: GlobalThemeOverrides = {
   },
   Input: {
     borderRadius: "12px",
+    heightLarge: "46px",
+    heightMedium: "40px",
   },
   Radio: {
     buttonBorderRadius: "10px",

@@ -251,5 +251,5 @@ h1 { font-size: var(--fs-display); color: var(--c-primary-strong); margin-bottom
 .testcard { box-shadow: none; border: 1px solid var(--c-line); }
 .parts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .partbtn { background: var(--c-primary-soft); color: var(--c-primary-strong); border: 0; border-radius: var(--r-pill); padding: 9px 14px; font-size: var(--fs-sub); min-height: 44px; cursor: pointer; }
-.partbtn.quiz { background: var(--c-card); border: 1px solid var(--c-line); color: var(--c-text-1); }
+.partbtn.quiz { background: var(--c-card); border: 1px solid var(--c-line); color: var(--c-text); }
 </style>

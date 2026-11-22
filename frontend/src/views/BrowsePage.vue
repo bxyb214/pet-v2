@@ -372,7 +372,7 @@ async function remove(id: number): Promise<void> {
   .stat .v { font-size: 20px; }
   .stat .l { font-size: 11.5px; }
 }
-.stat { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--c-surface, #fff); border: 1px solid var(--c-line, #e5efe9); border-radius: 16px; box-shadow: var(--shadow-sm); }
+.stat { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--c-surface, #fff); border: 1px solid var(--c-line, #e5efe9); border-radius: var(--r-card); box-shadow: var(--shadow-1); }
 .stat .ico { width: 42px; height: 42px; border-radius: 12px; background: var(--c-primary-soft, #e7f6ec); color: var(--c-primary-strong, #15803d); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .stat .ico.amber { background: #fef3c7; color: #b45309; }
 .stat .v { font-size: 22px; font-weight: 800; }
@@ -386,7 +386,7 @@ async function remove(id: number): Promise<void> {
   .toolbar { flex-wrap: wrap; }
 }
 .cat { border: 1.5px solid var(--c-line, #e5efe9); background: var(--c-surface, #fff); color: var(--c-text-2, #6b7f74); border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
-.cat.active { background: var(--c-primary, #16a34a); border-color: var(--c-primary, #16a34a); color: #fff; }
+.cat.active { background: var(--c-primary-strong, #15803d); border-color: var(--c-primary-strong, #15803d); color: #fff; }
 .cat .cnt { font-size: 12px; opacity: 0.8; margin-left: 4px; }
 
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }

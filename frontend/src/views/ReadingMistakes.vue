@@ -153,6 +153,6 @@ function goHome(): void {
 .cn { flex: 1; min-width: 160px; font-size: 13px; }
 .dims { display: flex; gap: 6px; flex-wrap: wrap; }
 .right { display: flex; gap: 14px; margin-left: auto; }
-.duetxt { color: var(--amber, #d97706); font-weight: 700; }
+.duetxt { color: var(--c-accent); font-weight: 700; }
 .muted { color: var(--c-text-2, #6b7f74); font-size: 13px; }
 </style>

@@ -1,9 +1,33 @@
 <template>
   <div class="page">
     <div class="stats">
-      <div class="card stat"><div class="ico">🔁</div><div><div class="v">{{ rows.length }}</div><div class="l">错题总数</div></div></div>
-      <div class="card stat warn"><div class="ico">⏰</div><div><div class="v">{{ dueRows.length }}</div><div class="l">今天到期</div></div></div>
-      <div class="card stat"><div class="ico">✅</div><div><div class="v">{{ graduated }}</div><div class="l">已划完全维度</div></div></div>
+      <div class="card stat">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 4.5h14v15l-7-4-7 4v-15Z" />
+            <path d="M9 9h6" />
+          </svg>
+        </div>
+        <div><div class="v tnum">{{ rows.length }}</div><div class="l">错题总数</div></div>
+      </div>
+      <div class="card stat warn">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="8.2" />
+            <path d="M12 7.6V12l3 1.8" />
+          </svg>
+        </div>
+        <div><div class="v tnum">{{ dueRows.length }}</div><div class="l">今天到期</div></div>
+      </div>
+      <div class="card stat">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="8.2" />
+            <path d="M8.4 12.3l2.5 2.5 4.7-5" />
+          </svg>
+        </div>
+        <div><div class="v tnum">{{ graduated }}</div><div class="l">已划完全维度</div></div>
+      </div>
     </div>
 
     <n-card size="small">
@@ -19,7 +43,13 @@
         v-if="!shown.length"
         description="没有错题，太棒了！答错的词会自动进入这里，按 1/2/4/7/15 天间隔反复出现。"
       >
-        <template #icon><span style="font-size:36px">🎉</span></template>
+        <template #icon>
+          <span class="empty-mark">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12.5l4.5 4.5L19 6.5" />
+            </svg>
+          </span>
+        </template>
       </n-empty>
 
       <div v-else class="rows">
@@ -122,8 +152,17 @@ function goStudy(): void {
 .page { width: 100%; }
 .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
 .stat { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--c-surface, #fff); border: 1px solid var(--c-line, #e5efe9); border-radius: 16px; box-shadow: var(--shadow-sm); }
-.stat .ico { width: 42px; height: 42px; border-radius: 12px; background: var(--c-primary-soft, #e7f6ec); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
-.stat.warn .ico { background: #fef3c7; }
+.stat .ico {
+  width: 42px; height: 42px; border-radius: 12px;
+  background: var(--c-primary-soft); color: var(--c-primary-strong);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.stat.warn .ico { background: var(--c-accent-soft); color: var(--c-accent); }
+.empty-mark {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--c-primary-soft); color: var(--c-primary);
+}
 .stat .v { font-size: 22px; font-weight: 800; }
 .stat .l { font-size: 12px; color: var(--c-text-2, #6b7f74); }
 .rows { display: flex; flex-direction: column; }
@@ -135,6 +174,6 @@ function goStudy(): void {
 .banktag { background: var(--c-primary-soft, #e7f6ec); color: var(--c-primary-strong, #15803d); }
 .dims { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
 .right { display: flex; gap: 14px; margin-left: auto; }
-.duetxt { color: var(--amber, #d97706); font-weight: 700; }
+.duetxt { color: var(--c-accent); font-weight: 700; }
 .muted { color: var(--c-text-2, #6b7f74); font-size: 13px; }
 </style>

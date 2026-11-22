@@ -94,7 +94,7 @@ const dueCount = computed(() => {
 h1 { color: var(--c-text); font-size: var(--fs-display); margin: 0 0 6px; }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 18px; }
 .mistake-bar {
-  background: var(--c-accent-soft, #fffbeb); color: var(--c-accent); border-radius: var(--r-md);
+  background: var(--c-accent-soft, #fffbeb); color: var(--c-accent); border-radius: var(--r-btn);
   padding: 12px 16px; margin-bottom: 16px; cursor: pointer; font-weight: 600;
 }
 .book { margin-bottom: 14px; }

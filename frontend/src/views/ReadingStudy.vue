@@ -106,7 +106,7 @@ function goQuiz(): void {
 .gram-d { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0; line-height: 1.6; }
 .note { background: var(--c-bg); border-radius: var(--r-btn); padding: 12px 14px; margin-bottom: 14px; }
 .note-t { font-weight: 500; margin: 0 0 4px; font-size: var(--fs-sub); }
-.note-b { margin: 0; font-size: var(--fs-sub); line-height: 1.7; color: var(--c-text-1); }
+.note-b { margin: 0; font-size: var(--fs-sub); line-height: 1.7; color: var(--c-text); }
 .actions { display: flex; align-items: center; gap: 10px; }
 .btn { background: var(--c-primary); color: #fff; border: 0; border-radius: var(--r-btn); padding: 12px 20px; font-size: var(--fs-body); min-height: 44px; cursor: pointer; margin-left: auto; }
 .btn:disabled { opacity: 0.4; }

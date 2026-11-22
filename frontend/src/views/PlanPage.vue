@@ -2,7 +2,7 @@
   <div class="page">
     <n-card size="small">
       <template #header>
-        <span class="hd">🌱 词汇计划</span>
+        <span class="hd">词汇计划</span>
       </template>
       <template #header-extra>
         <n-tag v-if="hasPlan" type="success" size="small" round :bordered="false">进行中</n-tag>
@@ -123,7 +123,23 @@ function goStudy(): void {
 
 <style scoped>
 .page { width: 100%; }
-.hd { font-weight: 700; font-size: 16px; }
+.hd {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--c-text);
+}
+/* 标题前导细条：替代 emoji，安静但有标记感 */
+.hd::before {
+  content: "";
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--c-primary);
+  flex: none;
+}
 .empty { text-align: center; padding: 22px 8px 10px; }
 .empty-t { margin: 0 0 4px; font-weight: 700; font-size: 17px; color: var(--c-text); }
 .empty-s { margin: 0 0 16px; font-size: 13.5px; color: var(--c-text-2); }

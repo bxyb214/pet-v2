@@ -144,12 +144,12 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .qstem { color: var(--c-text); }
 .qimg { max-width: 100%; border-radius: var(--r-sm); margin-bottom: 10px; }
 .fill-input {
-  width: 100%; min-height: 44px; border: 1px solid var(--c-border); border-radius: var(--r-sm);
+  width: 100%; min-height: 44px; border: 1px solid var(--c-line); border-radius: var(--r-sm);
   padding: 8px 12px; font-size: var(--fs-body);
 }
 .opt {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  background: var(--c-bg-mint); border: 1px solid var(--c-border); border-radius: var(--r-sm);
+  background: var(--c-mint-bg); border: 1px solid var(--c-line); border-radius: var(--r-sm);
   padding: 10px 12px; margin-bottom: 6px; cursor: pointer; text-align: left; min-height: 44px;
 }
 .opt.picked { border-color: var(--c-primary); }

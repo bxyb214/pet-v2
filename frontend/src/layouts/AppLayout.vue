@@ -146,7 +146,7 @@ function logout(): void {
   min-height: 38px; display: inline-flex; align-items: center; transition: background 0.15s, color 0.15s;
 }
 .tabs3 .t:hover { color: var(--c-text, #1f2d26); background: var(--c-mint-bg, #f2faf5); }
-.tabs3 .t.active { background: var(--c-primary, #16a34a); color: #fff; }
+.tabs3 .t.active { background: var(--c-primary-strong, #15803d); color: #fff; }
 
 /* ---------- 平板：侧栏收成图标条 ---------- */
 @media (max-width: 1023px) {

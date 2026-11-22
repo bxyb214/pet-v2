@@ -88,6 +88,30 @@
   transition: transform var(--dur-1) var(--ease-out);
 }
 
+/* ---------- 通用按钮基类 ----------
+ * 早期页面（听力 / 口语复盘等）直接用了 class="btn" 却没定义样式，
+ * 结果退化成浏览器默认灰按钮。这里给一份基线，页面可再局部覆盖。 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--c-primary-strong);
+  color: #fff;
+  border: 0;
+  border-radius: var(--r-btn);
+  padding: 0 18px;
+  min-height: 44px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background var(--dur-2) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.btn:hover { background: #166534; }
+.btn:active { transform: scale(0.985); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
 /* 容器规则（docs/10 §3.1）：页面宽度只由布局层 .stack 决定，页面内一律 width:100% */
 .page { width: 100%; }
 

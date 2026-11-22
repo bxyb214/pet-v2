@@ -186,18 +186,54 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .cal { display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); gap: 6px; }
 @media (max-width: 1023px) { .cal { grid-template-columns: repeat(10, minmax(0, 1fr)); } }
 @media (max-width: 767px) { .cal { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+/* 一天一格：白底 + 细边，完成填绿，今天描边（与词汇/阅读计划同构） */
 .cell {
   aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
-  background: var(--c-bg-mint); border-radius: var(--r-sm); font-size: var(--fs-sub);
-  color: var(--c-text-2); cursor: pointer; border: 2px solid transparent; min-width: 0;
+  background: #fff; border: 1px solid var(--c-line); border-radius: 10px;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--c-text-3); cursor: pointer; min-width: 0;
   font-variant-numeric: tabular-nums;
+  transition: border-color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
 }
-.cell.done { background: var(--c-primary); color: #fff; }
-.cell.today { border-color: var(--c-primary); color: var(--c-primary); font-weight: 700; }
-.legend { margin-top: 10px; color: var(--c-text-2); font-size: var(--fs-sub); }
-.legend span { margin-right: 10px; }
-.entries { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-bottom: 16px; }
-.entry { padding: 16px; min-height: 84px; text-align: left; cursor: pointer; border: none; background: var(--c-surface); border-radius: var(--r-md); box-shadow: var(--shadow-sm); position: relative; }
+.cell:hover { border-color: #a9dcc0; transform: translateY(-1px); color: var(--c-text-2); }
+.cell.done {
+  background: linear-gradient(180deg, #1cb257 0%, #16a34a 100%);
+  border-color: #148f41; color: #fff;
+}
+.cell.today {
+  background: var(--c-primary-soft); border: 1.5px solid var(--c-primary);
+  color: var(--c-primary-strong); font-weight: 800;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+}
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 4px 16px;
+  margin-top: 12px;
+  color: var(--c-text-2);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+.entries { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+/* 跟读是每天的主要动作，占两格，避免 5 张卡排成 4+1 留个孤零零的 */
+.entries .entry:first-child { grid-column: span 2; }
+@media (max-width: 899px) { .entries { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) {
+  .entries { grid-template-columns: 1fr; }
+  .entries .entry:first-child { grid-column: span 1; }
+}
+.entry {
+  padding: 16px; min-height: 84px; text-align: left; cursor: pointer;
+  background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-btn);
+  box-shadow: var(--shadow-1); position: relative;
+  transition: border-color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out);
+}
+.entry:hover { border-color: #a9dcc0; transform: translateY(-1px); box-shadow: var(--shadow-2); }
+.entries .entry:first-child {
+  background: linear-gradient(180deg, #f4fbf7 0%, #ffffff 72%);
+  border-color: #cfeadd;
+}
 .entry b { display: flex; align-items: center; gap: 6px; color: var(--c-text); margin-bottom: 6px; font-size: 16px; }
 .entry b :deep(.n-icon) { color: var(--c-primary); }
 .entry span { color: var(--c-text-2); font-size: var(--fs-sub); line-height: 1.5; }
@@ -207,7 +243,7 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .usage .cost { margin-left: auto; color: var(--c-text-2); }
 .scg { margin-bottom: 12px; }
 .scg-title { color: var(--c-text); font-weight: 600; margin-bottom: 6px; }
-.sc { display: inline-flex; align-items: center; gap: 6px; background: var(--c-bg-mint); border: none; border-radius: 999px; padding: 6px 12px; margin: 0 6px 6px 0; cursor: pointer; color: var(--c-text); }
+.sc { display: inline-flex; align-items: center; gap: 6px; background: var(--c-mint-bg); border: none; border-radius: 999px; padding: 6px 12px; margin: 0 6px 6px 0; cursor: pointer; color: var(--c-text); }
 .sc-cn { color: var(--c-text-2); font-size: var(--fs-sub); }
 .lv { color: var(--c-primary); font-size: var(--fs-sub); }
 </style>

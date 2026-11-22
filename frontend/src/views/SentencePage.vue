@@ -140,15 +140,15 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .gname { font-weight: 800; color: var(--c-text); margin-bottom: 10px; }
 .gcn { font-weight: 400; color: var(--c-text-2); font-size: var(--fs-sub); margin-left: 6px; }
 .sents { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; margin-bottom: 14px; }
-.sent { text-align: left; background: var(--c-bg-mint); border: 1px solid transparent; border-radius: var(--r-md); padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.sent { text-align: left; background: var(--c-mint-bg); border: 1px solid transparent; border-radius: var(--r-btn); padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
 .sent.on { border-color: var(--c-primary); background: var(--c-primary-soft); }
 .sent .en { color: var(--c-text); font-weight: 600; }
 .sent .cn { color: var(--c-text-2); font-size: var(--fs-sub); }
 .practice { border-top: 1px dashed var(--c-line, #e5e7eb); padding-top: 12px; }
 .prompt { color: var(--c-text-2); font-size: var(--fs-sub); margin-bottom: 6px; }
-textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--c-line, #d1d5db); border-radius: var(--r-md); padding: 10px; font-family: inherit; font-size: var(--fs-body, 16px); color: var(--c-text); resize: vertical; }
+textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--c-line, #d1d5db); border-radius: var(--r-btn); padding: 10px; font-family: inherit; font-size: var(--fs-body, 16px); color: var(--c-text); resize: vertical; }
 .actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-.fb { margin-top: 14px; padding: 12px; border-radius: var(--r-md); background: #fef3c7; }
+.fb { margin-top: 14px; padding: 12px; border-radius: var(--r-btn); background: #fef3c7; }
 .fb.good { background: var(--c-primary-soft); }
 .fb-title { font-weight: 800; margin-bottom: 4px; color: var(--c-text); }
 .fb-comment { color: var(--c-text); font-size: var(--fs-sub); }

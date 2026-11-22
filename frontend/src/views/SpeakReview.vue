@@ -175,7 +175,7 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .progress { color: var(--c-text-2); font-size: var(--fs-sub); margin-bottom: 8px; }
 .item { padding: 16px; }
 .row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
-.tag { flex-shrink: 0; font-size: var(--fs-sub); font-weight: 700; color: var(--c-text-2); background: var(--c-bg-mint); border-radius: var(--r-sm); padding: 2px 8px; }
+.tag { flex-shrink: 0; font-size: var(--fs-sub); font-weight: 700; color: var(--c-text-2); background: var(--c-mint-bg); border-radius: var(--r-sm); padding: 2px 8px; }
 .tag.good { color: var(--c-primary); background: var(--c-primary-soft); }
 .said { color: var(--c-text-2); text-decoration: line-through; }
 .better { color: var(--c-text); font-weight: 700; font-size: 20px; }
@@ -183,16 +183,16 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
 .chip { font-size: var(--fs-sub); border-radius: 999px; padding: 2px 10px; }
 .chip.focus { background: var(--c-primary-soft); color: var(--c-primary); font-weight: 700; }
-.chip.dim { background: var(--c-bg-mint); color: var(--c-text-2); }
+.chip.dim { background: var(--c-mint-bg); color: var(--c-text-2); }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .status { color: var(--c-text-2); font-size: var(--fs-sub); margin-top: 10px; }
 .result { margin-top: 14px; text-align: center; }
-.score { font-size: 36px; font-weight: 800; color: var(--c-warn, #d97706); }
+.score { font-size: 36px; font-weight: 800; color: var(--c-accent); }
 .result.good .score { color: var(--c-primary); }
-.result.mid .score { color: var(--c-warn, #d97706); }
+.result.mid .score { color: var(--c-accent); }
 .score small { font-size: var(--fs-sub); color: var(--c-text-2); }
 .tip { color: var(--c-text-2); margin: 2px 0 8px; }
 .words { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-bottom: 12px; }
-.w { background: var(--c-bg-mint); color: var(--c-text); border-radius: var(--r-sm); padding: 2px 8px; }
+.w { background: var(--c-mint-bg); color: var(--c-text); border-radius: var(--r-sm); padding: 2px 8px; }
 .w.bad { background: #fee2e2; color: #b91c1c; }
 </style>
