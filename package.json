@@ -1,0 +1,8 @@
+{
+  "name": "pet-v2-tools",
+  "private": true,
+  "description": "仓库级校验脚本依赖（check_overflow 等需要 playwright）",
+  "devDependencies": {
+    "playwright": "^1.65.1"
+  }
+}
