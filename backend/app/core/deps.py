@@ -31,12 +31,20 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def effective_perms(user: User) -> str:
+    """实际生效的权限串：管理员默认拥有全部权限（含口语），普通用户按 perms 字段。"""
+    parts = [p.strip() for p in (user.perms or "").split(",") if p.strip()]
+    if user.is_admin and "speak" not in parts:
+        parts.append("speak")
+    return ",".join(parts)
+
+
 def _has_perm(user: User, perm: str) -> bool:
-    return perm in (user.perms or "").split(",")
+    return perm in effective_perms(user).split(",")
 
 
 def require_speak(user: User = Depends(get_current_user)) -> User:
-    """口语权限（S 组）：perms 含 speak 才可使用。AI 调用有费用，提示找小淏开通。"""
+    """口语权限（S 组）：perms 含 speak 才可使用（管理员默认开通）。AI 调用有费用，提示找小淏开通。"""
     if not _has_perm(user, "speak"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "由于 AI 调用产生费用，请联系小淏开通口语功能")
     return user

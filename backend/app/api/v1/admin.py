@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.deps import require_admin
+from app.core.deps import effective_perms, require_admin
 from app.db import get_db
 from app.models.user import InviteCode, User
 from app.services import ai_enrich, usage as usage_svc
@@ -167,7 +167,7 @@ def list_users(
             "username": u.username,
             "display_name": u.display_name,
             "is_admin": u.is_admin,
-            "perms": u.perms,
+            "perms": effective_perms(u),
             "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None,
         }
         for u in db.query(User).order_by(User.id).all()

@@ -47,6 +47,24 @@ def test_requires_speak_perm():
     assert r.status_code == 403
 
 
+def test_admin_has_speak_by_default():
+    """管理员即使 perms 为空也视为已开通口语（/auth/me 回显 + 接口放行）。"""
+    token = _fresh_user("boss")
+    db = SessionLocal()
+    u = db.query(User).filter(User.username == "boss").one()
+    u.perms = ""
+    db.commit()
+    db.close()
+    H = {"Authorization": f"Bearer {token}"}
+
+    me = client.get("/api/v1/auth/me", headers=H)
+    assert me.status_code == 200
+    assert "speak" in me.json()["perms"].split(",")
+
+    r = client.post("/api/v1/speak/boot", json={"mode": "shadow"}, headers=H)
+    assert r.status_code == 200
+
+
 def test_boot_shadow_instructions():
     token = _fresh_user()
     r = client.post(

@@ -36,12 +36,18 @@
               <n-button type="primary" size="small" @click="startQuiz(t.no, 0)">测整套</n-button>
             </div>
             <div class="parts">
-              <n-button v-for="p in t.parts" :key="p.part" secondary size="small" @click="startStudy(t.no, p.part)">
-                Part {{ p.part }} · {{ p.kind }}
-              </n-button>
-              <n-button v-for="p in t.parts" :key="'q' + p.part" quaternary size="small" @click="startQuiz(t.no, p.part)">
-                测 Part {{ p.part }}
-              </n-button>
+              <div v-for="p in t.parts" :key="p.part" class="partrow">
+                <div class="pl">
+                  <span class="pno">Part {{ p.part }}</span>
+                  <span class="pkind long">{{ p.kind }}</span>
+                  <span class="pkind short">{{ shortKind(p.kind) }}</span>
+                  <span class="pn">{{ p.sentences.length }} 句</span>
+                </div>
+                <div class="pact">
+                  <n-button secondary size="small" @click="startStudy(t.no, p.part)">学习</n-button>
+                  <n-button size="small" @click="startQuiz(t.no, p.part)">测验</n-button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -107,6 +113,11 @@ function toggle(id: string): void {
   openMap[id] = !openMap[id];
 }
 
+/** 窄屏用的短标签：去掉括号里的补充说明（"七选五（句子还原）" → "七选五"），保证一行放得下 */
+function shortKind(kind: string): string {
+  return kind.replace(/（[^）]*）/g, "").trim() || kind;
+}
+
 function startStudy(testNo: number, part: number): void {
   void router.push(`/english/reading/study/${testNo}/${part}`);
 }
@@ -159,7 +170,22 @@ h1 { font-size: var(--fs-display); font-weight: 800; letter-spacing: .2px; color
 .fold-inner { overflow: hidden; min-height: 0; padding: 0 16px; }
 .fold-b.open .fold-inner { padding-bottom: 16px; }
 .testcard { box-shadow: none; border: 1px solid var(--c-line); }
-.parts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.partbtn { background: var(--c-primary-soft); color: var(--c-primary-strong); border: 0; border-radius: var(--r-pill); padding: 9px 14px; font-size: var(--fs-sub); min-height: 44px; cursor: pointer; }
-.partbtn.quiz { background: var(--c-card); border: 1px solid var(--c-line); color: var(--c-text); }
+/* 每个 Part 一行：左信息、右「学习 / 测验」，不再把 6×2 个按钮堆成一片 */
+.parts { margin-top: 12px; border: 1px solid var(--c-line); border-radius: var(--r-sm); overflow: hidden; }
+.partrow { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 12px; }
+.partrow + .partrow { border-top: 1px solid var(--c-line); }
+.partrow:hover { background: var(--c-mint-bg); }
+.pl { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.pno { font-size: var(--fs-sub); font-weight: 800; color: var(--c-primary-strong); white-space: nowrap; }
+.pkind { font-size: var(--fs-sub); color: var(--c-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pkind.short { display: none; }
+.pn { font-size: 12.5px; color: var(--c-text-2); white-space: nowrap; }
+.pact { flex: none; display: flex; gap: 6px; }
+@media (max-width: 520px) {
+  .partrow { gap: 8px; padding: 8px; }
+  .pl { gap: 6px; }
+  .pn { display: none; }
+  .pkind.long { display: none; }
+  .pkind.short { display: inline; }
+}
 </style>
