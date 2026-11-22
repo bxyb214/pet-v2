@@ -9,7 +9,7 @@
         </p>
       </div>
 
-      <n-form :show-label="false" size="large" @submit.prevent="submit">
+      <n-form label-placement="top" size="large" @submit.prevent="submit">
         <n-form-item label="邀请码" :show-feedback="false">
           <n-input
             v-model:value="invite"
@@ -21,7 +21,7 @@
         <n-form-item label="用户名" :show-feedback="false">
           <n-input v-model:value="username" placeholder="用户名（登录用，英文/数字）" @keyup.enter="submit" />
         </n-form-item>
-        <n-form-item label="密码" :show-feedback="!error" :validation-status="error ? 'error' : undefined" :feedback="error">
+        <n-form-item label="密码" :show-feedback="!!error" :validation-status="error ? 'error' : undefined" :feedback="error">
           <n-input
             v-model:value="password"
             type="password"
@@ -136,9 +136,12 @@ h1 { font-size: 22px; font-weight: 800; color: var(--c-text, #1f3d2b); margin: 0
 .sub { font-size: 13px; color: var(--c-text-2, #6b7f74); margin: 0; }
 .hint { text-align: center; font-size: 12px; color: var(--c-text-2, #6b7f74); margin: 16px 0 0; }
 .hint a { color: #1f7a4d; text-decoration: none; font-weight: 600; }
+:deep(.n-form-item) { margin-bottom: 16px; }
 :deep(.n-form-item-label) {
   font-size: 12px;
   color: var(--c-text-2, #6b7f74);
-  padding-bottom: 2px;
+  padding-bottom: 4px;
+  font-weight: 600;
 }
+:deep(.n-button) { margin-top: 4px; }
 </style>
