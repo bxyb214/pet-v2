@@ -1,0 +1,52 @@
+{
+  "source": "新版PET口语模板 p9-10(Part3讨论示范) p14-15(Part2描述示范)；中文为对照翻译(非原书内容)",
+  "photo": [
+    {
+      "id": "tp2a", "title": "描述示范A：员工食堂", "titleCn": "In this photo…",
+      "items": [
+        { "en": "In this photo I see three men having a meal together.", "cn": "在这张照片里，我看到三个人在一起吃饭。" },
+        { "en": "They seem to be business people or employees of a big company because they are all wearing formal clothes - shirts and ties I mean.", "cn": "他们看起来像是商务人士或大公司的员工，因为都穿着正装——就是衬衫领带那种。" },
+        { "en": "They appear to be in their twenties or thirties.", "cn": "他们看上去二三十岁。" },
+        { "en": "Perhaps they work in the same team in their company.", "cn": "也许他们在公司是同一个团队的。" },
+        { "en": "It also looks like they are having an interesting and casual conversation because they seem engaged and are smiling.", "cn": "看起来他们在进行有趣而轻松的交谈，因为他们很投入，还带着微笑。" },
+        { "en": "They seem to be in a cafeteria - maybe it's their company cafeteria.", "cn": "他们好像在一家自助餐厅——也许是公司食堂。" },
+        { "en": "The table is not very big for three people, so it's a bit crowded.", "cn": "对三个人来说桌子不大，所以有点挤。" },
+        { "en": "What they are eating is just regular lunch food - I see some pasta, rice, buns, beans, vegetables, and so on in the food trays on the table.", "cn": "他们吃的是普通午餐——餐盘里有意大利面、米饭、面点、豆子、蔬菜等等。" },
+        { "en": "It seems to be sunny outside because it's very bright.", "cn": "外面似乎是晴天，因为光线很明亮。" },
+        { "en": "It's a short lunch break for them and I think they might need to get back to work after this.", "cn": "他们的午休时间很短，我想吃完就得回去工作了。" }
+      ]
+    },
+    {
+      "id": "tp2b", "title": "描述示范B：露天市场", "titleCn": "This photo shows…",
+      "items": [
+        { "en": "This photo shows a person who is buying some fruit and vegetables from a green grocer.", "cn": "这张照片展示了一个人在果蔬摊主那里买水果和蔬菜。" },
+        { "en": "The lady who is buying seems to be in her thirties, and the seller seems about the same age.", "cn": "买东西的女士看上去三十多岁，摊主年纪差不多。" },
+        { "en": "The buyer is holding a basket in front of her and there're already some green vegetables inside.", "cn": "顾客手里提着一个篮子，里面已经装了一些绿叶菜。" },
+        { "en": "The seller is putting in some more vegetables into her basket - tomatoes I think.", "cn": "摊主正在往篮子里再加些蔬菜——我觉得是西红柿。" },
+        { "en": "They are both wearing T-shirts so I think it might be summer there.", "cn": "两人都穿着T恤，所以那里可能是夏天。" },
+        { "en": "They might be in an open-air market because it looks like they are outside rather than inside a building.", "cn": "他们可能在露天市场，因为看起来是在室外而不是室内。" },
+        { "en": "On the stalls there are a large variety of fruit and vegetables.", "cn": "摊位上有各种各样的水果和蔬菜。" },
+        { "en": "They have melons, peaches, bananas, grapes as well as all sorts of green vegetables.", "cn": "有甜瓜、桃子、香蕉、葡萄，还有各种绿叶蔬菜。" }
+      ]
+    }
+  ],
+  "talk": [
+    {
+      "id": "tp3", "title": "讨论示范：学校体育中心",
+      "brief": "A university is going to build a new sports centre for students. Talk together about the different sports the students could do in the sports centre and say which would be most popular.",
+      "items": [
+        { "role": "A", "en": "Can I start first? What about ice-skating? I think this sport is a little too fast, and you might fall or bump into others and get yourself hurt. What do you think?", "cn": "我可以先开始吗？滑冰怎么样？我觉得这项运动有点太快了，你可能会摔倒或撞到别人受伤。你觉得呢？" },
+        { "role": "B", "en": "Well I think you're right. Another thing about ice-skating is that it can only be played in winter when the weather is really cold. Why don't we move onto the next one, tennis?", "cn": "我觉得你说得对。另外滑冰只能在很冷的冬天玩。我们何不看看下一项，网球？" },
+        { "role": "A", "en": "Ok, I think tennis will be pretty popular because it's competitive but not very risky. Do you think this is a good idea?", "cn": "好，我觉得网球会很受欢迎，因为它有竞技性又不太危险。你觉得这是个好主意吗？" },
+        { "role": "B", "en": "I agree. Let's move on to the next option. Dancing. It's a lot of fun I think. Lots of people can take part, and it doesn't take up much space. You can enjoy music as well. What do you think?", "cn": "我同意。看下一个选项吧，跳舞。我觉得很有意思，很多人能参加，也不占地方，还能享受音乐。你觉得呢？" },
+        { "role": "A", "en": "That's a great idea. However, some people might not be so into dancing, and is dancing a real sport? Why don't we take a look at playing basketball? It's also a team sport and very competitive too.", "cn": "好主意。不过有些人可能不太喜欢跳舞，而且跳舞算真正的运动吗？我们看看篮球怎么样？也是团队运动，竞技性很强。" },
+        { "role": "B", "en": "Of course. Basketball is a great option. Even if you're not good at playing it, you might find it interesting just to watch other people play. And how about cycling? Do you think this will be popular?", "cn": "当然。篮球是个好选项。就算打得不好，看别人打球也挺有意思。骑自行车怎么样？你觉得会受欢迎吗？" },
+        { "role": "A", "en": "Oh absolutely! Most people will love this. You could even have a race with your friends at school. But there is still one more option here, swimming. What do you think of that?", "cn": "当然会！大多数人都会喜欢。你甚至可以在学校和朋友们比赛。不过这里还有最后一个选项，游泳。你觉得怎么样？" },
+        { "role": "B", "en": "I personally love swimming, and I believe this will be very popular because some people say swimming is good for the whole body and it's pretty safe too, I mean, you won't get injured or hurt easily in this sport.", "cn": "我个人很喜欢游泳，我相信它会非常受欢迎，因为游泳对全身都有好处，而且很安全——不容易受伤。" },
+        { "role": "A", "en": "I agree. So which of all these sports do you think will be the most popular with the students?", "cn": "我同意。那这些运动里你觉得哪项最受学生欢迎？" },
+        { "role": "B", "en": "That's kind of hard to decide. I feel basketball will be the most popular one because, you know, it involves two teams and they have matches, and that will attract many other students to come and watch too.", "cn": "有点难决定。我觉得篮球最受欢迎，因为有两个队比赛，还会吸引很多学生来观看。" },
+        { "role": "A", "en": "I agree. Basketball is not hard to learn, so that many students, even beginners, can have a good time playing it. So let's decide on this one.", "cn": "我同意。篮球不难学，很多学生哪怕新手也能玩得开心。就选它吧。" }
+      ]
+    }
+  ]
+}

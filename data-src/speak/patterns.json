@@ -1,0 +1,139 @@
+{
+  "source": "新版PET口语模板(p4-12) + PET口语满分宝典(p6,p9) 交叉核对",
+  "note": "part 采用 2020 官方编号：1=访谈 2=描述图片 3=讨论情境 4=主题延展",
+  "groups": [
+    {
+      "id": "ask-repeat", "part": 1, "name": "请求考官重复", "cn": "没听懂时礼貌请考官再说一遍",
+      "items": [
+        { "en": "Could you say that again, please?", "cn": "请再说一遍好吗？" },
+        { "en": "I'm sorry, could you repeat that?", "cn": "抱歉，能重复一下吗？" },
+        { "en": "I'm afraid I didn't catch that.", "cn": "我没听清楚。" },
+        { "en": "Sorry, what did you say after …?", "cn": "抱歉，……之后你说的是什么？" },
+        { "en": "Pardon?", "cn": "您说什么？" },
+        { "en": "Sorry?", "cn": "什么？" }
+      ]
+    },
+    {
+      "id": "reason", "part": 1, "name": "说明原因和解释", "cn": "回答时给出理由",
+      "items": [
+        { "en": "The reason is …", "cn": "原因是……" },
+        { "en": "(That's) because …", "cn": "（那）是因为……" },
+        { "en": "… so …", "cn": "……所以……" },
+        { "en": "What I mean is …", "cn": "我的意思是……" },
+        { "en": "In other words …", "cn": "换句话说……" }
+      ]
+    },
+    {
+      "id": "example", "part": 1, "name": "举例子", "cn": "让答案更具体",
+      "items": [
+        { "en": "For example …", "cn": "例如……" },
+        { "en": "For instance …", "cn": "比如说……" },
+        { "en": "Such as …", "cn": "比如……" },
+        { "en": "Like …", "cn": "像……" }
+      ]
+    },
+    {
+      "id": "photo-total", "part": 2, "name": "图片总起句式", "cn": "第一二句说清楚谁、在哪、做什么",
+      "items": [
+        { "en": "In this photo, there is/are … doing sth. + 地点", "cn": "在这张照片里，有……正在做某事" },
+        { "en": "In the photo, I can see …", "cn": "照片里我能看到……" },
+        { "en": "This photo shows …", "cn": "这张照片展示了……" },
+        { "en": "It looks like …", "cn": "看起来像……" },
+        { "en": "They seem to be …", "cn": "他们似乎是……" },
+        { "en": "Maybe / Perhaps …", "cn": "也许/可能……" }
+      ]
+    },
+    {
+      "id": "position", "part": 2, "name": "方位介词和短语", "cn": "描述人和物品的位置",
+      "items": [
+        { "en": "behind", "cn": "在……后面" },
+        { "en": "in front of", "cn": "在……前面" },
+        { "en": "under", "cn": "在……下面" },
+        { "en": "above / over", "cn": "在……上空" },
+        { "en": "in / inside", "cn": "在……里面" },
+        { "en": "along", "cn": "沿着" },
+        { "en": "opposite", "cn": "在……对面" },
+        { "en": "on one side (of)", "cn": "在……的一边" },
+        { "en": "on the other side (of)", "cn": "在……的另一边" },
+        { "en": "on the left (of)", "cn": "在……左边" },
+        { "en": "on the right (of)", "cn": "在……右边" },
+        { "en": "on top of", "cn": "在……顶部" },
+        { "en": "next to", "cn": "在……旁边" },
+        { "en": "in the corner", "cn": "在角落" },
+        { "en": "between ... and ...", "cn": "在……和……之间" },
+        { "en": "by (the window)", "cn": "在窗边" },
+        { "en": "in the middle (of)", "cn": "在……中间" }
+      ]
+    },
+    {
+      "id": "feelings", "part": 2, "name": "描述人物感受的形容词", "cn": "猜测人物心情",
+      "items": [
+        { "en": "busy", "cn": "忙碌的" },
+        { "en": "calm", "cn": "平静的" },
+        { "en": "excited", "cn": "激动的" },
+        { "en": "tired", "cn": "很累的" },
+        { "en": "happy", "cn": "高兴的" },
+        { "en": "cheerful", "cn": "开心的" },
+        { "en": "worried", "cn": "担心的" },
+        { "en": "depressed", "cn": "沮丧的" },
+        { "en": "anxious", "cn": "忧虑的" },
+        { "en": "amused", "cn": "感到好笑的" },
+        { "en": "cross", "cn": "生气的" },
+        { "en": "unhappy", "cn": "不开心的" },
+        { "en": "thoughtful", "cn": "沉思的；贴心的" },
+        { "en": "miserable", "cn": "痛苦的，伤心的" },
+        { "en": "lonely", "cn": "孤独的" },
+        { "en": "impatient", "cn": "不耐烦的" },
+        { "en": "grateful", "cn": "感激的" }
+      ]
+    },
+    {
+      "id": "suggest", "part": 3, "name": "提建议", "cn": "开始讨论或转入下一项",
+      "items": [
+        { "en": "What / How about …?", "cn": "……怎么样？" },
+        { "en": "Shall we …?", "cn": "我们……好吗？" },
+        { "en": "Let's move on to the next (option/idea/picture …)", "cn": "我们看下一项吧" },
+        { "en": "Why don't we move onto the next (option/idea/picture …)?", "cn": "我们为什么不看看下一项呢？" }
+      ]
+    },
+    {
+      "id": "opinion", "part": 3, "name": "表达个人观点", "cn": "说出自己的看法",
+      "items": [
+        { "en": "I think … would be more useful.", "cn": "我觉得……会更有用。" },
+        { "en": "In my opinion, …", "cn": "在我看来……" },
+        { "en": "I guess …", "cn": "我猜……" },
+        { "en": "It seems to me that …", "cn": "对我来说好像……" },
+        { "en": "I'd prefer to … rather than …", "cn": "比起……我更愿意……" },
+        { "en": "I'd rather …", "cn": "我宁愿……" }
+      ]
+    },
+    {
+      "id": "ask-opinion", "part": 3, "name": "询问对方看法", "cn": "把话轮交给搭档",
+      "items": [
+        { "en": "What do you think?", "cn": "你觉得呢？" },
+        { "en": "That's a good idea, isn't it?", "cn": "那是个好主意，不是吗？" },
+        { "en": "Don't you think this is a good idea?", "cn": "你不觉得这是个好主意吗？" }
+      ]
+    },
+    {
+      "id": "agree", "part": 3, "name": "表达同意或不同意", "cn": "回应搭档的观点",
+      "items": [
+        { "en": "You're right.", "cn": "你说得对。" },
+        { "en": "That's true.", "cn": "没错。" },
+        { "en": "I'm not so sure about that.", "cn": "我不太确定。" },
+        { "en": "I think so too.", "cn": "我也这么想。" },
+        { "en": "Yes, but don't you think …?", "cn": "是的，但你不觉得……吗？" },
+        { "en": "Well, I see what you mean, but …", "cn": "嗯，我懂你的意思，但是……" }
+      ]
+    },
+    {
+      "id": "decide", "part": 3, "name": "做出最终选择", "cn": "讨论收尾、达成一致",
+      "items": [
+        { "en": "So which one do you think is the best option/idea/present?", "cn": "你觉得哪个是最好的？" },
+        { "en": "I agree with you, because … so let's choose that.", "cn": "我同意你，因为……那就选它吧。" },
+        { "en": "Really? I'm not so sure, I'd rather choose … because …", "cn": "真的吗？我不太确定，我更想选……因为……" },
+        { "en": "Well, let's agree to disagree.", "cn": "那我们保留各自意见吧。" }
+      ]
+    }
+  ]
+}

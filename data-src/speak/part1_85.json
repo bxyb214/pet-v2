@@ -1,0 +1,619 @@
+{
+ "source": "2024新版PET口语215话题（附参考答案）p2-43",
+ "categories": [
+  {
+   "cn": "问候",
+   "en": "Greetings",
+   "from": 1,
+   "to": 5
+  },
+  {
+   "cn": "个人信息",
+   "en": "Personal information",
+   "from": 6,
+   "to": 10
+  },
+  {
+   "cn": "校园学习",
+   "en": "School and study",
+   "from": 11,
+   "to": 15
+  },
+  {
+   "cn": "日常生活",
+   "en": "Daily life",
+   "from": 16,
+   "to": 20
+  },
+  {
+   "cn": "衣服",
+   "en": "Clothes",
+   "from": 21,
+   "to": 25
+  },
+  {
+   "cn": "娱乐媒体",
+   "en": "Entertainment and media",
+   "from": 26,
+   "to": 30
+  },
+  {
+   "cn": "饮食",
+   "en": "Food and drink",
+   "from": 31,
+   "to": 35
+  },
+  {
+   "cn": "休闲爱好",
+   "en": "Hobby and leisure",
+   "from": 36,
+   "to": 40
+  },
+  {
+   "cn": "住宿",
+   "en": "House and home",
+   "from": 41,
+   "to": 45
+  },
+  {
+   "cn": "语言",
+   "en": "Language",
+   "from": 46,
+   "to": 50
+  },
+  {
+   "cn": "度假旅行",
+   "en": "Travel and holidays",
+   "from": 51,
+   "to": 55
+  },
+  {
+   "cn": "地方建筑",
+   "en": "Place and building",
+   "from": 56,
+   "to": 60
+  },
+  {
+   "cn": "购物",
+   "en": "Shopping",
+   "from": 61,
+   "to": 65
+  },
+  {
+   "cn": "音乐",
+   "en": "Music",
+   "from": 66,
+   "to": 70
+  },
+  {
+   "cn": "社会交往",
+   "en": "Social interaction",
+   "from": 71,
+   "to": 75
+  },
+  {
+   "cn": "运动",
+   "en": "Sports",
+   "from": 76,
+   "to": 80
+  },
+  {
+   "cn": "自然世界",
+   "en": "The natural world",
+   "from": 81,
+   "to": 85
+  }
+ ],
+ "items": [
+  {
+   "no": 1,
+   "q": "Hello / Hi!",
+   "cn": "你好!",
+   "ans": "Hello /Hi!"
+  },
+  {
+   "no": 2,
+   "q": "Good morning / afternoon /evening",
+   "cn": "早上/下午/晚上好。",
+   "ans": "Good morning/afternoon/evening，sir /madam."
+  },
+  {
+   "no": 3,
+   "q": "How are you?",
+   "cn": "你好吗?",
+   "ans": "l'm very good/fine/just so so/not very well /OK. Thank you"
+  },
+  {
+   "no": 4,
+   "q": "How are you doing?",
+   "cn": "你好吗?",
+   "ans": "Very well /just so so/not very good."
+  },
+  {
+   "no": 5,
+   "q": "How's it going? 个人信息(Personal information)",
+   "cn": "最近怎么样?",
+   "ans": "Very good/fine/OK/so so/not good"
+  },
+  {
+   "no": 6,
+   "q": "What's your name?",
+   "cn": "你叫什么名字?",
+   "ans": "My name is.."
+  },
+  {
+   "no": 7,
+   "q": "How do you spell your first name /surname?",
+   "cn": "你的名字/姓氏怎么拼?",
+   "ans": "M-A-R-|-O(read the letters)."
+  },
+  {
+   "no": 8,
+   "q": "How old are you?",
+   "cn": "你几岁了?",
+   "ans": "l'm.. years old."
+  },
+  {
+   "no": 9,
+   "q": "Where do you come from? / Are you from...?",
+   "cn": "你来自哪里?/你来自……吗?",
+   "ans": "l come from.../l'm from.."
+  },
+  {
+   "no": 10,
+   "q": "Where do you live? / Do you live in...? 校园学习(School and study)",
+   "cn": "你住在哪里?/你住在……吗?",
+   "ans": "l live in..."
+  },
+  {
+   "no": 11,
+   "q": "Do you study English at school?",
+   "cn": "你在学校学习英语吗?",
+   "ans": "Yes/No,Istudy/don't study English at school."
+  },
+  {
+   "no": 12,
+   "q": "What subject do you like best? / Do you like maths / mathematics?",
+   "cn": "你最喜欢什么科目?/你喜欢数学吗?",
+   "ans": "l study...llike... best because it is very interesting."
+  },
+  {
+   "no": 13,
+   "q": "How often do you have English / history / maths lessons?",
+   "cn": "你多久上一次英语/历史/数学课?",
+   "ans": "l have English/history/maths lessons four times a week"
+  },
+  {
+   "no": 14,
+   "q": "How do you travel to school? / Do you go to school on foot / by bus / by train /by bike / by car?",
+   "cn": "你怎样去上学?/你步行/乘公交1 乘火车/骑自行车/坐轿车去上学 吗?",
+   "ans": "l travel to school on foot/by bus/by train /by bike /by car."
+  },
+  {
+   "no": 15,
+   "q": "What time do you finish school? 日常生活(Daily life)",
+   "cn": "你什么时候放学?",
+   "ans": "l finish schoolat6o'clock in the afternoon."
+  },
+  {
+   "no": 16,
+   "q": "Who do you live with? / Do you live with your family?",
+   "cn": "你和谁住在一起?你跟家人住在一起吗?",
+   "ans": "I live with my parents,my two sisters and one brother. /Yes, l live\nwith my family."
+  },
+  {
+   "no": 17,
+   "q": "How many bedrooms are there in your house?",
+   "cn": "你家有几间卧室?",
+   "ans": "There are five bed rooms in my house."
+  },
+  {
+   "no": 18,
+   "q": "What's your favourite room in your house?",
+   "cn": "你最喜欢家里哪一个房间?",
+   "ans": "My favourite room is kitchen because l can eat my favourite\nfood there."
+  },
+  {
+   "no": 19,
+   "q": "Where do you play computer games?",
+   "cn": "你在哪里玩电脑游戏?",
+   "ans": "l play computer games in my bedroom because it's quiet there."
+  },
+  {
+   "no": 20,
+   "q": "Did you stay at home last weekend? 衣服(Clothes)",
+   "cn": "上周末你待在家里了吗?",
+   "ans": "Yes/No,l stayed/didn't stay at home last weekend.live with sb.\n与某人一起住\nstay at home 待在家\nplay computer games 玩电脑游戏"
+  },
+  {
+   "no": 21,
+   "q": "Do you like buying clothes?",
+   "cn": "你喜欢买衣服吗?",
+   "ans": "Yes,I like buying new clothes,especially the fashionable clothes."
+  },
+  {
+   "no": 22,
+   "q": "Do you think fashion can influence our lifestyle?",
+   "cn": "你认为时尚能影响我们的生活方式吗?",
+   "ans": "Yes,l think fashion can in fluence our lifestyle because we want\nmore new and fashionable clothes. Fashion can reflect our living\nstandard as well.Or: No,l don't think fashion can influence our lifestyle\nbecause fashion is usually not for ordinary people, but for those rich\npeople. We ordinary people don't need to have fashionable clothes."
+  },
+  {
+   "no": 23,
+   "q": "Are there many clothes shops around your house?",
+   "cn": "你家附近有很多服装店吗?",
+   "ans": "Yes/No.There are many/not so many clothes shops around my\nhouse often go to some clothes shops when they do promotion on sales\n/l seldom go to clothes shops.l'm not that kind of person buying a lot of\nclothes"
+  },
+  {
+   "no": 24,
+   "q": "Do you prefer to wear casual clothes or formal clothes?",
+   "cn": "你喜欢穿休闲装还是正装?",
+   "ans": "l like casual clothes more.l feel comfortable when wearing\ncasual clothes And causal clothes is very cheap.\nOr:I don't like causal clothes.l prefer to wear formal clothes, especially\nwhen I go to meetings and international conferences.l think causal\nclothes can't reflect my taste of life."
+  },
+  {
+   "no": 25,
+   "q": "What do you do with your old clothes? 娱乐媒体(Entertainment and media)",
+   "cn": "你怎么处理你的旧衣服?",
+   "ans": "l keep my old clothes and give it to the community. The staff in\nthe community can hand out my clothes to those in need.l don't throw\nthem away.l think my donation can contribute to our society.\nfashionable /Faefield/ a.流行的\ndo promotion 做促销活动\ncasual clothes 休闲装\non sale 特价出售\nformal clothes 正装\nreflect one's taste 体现个人的品味"
+  },
+  {
+   "no": 26,
+   "q": "Tell me something about a singer you know very well.",
+   "cn": "告诉我一个你熟知的歌手的情况。",
+   "ans": "l like to listen to the songs .. because his songs tell young\npeople's feelings"
+  },
+  {
+   "no": 27,
+   "q": "How often do you watch a TV programme?",
+   "cn": "你多久看一次电视节目?",
+   "ans": "l have to study all the time,so l don't have too much time on\nwatching TV shows.l just watch a TV programme on weekends."
+  },
+  {
+   "no": 28,
+   "q": "Where do you watch a movie /film?",
+   "cn": "你在哪里看电影?",
+   "ans": "l like to watch a movie /film on TV in my bedroom because l can\nlie in bed and enjoy the movie /film.l don't like to go to the cinema\nbecause it is\nvery noisy in the cinema when watching a movie /film."
+  },
+  {
+   "no": 29,
+   "q": "What TV/radio/newspaper programme do you like best?",
+   "cn": "你最喜欢的电视节目/广播节目/报纸栏目是什么?",
+   "ans": "l like\nwatching cartoons and the programme of animal world. Cartoons make\nme happy and animal word makes me know more about our word."
+  },
+  {
+   "no": 30,
+   "q": "Do you think the electronic media will substitute the traditional paper media? 饮食(Food and drink)",
+   "cn": "你认为电子媒体会取代传统纸媒吗?",
+   "ans": "Yes,l think the electronic media will substitute the traditional\npaper media.As technology develops, more and more people like to use\nelectronic devices.News are spreading much faster through electronic\ndevices. Now very few people buy and read newspapers. They are able to\nknow the world news through mobile phones.\nOr: No,l don't think so.A i though electronic device is developing very\nfast nowadays, traditional paper media is stil very important to our life.\nWhen there is no internet access, you have to rely on paper media to\nread the news.\nwatch a movie /film 看电影\nwatch a TV programme 看电视节目\ncartoon /ka:tu:n/n.漫画:动画片\ngo to the cinema 去电影院\nsubstitute /ssbstrtju:t/v.代替\nelectronic media 电子媒体\ntraditional paper media 传统纸媒\ninternet access 互联网接人"
+  },
+  {
+   "no": 31,
+   "q": "Do you think making cakes is difficult?",
+   "cn": "你觉得做蛋糕难吗?",
+   "ans": "Yes.l think it's difficult to make cakes because it always takes me\ntoo much time. The process of making cakes is complicated as\nwell.Or:No.l don't think it is difficult to make cakes. l like cooking,\nespecially making cakes.Cakes are sweet and delicious. That's why l like\ncakes very much.Making cakes can help me understand the hard work\nmy mum has done for me."
+  },
+  {
+   "no": 32,
+   "q": "Do you prefer to make cakes with you friends or with your mum?",
+   "cn": "你更喜欢和朋友一起做蛋糕,还是和妈妈一起做?",
+   "ans": "l like to\nmake cakes with my friends because my friends are very kind tome. And\nthey can tell me how to do when l make mistakes in making cakes.Or:l\nlike to make cakes with my mum,since she never complains even though\nl can't understand the process of making cakes."
+  },
+  {
+   "no": 33,
+   "q": "What is your favourite food?",
+   "cn": "你最喜欢的食物是什么?",
+   "ans": "My favourite food is pizza because it is tasty and easy to make.\nMy mum always makes a pizza on weekends. Our family have it together\nand talk to each other.Pizza makes my family harmonious."
+  },
+  {
+   "no": 34,
+   "q": "Do you think drinking coca cola is healthy?",
+   "cn": "你认为喝可口可乐健康吗?",
+   "ans": "No,l don't think drinking coca cola is healthy because it contains\na lot of chemical materials.These materials are harmful to our\nhealth.Or:Yes,coca cola is a kind of special drinks. This drink can give\npeople energy.lt's very good for our body because it has some materials\nthat our body needs."
+  },
+  {
+   "no": 35,
+   "q": "Which of these drinks: coca cola, sprite, orange juice etc. do you like best? 休闲爱好(Hobby and leisure)",
+   "cn": "可口可乐、雪碧和橙汁等饮料,你最喜欢哪一种?",
+   "ans": "l like\ncoca cola/sprite/orange juice best because it tastes good process\n/preuses/n.工序\npizza /pi:tsa/ n. 比萨饼\nchemical material 化学物质\norange juice 橙汁\ncoca cola 可口可乐\nsprite /sprart/ n.雪碧"
+  },
+  {
+   "no": 36,
+   "q": "Do you like reading?",
+   "cn": "你喜欢阅读吗?",
+   "ans": "Yes,l like reading very much.Reading can broaden my horizons\nand lespecially like reading books about the natural world."
+  },
+  {
+   "no": 37,
+   "q": "Do you think playing an instrument is fun?",
+   "cn": "你觉得演奏乐器有趣吗?",
+   "ans": "Yes,l think so.l can play the piano. Playing an instrument makes\nmerelaxed and l like playing it very much, so l play the piano every day\nafter l go home from school. l go to the concert sometimes on weekends\nas well.Or: No,l don't think so.l suppose playing an instrument is boring\nbecause you have to practice a lot. Then you don't have time to play with\nyour friends.So i really don't like playing an instrument."
+  },
+  {
+   "no": 38,
+   "q": "Which is more interesting, playing computer games or listening to music?",
+   "cn": "玩电脑游戏和听音乐,哪个更有趣呢?",
+   "ans": "l like playing computer games more than listening to music. As\nfor me playing computer games can help me communicate with people l\ndon't know.When l listen to music,l always fall asleep. But when l play\ncomputer games l feel extremely excited."
+  },
+  {
+   "no": 39,
+   "q": "What do you usually do in your spare time?",
+   "cn": "你在闲暇时间通常做什么?",
+   "ans": "l usually go to the city library with my father and mother in my\nspare time Going to the library is of great fun because in the library l can\nfind many books I like to read.l can make friends with those who like\nreading as well."
+  },
+  {
+   "no": 40,
+   "q": "Which of these hobbies: reading, writing, listening to music, having a picnic etc. Do you like best? 住宿(House and home)",
+   "cn": "阅读、写作、听音乐、野餐等爱好中,你最喜欢哪个?",
+   "ans": "like reading/writing/listening to music/having a picnic best\nbecause it benefits to enlarge my view of the world.l can learn a lot of\nthings that remain unknown to my class mates. My hobby is quite\nbeneficial, and it makes me very knowledgeable.\nbroaden one's horizons 开阔视野\nplay the piano 弹钢琴\nplay an instrument 演奏乐器\nlisten to music 听音乐\nspare time 闲暇时间\nenlarge /nla:d3/.扩大\ngo to the concert 去音乐会\ncommunicate with 与……交流\nmake friends with 与……交朋友\nknowledgeable /nplrd3abl/ a. 有丰富知识的"
+  },
+  {
+   "no": 41,
+   "q": "Who do you live with?",
+   "cn": "你和谁住在一起?",
+   "ans": "l live with my parents, my little brother and my little sister."
+  },
+  {
+   "no": 42,
+   "q": "How many study rooms are there in your house?",
+   "cn": "你家里有几间书房?",
+   "ans": "There is only one study room in my house. For my house isn't\nbig enough.there aren't two study rooms"
+  },
+  {
+   "no": 43,
+   "q": "Which is your favourite room in your house?",
+   "cn": "你最喜欢家里哪个房间?",
+   "ans": "My favourite room in my house is the kitchen.In the kitchen,l\ncan not only learn how to cook from my mum, but also make some cakes\nmy family and l like to eat."
+  },
+  {
+   "no": 44,
+   "q": "Do you like your bedroom?",
+   "cn": "你喜欢你的卧室吗?",
+   "ans": "There are three bedrooms in my house.l don't have my own\nbedroom and I have to share a bedroom with my little brother. But l like\nit very much because l can play toys with my little brother before we go\nto sleep."
+  },
+  {
+   "no": 45,
+   "q": "Where do you do your homework at home? 语言(Language)",
+   "cn": "你在家时,在哪里写作业?",
+   "ans": "l usually do my home work in the living room.When l do my\nhome work in the living room,l turn on the TV so that l can watch my\nfavourite TV programme while doing my homework. Sometimes l also do\nmy homework in the kitchen because my mother asks me to do so, She\ntends to supervise meand keep me away from watching TV during study.\nstudy room 书房\nplay toys 玩玩具\nturn on 打开\nlive with 与……一起住\nshare with 和……分享\ndo homework 写作业"
+  },
+  {
+   "no": 46,
+   "q": "Do you speak English?",
+   "cn": "你会说英语吗?",
+   "ans": "Yes,l speak English.l like to speak to people who speak English."
+  },
+  {
+   "no": 47,
+   "q": "How many languages can you understand?",
+   "cn": "你能听懂多少种语言?",
+   "ans": "Two.I can speak Chinese very well because Chinese is my\nmother tongue I can also understand English because l like to learn\nEnglish. English is a rather important foreign language. Knowing English\nmakes me understand the word better."
+  },
+  {
+   "no": 48,
+   "q": "Do you think learning a foreign language is useful?",
+   "cn": "你认为学一门外语有用吗?",
+   "ans": "Yes,l think learning a foreign language is very useful since\nforeign language can help us understand the outside world. When we\nhave a good know iedge of a foreign language,we can make a lot of\nforeign friends and know many advanced technologies of the foreign\ncountries."
+  },
+  {
+   "no": 49,
+   "q": "How often do you study English a week?",
+   "cn": "你每周学习英语多少次?",
+   "ans": "l have English classes twice a week. In my English class, I learn to\nspeak.read, listen and write. l also make a friend from England who is my\nEnglish teacher."
+  },
+  {
+   "no": 50,
+   "q": "Where did you go with your English friends last weekend? 度假旅行(Travel and holidays)",
+   "cn": "上周末,你和你的英国朋友去了哪里?",
+   "ans": "l went for a picnic with my English friends last weekend. We had\ntwenty people together and had a large party on Saturday night. Each\none of us was cheerful and we spoke English all the time.l found my\nEnglish was getting better and better.\nmother tongue 母语\nuseful /ju:sfal/ a.有用的\nforeign language 外语\ngo for a picnic 去野餐\nget better and better 越来越好"
+  },
+  {
+   "no": 51,
+   "q": "Do you like travelling?",
+   "cn": "你喜欢旅行吗?",
+   "ans": "Yes,I like travelling very much.l often travel to foreign countries\nin my summer holidays.Moreover, l like going to England because in\nEngland l can use my English."
+  },
+  {
+   "no": 52,
+   "q": "How often do you travel to a foreign country?",
+   "cn": "你多久去一趟外国?",
+   "ans": "l usually travel to a foreign\ncountry during my summer holiday.l can only go to a foreign country\nduring summer holiday because it lasts longer than any other holidays."
+  },
+  {
+   "no": 53,
+   "q": "Do you think travelling can make you more knowledgeable?",
+   "cn": "你认为旅行会让你增长见识吗?",
+   "ans": "Yes,l think traveling can help me learn many different cultures.\nAs for me I like going to European countries because there are varied\ncultures that highly appeal to me in those countries.l really learn a lot of\nknowledge of foreign cultures by travelling.\nOr: No, I don't think so. Travelling does not make me lear much\nknowledge.l prefer to read and watch documentaries to know more\nabout the word, Also.travelling is very tiring and expensive,so l don't\nwant to spend too much money on travelling."
+  },
+  {
+   "no": 54,
+   "q": "Do you prefer to travel on foot, or by bus / or by airplane / or by car?",
+   "cn": "你喜欢徒步旅行,还是乘公交/乘飞机/乘汽车?",
+   "ans": "I like to\ntravel on foot/by bus /by airplane/by car because it is convenient and\ncomfortable."
+  },
+  {
+   "no": 55,
+   "q": "Which of these countries: England, America, Canada, etc. do you like to travel to best? 地方建筑(Place and building)",
+   "cn": "英国、美国、加拿大等国家,你最想到哪里旅行?",
+   "ans": "l like to travel to England/America/Canada best because l look\nfor-ward to making some English /American / Canadian friends. People\nthere are very friendly.lt's an excellent idea to talk with them so that l can\npractice my English.l hope l can travel to this country more often.foreign\ncountry 外国\nsummer holiday 暑假European /juare'pi:en/ a.欧洲的look forward to 期\n待\nculture /knltfe/n.文化\nwatch documentaries 看纪录片"
+  },
+  {
+   "no": 56,
+   "q": "Do you always eat at a restaurant?",
+   "cn": "你经常在餐馆吃饭吗?",
+   "ans": "Yes,I always eat at a restaurant because eating at a restaurant\ncan provide me the opportunity to taste delicious food around the\nworld.Or: No,l don't like eating at a restaurant. Food at a restaurant is not\nalways healthy. And it is very expensive to eat at a restaurant. So l don't\nlike eating at a restaurant."
+  },
+  {
+   "no": 57,
+   "q": "Where did you have your supper last weekend?",
+   "cn": "上周末你在哪里吃晚餐?",
+   "ans": "l went to a restaurant near my house to have supper because l\nwas very tired when l got home, then l decided to eat at a restaurant.\nUsually l don\"have dinner outside."
+  },
+  {
+   "no": 58,
+   "q": "Are there any historical buildings around your house?",
+   "cn": "你家周围有什么历史建筑吗?",
+   "ans": "Yes,there're quite a lot of famous historical buildings near my\nhouse These buildings are built many years ago and much older than me.\nThere're always thousands of people coming to visit these buildings. l\nalso often go to visit them."
+  },
+  {
+   "no": 59,
+   "q": "Which of these buildings:skyscrapers, shopping malls, cottages etc. do you prefer to go?",
+   "cn": "摩天大楼、购物中心、村舍等建筑中,你更想要去哪里?",
+   "ans": "l\nprefer to go to skyscrapers/shopping malls/cottages/ because in the\nbuilding l can have a lot of fun."
+  },
+  {
+   "no": 60,
+   "q": "Which do you think will be more fun, going to the countryside or to the mountains? 购物(Shopping)",
+   "cn": "你觉得去乡下和去山里,哪个更有趣?",
+   "ans": "l think going to the countryside is more fun because in the\ncountry side l can join the local kids to play a lot of games that l seldom\ntry before. Theenvironment of the countryside is very good as well.Or:\nthink going to the mountains is of great fun because in the mountains\nthe air is very fresh. What's more,l can see a lot of animals that l haven\never seen.\nfamous /fermas/ a. 著名的visit these buildings 参观这些建筑shopping\nmall 购物中心countryside /k^ntrisard/n.乡下\nrestaurant /restarpnt/ n.餐馆\nhistorical building 历史建筑\nskyscraper /skarskrerpa/ n. 摩天大楼cottage /kptrd3/n.村舍"
+  },
+  {
+   "no": 61,
+   "q": "Where do you buy your textbooks?",
+   "cn": "你在哪里买课本?",
+   "ans": "l usually buy my coursebooks at the bookstore. Sometimesl buy\nmy textbooks online because shopping online is more and more popular\nand convenient now."
+  },
+  {
+   "no": 62,
+   "q": "Do you think online shopping will replace traditional shopping?",
+   "cn": "你认为在线购物会取代传统购物吗?",
+   "ans": "Yes,l think so.Online shopping is so easy and convenient that\nmore and more people shop online. We don't need to go outside and\nexamine every item very carefully on the spot. Online shopping doesn't\nrequire the buyers to go there in person. People are able to purchase\nwhat they want while staying at home. Thus, l believe one day it will\nreplace traditional shopping.Or: No,I don't think so.Even though online\nshopping is more convenient, it can't provide the real item we want to\nbuy at the moment. Online shopping cannot always provide good\nquality items for buyers only see the pictures of products. So l don't think\nit will replace traditional shopping. Sometimes, we still have to go to\nphysical shops to buy the stuff we need."
+  },
+  {
+   "no": 63,
+   "q": "How often do you go shopping?",
+   "cn": "你多久去一趟购物?",
+   "ans": "l only buy things l need. Maybe l just go shopping once a week.\nBut sometimes I shop twice. lt all depends."
+  },
+  {
+   "no": 64,
+   "q": "Do you prefer to go shopping by yourself or with your friends?",
+   "cn": "你喜欢自己去购物,还是和朋友一起去?",
+   "ans": "I like to go shopping by myself. L know that ifl go shopping with\nmy friends I will always buy some things that l may not need. That is\nbecause my friends\nalways affect me when buying.So l like to shop alone.Or: l prefer to go\nshopping with my friends. When l cannot decide if l need to buy certain\nstuff, l can discuss with my friends. They often give me some useful\nsuggestions. Otherwise, I have no idea whether l should buy it or not."
+  },
+  {
+   "no": 65,
+   "q": "Do you think shopping can be fun? 音乐(Music)",
+   "cn": "你认为购物有趣吗?",
+   "ans": "Yes,I like shopping.Shopping can be very relaxed,especially\nwhen l feel worried about exams. As for me, l usually go shopping to\nrelieve my anxiety which is quite a helpful way. Certainly,I find it fun to do\nsome shopping.Or:No,l don't think so.As far as l'm concerned, shopping\nis not very fun On the contrary,it's boring.When l go shopping with my\nfriends, they always look around everything and buy nothing. it seems a\nwaste of time. So l don't think shopping is fun.\ncoursebook /ko:sbuk/n.课本textbook /tekstbuk/n. 课本convenient\n/kan'vi:njant/a.方便的stuff /stnf/ n. 原料,材料discuss with 与……讨论\nrelieve anxiety 缓解忧店\nbookstore /buksto:/n.书店online shopping 在线购物replace /rrplers/ v.\n取代affect /o'fekt/ v. 影响feel worried about 对….…感到担心"
+  },
+  {
+   "no": 66,
+   "q": "Do you like music?",
+   "cn": "你喜欢音乐吗?",
+   "ans": "I love music,but it's very difficult to say\nexactly what kind of music l like best. L like classical music, but l love pop\nmusic as well. Also l love the music that can express various kinds of\nhuman souls and emotions."
+  },
+  {
+   "no": 67,
+   "q": "What kind of music do you think is suitable for children?",
+   "cn": "你认为什么样的音乐适合孩子们?",
+   "ans": "As we know, kids love cheerful and simple music for they can't\nunder stand very complicated melody. They like happy and memorable\nmusic so that they can sing and dance following the music. Thus in my\nopinion, simple and happy music is suitable for children."
+  },
+  {
+   "no": 68,
+   "q": "Do you think people's tastes in music will change as they get older?",
+   "cn": "你认为人们对音乐的品味会随着年龄增加而改变吗?",
+   "ans": "l think it depends on people's life experience, education and\neven the at-mosphere they are living in.So my answer can be both yes\nand no. On the one hand, people have lots of chances to get exposed to\ndifferent types of music at different stages of life, so it's very likely that\nthey will find more fas.cinating things and their tastes in music wil:\nchange. On the other hand, some\npeople probably just love the music they are used to when they were\nyoung.and their passion for such kind of music would never fade away.\nThis is why it is hard to say whether people's tastes in music will change\nwhen they get older."
+  },
+  {
+   "no": 69,
+   "q": "Do you think that music can influence local culture?",
+   "cn": "你认为音乐能影响当地文化吗?",
+   "ans": "Yes,l think so.Because of globalisation,we can see a lot of in\nfluence brought over to our local culture by music. Many talented\nmusicians inspire the culture of their own countries tremendously.\nMoreover, foreign music being introduced from other places also has an\nimpressive effect on the loca culture.it allows the local culture to be more\ncolourful and varied."
+  },
+  {
+   "no": 70,
+   "q": "Do you prefer to listen to the background music in the shopping mall and shops or not? 社会交往(Social interaction)",
+   "cn": "你是否喜欢在购物中心和商店里听到背景音乐?",
+   "ans": "l think the background music is the marketing strategy that the\nshopping mall sand shops use. They manage to boost sales, and l must\nsay it's pretty effective. We all know that music is powerful and magical.\nProviding back ground music in the shopping malls and shops can\nstimulate customers to make pur-chase.When they listen to happy music,\nthey are wiling to stay longer in the shopping malls and shops, and\neventually buy something probably classical music 古典音乐melody\n/meladr/ n. 旋律get exposed to 接触passion /pe∫an/ n. 激情\nglobalisation /glaubalar'zera/n.全球化talented /taelentrd/a.天才的\nstimulate /stimjulert/v. 刺激\natmosphere /atmasfie/ n. 环境\nfascinating /faesinertin/a.迷人的\nfade away 逐渐消失\nbring over 把……带来\nbe introduced from 被引进"
+  },
+  {
+   "no": 71,
+   "q": "What do you usually chat about with your friends?",
+   "cn": "你通常和朋友谈论什么?",
+   "ans": "l usually chat about my school life with my friends for the\nreason that they are very interested in it.We talk about the activities at\nschool. And they want to come to my school and play with my\nclassmates. My classmates are very happy while hearing this exciting\nnews. We all look forward to that."
+  },
+  {
+   "no": 72,
+   "q": "When was the last time you shouted at your sister?",
+   "cn": "你上次对姐妹大喊大叫是什么时候?",
+   "ans": "l remembered l\nshouted at my sister last weekend because my sister tore my drawing\nbook and threw it into the garbage basket. l was very angry.l shouted at\nher and she cried loudly. My mum heard her cry and came to see what\nhappened.When my mum got to know what happened, she took my\nsister away and bought me a new drawing book the next day."
+  },
+  {
+   "no": 73,
+   "q": "Do you think you can be a leader for a group of twenty people?",
+   "cn": "你认为你能成为二十人小组的领导吗?",
+   "ans": "Yes,l think l can be a leader for a group of twenty people.l know\nit re-quires an outstanding interpersonal skill. l have taken part in a\ntraining courseto develop my communication skills so that l can handle\nthe problems people raise when they meet difficulties.l also want to take\na chance to work together with others and get along well with them.\nOr: No,i don't think l can be a leader for a group of twenty people. lt's a\ndemanding job to be a leader.You have to be very skilful to\ncommunicate with so many people.I'm not that kind of person to\ncommunicate smoothly with others. So l don't think l can handle\npeople's problems effectively."
+  },
+  {
+   "no": 74,
+   "q": "What do you have to do when you are asked to a party or other events?",
+   "cn": "当你被邀请参加晚会或其他活动 时,你需要做什么?",
+   "ans": "When l'm asked to a party or other events,l\nhave to prepare it very wel.Firstly,l need to know who will participate in\nthe party. Secondly, l should make sure when and where the party will be\nheld. Thirdly,l must know whether l have to pay for it or not. lt's always a\ngood idea to bring some cash.Otherwise,l will lose my face there."
+  },
+  {
+   "no": 75,
+   "q": "Do you prefer to work alone or with other people with different cultural back ground when you do a project? 运动(Sports)",
+   "cn": "当你在做一个项目的时候,你喜欢独自完成,还是与文化背景不同的 人一起完成?",
+   "ans": "like to work alone because there is not a lot of\ninterruption. When l work alone, l can concentrate on the project and\nthink about the process in detai.Working alone is also a good chance for\nme to practice what l have learned from the coursebooks and other\npeople. So l prefer to work individually.Or:l think it's better to work with\nothers rather than alone. When l work with others,l can discuss with them\nand get help from them. lf\nl'm a new person in the project,l hope other\ngroup members can give me some suggestions and opinions to do the\nwork wel. No one can work alone. Each job needs a team spirit. And the\nteam spirit makes us do the job well.chat about 闲聊\nlook forward to 期待\nshout at 对……大喊\nleader /li:de/n.领导\ninterpersonal skil 人际关系技巧\ncommunication skil 沟通技巧\nhandle the problem 解决问题\nget along well with 与…好好相处\nparticipate in 参加\nlose face 丢脸\ninterruption /in te'rsp∫n/ n. 打扰\nconcentrate on 专注于\ngroup member 小组成员\nteam spirit 团队精神"
+  },
+  {
+   "no": 76,
+   "q": "What's your favourite sport?",
+   "cn": "你最喜欢的运动是什么?",
+   "ans": "My favourite sport is football /soccer /baseball. L like football\n/soccer /baseball very much and l can play it well with my friends and my\nclassmates.What's more,l always win the game, so l think l can be a good\nplayer in the future."
+  },
+  {
+   "no": 77,
+   "q": "Which is more important, winning or losing in sports?",
+   "cn": "在体育运动中,输和赢哪个更重要?",
+   "ans": "l think winning is more important. Everybody wants to win the\ngame andnobody wants to lose. This is why sports competition is always\nfairly fierce.However, people like to watch intense competitions. When\nthere is not a hotcompetition,the game is usually boring.\nOr:l don't think it matters so much if we win the sports game. There is\nalways winning or losing in a sports game. When we win, we're happy;\nwhen\nwe lose, we can't lose our confidence and strength' We can learn from\nour failure. Actually there is no winner or loser in any sports games"
+  },
+  {
+   "no": 78,
+   "q": "Which of these sports events: football, basketball, volleyball, etc. do you play best?",
+   "cn": "足球、篮球、排球等运动中,你最擅长哪一项?",
+   "ans": "I can play\nfootball /basketball /volleyball very we l. l started to play it when I was\nvery small and took part in the training course in a sports club.l learned\nto play the game with the confidence of winning. But actually l couldn't\nwin all the time.Now l know there is something more significant than\nwinning a sports competition."
+  },
+  {
+   "no": 79,
+   "q": "What position do you play?",
+   "cn": "你打什么位置?",
+   "ans": "lt depends on the sports events l take\npart in.l play the goalkeeper in the football game, while in the basketball\ngame l play the defence. In the baseball game, I'm a catcher.In the\nswimming competition, l don't have any positions because swimming is\ndifferent from games like football and basket.ball. So it's hard to define\nexactly what position l play in the sports game."
+  },
+  {
+   "no": 80,
+   "q": "Do you want your country to host the Olympic Games? 自然世界(The natural world)",
+   "cn": "你想让你的国 家主办奥运会吗?",
+   "ans": "Yes,l want my country to host the Olympic Games. We know the\nOlympic Games is an international sports event. We can see a 'o t of\nfamous sports stars who will participate in the lympic Games.lt can also\nbenefit the development of economy in the country. So l think it's\nnecessary to host the Olympic Games.\nbaseball /bersbo:!/ n. 棒球fierce /fros/ a.猛烈的lose confidence 失去信心\nsports club 运动俱乐部\nsoccer /soke/ n. 足球\nsports competition 运动竞技\nintense /n'tens/ a. 紧张的\nvolleyball /'volrbo:!/ n. 排球\ndefence /dr'fens/n. 防卫\nsports event 体育赛事\nhost the Olympic Games 主办奥运会\ncatcher /kaet∫a/n.接球手"
+  },
+  {
+   "no": 81,
+   "q": "Do you like animals?",
+   "cn": "你喜欢动物吗?",
+   "ans": "Yes,l like animals very much.l like\npanda particularly. Panda is a kind of rare animals, We must protect it,\nProtecting panda is protecting our environment."
+  },
+  {
+   "no": 82,
+   "q": "Do you have pets?",
+   "cn": "你有饲养宠物 吗?",
+   "ans": "Yes,l have two pets:a cat and a rabbit. L love cats because they\nare very gentle.My cat always sit son my table and looks at me when l do\nmy homework. My rabbit is very cute and always plays hide-and-seek\nwhen l want to pet her. They are so lovely.Or: No, l don't like to keep\nanimals as pets. Some people think that they are very kind to animals\nwhen they keep them as pets. But l think actually they are torturing\nanimals for they don't give animals freedom. Animals shouf livein the\nnatural world rather than live with people in the house."
+  },
+  {
+   "no": 83,
+   "q": "Do you think we human beings should take animals as our friends?",
+   "cn": "你认为人类应该把动物当作我们的朋友吗?",
+   "ans": "Yes,l think we should take animals as our friends.We live in the\nsame natural world,so we should live harmoniously with wild animals. lf\nthere is n't any wild animals in the world, the balance of ecology will be\nbroken down There will be a lot of disasters. So we need to treat animals\nas our friends.Or: No, I don't think we should take animals as our friends.\nAs we know, some animals are good to our environment, but others do\nharm to our environment especially when they are overrun.l think\nnobody likes to take rats o cock roaches as our friends. For animals like\nthese, we should eliminate them."
+  },
+  {
+   "no": 84,
+   "q": "Which life do you prefer, city life or rural life?",
+   "cn": "你更喜欢城市生活,还是农村生 活?",
+   "ans": "l prefer city life than rural life.In city,life is more comfortable.l\ncan go any where l like because there is a good public transport system.l\ncan experience a lot of things that I haven't tried in the countryside. For\nexample,can go to the concert and cafª. City life is always more\ninteresting. So l like city life.\nOr: l like countryside life. Country life is quiet and peaceful, not as noisy\nand busy as city life.l can watch stars in the sky and hear soft buzzes of\ninsects in the evening.To build up my body,l can do some labour work in\nthe farm. Also,l can grow some crops or vegetables and l really enjoy my\nwork.Sol prefer to live in the countryside."
+  },
+  {
+   "no": 85,
+   "q": "How do you travel to school?",
+   "cn": "你怎么去上学?",
+   "ans": "l go to school on foot.My home is rather close to my school. l\nusually don't take a bus /car /train to school. It is very healthy to go to\nschool on foot because l can do physical exercises and it contributes to\nenviron-ment protection."
+  }
+ ]
+}
