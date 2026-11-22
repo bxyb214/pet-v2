@@ -197,14 +197,26 @@
               <b>{{ u.display_name || u.username }}</b>
               <i class="mono">@{{ u.username }}</i>
             </span>
-            <span class="utags">
+            <span class="uright">
               <i v-if="u.is_admin" class="tg admin">管理员</i>
-              <i v-if="u.perms.includes('speak')" class="tg speak">口语已开通</i>
-              <i v-if="!u.perms.includes('speak') && !u.is_admin" class="tg muted">基础权限</i>
+              <span class="uperm">
+                <span class="pl">口语</span>
+                <n-switch
+                  size="small"
+                  :value="u.perms.includes('speak')"
+                  :disabled="u.is_admin"
+                  :loading="permBusy === u.id"
+                  :title="u.is_admin ? '管理员默认开通，无需设置' : '开通后可进入跟读 / 对话 / 复盘 / 造句'"
+                  @update:value="(v: boolean) => toggleSpeak(u, v)"
+                />
+              </span>
             </span>
           </div>
         </div>
         <p v-else class="empty">还没有账号。</p>
+        <p class="foot-hint">
+          口语按账号开通：打开后该账号即可进入「跟读 / 对话 / 复盘 / 造句」，关闭后相关接口一律拒绝；管理员恒为开通。
+        </p>
       </section>
     </template>
 
@@ -265,7 +277,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from "vue";
-import { NButton, NDatePicker, NInput, NInputNumber, useMessage } from "naive-ui";
+import { NButton, NDatePicker, NInput, NInputNumber, NSwitch, useMessage } from "naive-ui";
 import { api } from "../core/api";
 
 type CfgMap = Record<string, string>;
@@ -365,6 +377,25 @@ async function loadUsers(): Promise<void> {
     users.value = await api<UserRow[]>("/admin/users");
   } catch { /* 忽略 */ }
 }
+const permBusy = ref(0);
+
+/** 开通 / 关闭某个账号的口语权限（管理员恒开通，开关不可操作） */
+async function toggleSpeak(u: UserRow, on: boolean): Promise<void> {
+  permBusy.value = u.id;
+  try {
+    const r = await api<UserRow>(`/admin/users/${u.id}/perms`, {
+      method: "PUT",
+      body: JSON.stringify({ speak: on }),
+    });
+    u.perms = r.perms;
+    message.success(on ? `已为 ${u.username} 开通口语` : `已关闭 ${u.username} 的口语`);
+  } catch (e) {
+    message.error("修改失败：" + (e as Error).message);
+  } finally {
+    permBusy.value = 0;
+  }
+}
+
 async function makeCodes(): Promise<void> {
   making.value = true;
   try {
@@ -598,15 +629,15 @@ h1 { margin: 0 0 4px; font-size: 22px; font-weight: 800; letter-spacing: 0.2px; 
 .uid { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .uid b { font-size: 14px; font-weight: 700; color: var(--c-text); }
 .uid i { font-style: normal; font-size: 11.5px; color: var(--c-text-3); }
-.utags { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.uright { margin-left: auto; display: flex; align-items: center; gap: 10px; flex: none; }
+.uperm { display: flex; align-items: center; gap: 6px; }
+.uperm .pl { font-size: 12px; color: var(--c-text-2); }
 .tg {
   font-style: normal; font-size: 11px; font-weight: 700;
   padding: 2px 8px; border-radius: var(--r-pill);
   white-space: nowrap;
 }
 .tg.admin { background: #eef4ff; color: #2f5fd0; }
-.tg.speak { background: var(--c-primary-soft); color: var(--c-primary-strong); }
-.tg.muted { background: #f3f6f4; color: var(--c-text-3); }
 
 /* ---------- 用量表 ---------- */
 .tbl { display: flex; flex-direction: column; }
@@ -642,7 +673,6 @@ h1 { margin: 0 0 4px; font-size: 22px; font-weight: 800; letter-spacing: 0.2px; 
   .grid2 { grid-template-columns: 1fr; }
   .span2 { grid-column: span 1; }
   .panel { padding: 14px 12px 16px; }
-  .utags .tg.muted { display: none; }
   .thead, .trow { grid-template-columns: minmax(0, 1.4fr) 1fr 1fr 1fr; font-size: 12.5px; }
 }
 </style>

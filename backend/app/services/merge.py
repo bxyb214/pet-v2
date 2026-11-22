@@ -102,11 +102,14 @@ def merge_plan(server: dict | None, client: dict | None) -> dict:
     cli_rdays = set(_seen_list(cli.get("reading_days_done")))
     length = cli.get("length") or srv.get("length") or 0
     rlength = cli.get("reading_length") or srv.get("reading_length") or 0
+    # 教材选择是「同一份计划的属性」，不做并集：客户端非空即以客户端为准
+    rbooks = _seen_list(cli.get("reading_books")) or _seen_list(srv.get("reading_books"))
     return {
         "length": length,
         "days_done": sorted(srv_days | cli_days, key=lambda x: int(x)),
         "reading_length": rlength,
         "reading_days_done": sorted(srv_rdays | cli_rdays, key=lambda x: int(x)),
+        "reading_books": sorted(set(rbooks)),
     }
 
 

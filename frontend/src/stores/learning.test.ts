@@ -31,9 +31,9 @@ describe("learning store（无网络，纯本地逻辑）", () => {
     s.setPlan(40);
     s.markPlanDayDone(3);
     s.markPlanDayDone(1);
-    expect(s.data.plan).toEqual({ length: 40, days_done: ["1", "3"], reading_length: 0, reading_days_done: [] });
+    expect(s.data.plan).toEqual({ length: 40, days_done: ["1", "3"], reading_length: 0, reading_days_done: [], reading_books: [] });
     s.deletePlan();
-    expect(s.data.plan).toEqual({ length: 0, days_done: [], reading_length: 0, reading_days_done: [] });
+    expect(s.data.plan).toEqual({ length: 0, days_done: [], reading_length: 0, reading_days_done: [], reading_books: [] });
   });
 
   it("本地持久化：同一用户刷新后数据仍在", () => {

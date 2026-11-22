@@ -2,7 +2,7 @@
 import json
 import secrets
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -161,14 +161,40 @@ def list_users(
     _admin: object = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    return [
-        {
-            "id": u.id,
-            "username": u.username,
-            "display_name": u.display_name,
-            "is_admin": u.is_admin,
-            "perms": effective_perms(u),
-            "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None,
-        }
-        for u in db.query(User).order_by(User.id).all()
-    ]
+    return [_user_row(u) for u in db.query(User).order_by(User.id).all()]
+
+
+class PermIn(BaseModel):
+    speak: bool
+
+
+def _user_row(u: User) -> dict:
+    return {
+        "id": u.id,
+        "username": u.username,
+        "display_name": u.display_name,
+        "is_admin": u.is_admin,
+        "perms": effective_perms(u),
+        "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None,
+    }
+
+
+@router.put("/users/{user_id}/perms")
+def set_user_perms(
+    user_id: int,
+    body: PermIn,
+    _admin: object = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """开通 / 关闭某个账号的口语权限（只动 speak 位，!listen 等其他标记原样保留）。
+
+    管理员恒为开通（effective_perms 兜底），这里只对普通账号有意义；
+    仍允许改，便于以后回收时库内状态与界面一致。
+    """
+    u = db.get(User, user_id)
+    if u is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "用户不存在")
+    others = [p for p in (u.perms or "").split(",") if p.strip() and p.strip() != "speak"]
+    u.perms = ",".join(others + (["speak"] if body.speak else []))
+    db.commit()
+    return _user_row(u)

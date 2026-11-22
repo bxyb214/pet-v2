@@ -72,6 +72,7 @@ describe("mergePlan", () => {
       days_done: ["1", "2", "3"],
       reading_length: 0,
       reading_days_done: [],
+      reading_books: [],
     });
   });
 
@@ -86,7 +87,26 @@ describe("mergePlan", () => {
       days_done: [],
       reading_length: 20,
       reading_days_done: ["1", "2"],
+      reading_books: [],
     });
+  });
+});
+
+describe("mergePlan · 教材选择", () => {
+  it("客户端非空以客户端为准（同一份计划的属性，不做并集）", () => {
+    const out = mergePlan(
+      { length: 0, days_done: [], reading_length: 20, reading_days_done: [], reading_books: ["t1", "t2"] },
+      { length: 0, days_done: [], reading_length: 20, reading_days_done: [], reading_books: ["t1"] },
+    );
+    expect(out.reading_books).toEqual(["t1"]);
+  });
+
+  it("客户端没带（老版本）→ 保留服务端", () => {
+    const out = mergePlan(
+      { length: 0, days_done: [], reading_length: 20, reading_days_done: [], reading_books: ["t2"] },
+      { length: 0, days_done: [], reading_length: 20, reading_days_done: [] },
+    );
+    expect(out.reading_books).toEqual(["t2"]);
   });
 });
 

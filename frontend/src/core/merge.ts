@@ -6,7 +6,14 @@
 type MasteryItem = { word_id: string; mastered_dims: string[] };
 type MistakeItem = { word_id: string; dims: string[]; stage: number; due_at: string; repeats: number };
 type ProgressItem = { key: string; seen: string[]; idx: number };
-type PlanData = { length: number; days_done: string[]; reading_length: number; reading_days_done: string[] };
+type PlanData = {
+  length: number;
+  days_done: string[];
+  reading_length: number;
+  reading_days_done: string[];
+  /** 阅读计划覆盖的教材 id；空/缺省 = 全部教材（兼容老数据） */
+  reading_books?: string[];
+};
 type CustomWordItem = {
   id: number;
   word: string;
@@ -35,7 +42,13 @@ export type SyncData = {
 };
 export type { MasteryItem, MistakeItem, ProgressItem, PlanData, CustomWordItem, CustomSentenceItem };
 
-export const EMPTY_PLAN: PlanData = { length: 0, days_done: [], reading_length: 0, reading_days_done: [] };
+export const EMPTY_PLAN: PlanData = {
+  length: 0,
+  days_done: [],
+  reading_length: 0,
+  reading_days_done: [],
+  reading_books: [],
+};
 
 function splitDims(v: string[] | string | undefined): string[] {
   if (Array.isArray(v)) return v.filter(Boolean);
@@ -99,11 +112,14 @@ export function mergePlan(server: PlanData | undefined, client: PlanData | undef
   const cli = client ?? EMPTY_PLAN;
   const days = [...new Set([...toSeen(srv.days_done), ...toSeen(cli.days_done)])];
   const rdays = [...new Set([...toSeen(srv.reading_days_done), ...toSeen(cli.reading_days_done)])];
+  // 教材选择是同一份计划的属性，不做并集：客户端非空即以客户端为准
+  const rbooks = (cli.reading_books?.length ? cli.reading_books : srv.reading_books) ?? [];
   return {
     length: cli.length || srv.length || 0,
     days_done: days.sort((a, b) => Number(a) - Number(b)),
     reading_length: cli.reading_length || srv.reading_length || 0,
     reading_days_done: rdays.sort((a, b) => Number(a) - Number(b)),
+    reading_books: [...new Set(rbooks)].sort(),
   };
 }
 

@@ -105,7 +105,7 @@ import {
   buildQuizItems, grammarIndex, itemForDim, loadReading, speak, withCustomSentences,
   type QuizItem, type RSentence,
 } from "../core/reading";
-import { partKey, readingDayOf, type ReadingPartRef } from "../core/plan";
+import { buildReadingPlan, partKey, readingDayOf, readingParts, type ReadingPartRef } from "../core/plan";
 
 const TYPE_LABEL: Record<string, string> = { meaning: "读懂句意", blank: "选词填空", grammar: "语法选择" };
 
@@ -236,20 +236,12 @@ function finishBookkeeping(): void {
   if (progressKey.value) learning.recordProgress(progressKey.value);
   // R9 阅读计划打勾：Part 测验达标 → 反查所属天
   if (partRef.value && learning.data.plan.reading_length > 0) {
-    const parts: ReadingPartRef[] = [];
-    // 与 PlanPage 同序：按 reading.json tests 顺序展开（loadReading 缓存即同源）
+    // 与计划页同源：同一组教材 + 同一套切分函数，避免两边算出不同的天
+    const books = learning.data.plan.reading_books ?? [];
     void loadReading().then((d) => {
-      for (const t of d.tests) for (const p of t.parts) parts.push({ book: t.book || "t2", testNo: t.no, part: p.part });
-      const quota = Math.ceil(parts.length / learning.data.plan.reading_length);
-      let acc = 0;
-      for (let day = 1; day <= learning.data.plan.reading_length; day++) {
-        const slice = parts.slice(acc, acc + quota);
-        acc += quota;
-        if (slice.some((p) => partKey(p) === partKey(partRef.value!))) {
-          learning.markReadingDayDone(day);
-          break;
-        }
-      }
+      const plan = buildReadingPlan(readingParts(d.tests, books), learning.data.plan.reading_length);
+      const day = readingDayOf(plan, partKey(partRef.value!));
+      if (day) learning.markReadingDayDone(day);
     });
   }
 }

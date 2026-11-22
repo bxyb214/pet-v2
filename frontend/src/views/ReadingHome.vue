@@ -11,9 +11,6 @@
       </div>
     </n-alert>
 
-    <!-- 阅读计划（从单词计划页迁来，属于阅读板块） -->
-    <ReadingPlanCard class="plan-card" />
-
     <!-- 教材分组 -->
     <section v-for="b in bookGroups" :key="b.id" class="fold">
       <button class="fold-h" :aria-expanded="!!openMap[b.id]" @click="toggle(b.id)">
@@ -63,7 +60,6 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { NAlert, NButton } from "naive-ui";
-import ReadingPlanCard from "../components/ReadingPlanCard.vue";
 import { useLearningStore } from "../stores/learning";
 import {
   loadReading, testSentences, withCustomSentences,
@@ -154,7 +150,6 @@ h1 { font-size: var(--fs-display); font-weight: 800; letter-spacing: .2px; color
   .fab { right: 14px; bottom: 16px; padding: 10px 14px; font-size: 14px; }
   .page { padding-bottom: 56px; }
 }
-.plan-card { margin-bottom: 14px; }
 .fold { border: 1px solid var(--c-line); border-radius: var(--r-card); margin-bottom: 14px; background: var(--c-card); overflow: hidden; }
 .fold-h { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 16px; background: none; border: 0; cursor: pointer; text-align: left; min-height: 60px; }
 .fold-h:hover { background: var(--c-mint-bg, #f2faf5); }

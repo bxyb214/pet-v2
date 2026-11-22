@@ -46,3 +46,4 @@ class Plan(Base):
     days_done: Mapped[str] = mapped_column(String(4096), default="[]")  # JSON 数组
     reading_length: Mapped[int] = mapped_column(Integer, default=0)  # 阅读计划天数，0=未生成
     reading_days_done: Mapped[str] = mapped_column(String(4096), default="[]")  # JSON 数组
+    reading_books: Mapped[str] = mapped_column(String(256), default="[]")  # 覆盖的教材 id 数组，空=全部

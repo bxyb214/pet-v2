@@ -31,6 +31,7 @@ const WORD_TABS = [
 ];
 const READING_TABS = [
   { label: "教材", to: "/english/reading/home" },
+  { label: "计划", to: "/english/reading/plan" },
   { label: "错题", to: "/english/reading/mistakes" },
 ];
 const LISTEN_TABS = [
@@ -87,6 +88,11 @@ export const router = createRouter({
           path: "english/reading/home",
           component: () => import("../views/ReadingHome.vue"),
           meta: { subject: "english", module: "reading", crumbs: ["英语", "阅读", "教材"], tabs: READING_TABS },
+        },
+        {
+          path: "english/reading/plan",
+          component: () => import("../views/ReadingPlanPage.vue"),
+          meta: { subject: "english", module: "reading", crumbs: ["英语", "阅读", "计划"], tabs: READING_TABS },
         },
         {
           path: "english/reading/study/:testNo/:part",

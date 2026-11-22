@@ -36,7 +36,7 @@ const EMPTY: SyncData = {
   mastery: [],
   mistakes: [],
   progress: [],
-  plan: { length: 0, days_done: [], reading_length: 0, reading_days_done: [] },
+  plan: { length: 0, days_done: [], reading_length: 0, reading_days_done: [], reading_books: [] },
   custom_words: [],
   custom_sentences: [],
 };

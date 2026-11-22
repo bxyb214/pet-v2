@@ -53,7 +53,17 @@ def test_plan_union():
         "days_done": ["1", "2", "3"],
         "reading_length": 20,
         "reading_days_done": ["1"],
+        "reading_books": [],
     }
+
+
+def test_plan_reading_books_client_wins():
+    """教材选择是同一份计划的属性，不做并集：客户端非空即以客户端为准。"""
+    srv = {"reading_length": 20, "reading_books": ["t1", "t2"]}
+    cli = {"reading_length": 20, "reading_books": ["t1"]}
+    assert merge_plan(srv, cli)["reading_books"] == ["t1"]
+    # 客户端没带（老版本 / 首次合并）→ 保留服务端
+    assert merge_plan(srv, {"reading_length": 20})["reading_books"] == ["t1", "t2"]
 
 
 def test_custom_sentences_union():

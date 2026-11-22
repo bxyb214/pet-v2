@@ -82,6 +82,27 @@ export function partKey(p: ReadingPartRef): string {
   return `${p.book}:${p.testNo}:${p.part}`;
 }
 
+/**
+ * 计划覆盖的 Part 序列。
+ * bookIds 有值：先按选择顺序排教材，再按 tests 顺序排套与 Part；
+ * bookIds 为空：按 tests 顺序走全部教材（兼容未选教材的老计划）。
+ */
+export function readingParts(
+  tests: { no: number; book?: string; parts: { part: number }[] }[],
+  bookIds?: string[],
+): ReadingPartRef[] {
+  const bookOf = (t: { book?: string }): string => t.book || "t2";
+  const order = bookIds && bookIds.length ? bookIds : [...new Set(tests.map(bookOf))];
+  const out: ReadingPartRef[] = [];
+  for (const book of order) {
+    for (const t of tests) {
+      if (bookOf(t) !== book) continue;
+      for (const p of t.parts) out.push({ book, testNo: t.no, part: p.part });
+    }
+  }
+  return out;
+}
+
 export function buildReadingPlan(parts: ReadingPartRef[], days: number): ReadingPlanDay[] {
   if (!Number.isInteger(days) || days <= 0) throw new Error("天数必须为正整数");
   const quota = Math.ceil(parts.length / days);

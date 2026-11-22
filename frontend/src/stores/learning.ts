@@ -214,13 +214,16 @@ export const useLearningStore = defineStore("learning", {
       return found ? { idx: found.idx, seen: found.seen } : null;
     },
     /** 阅读计划（R9）：独立于词汇计划 */
-    setReadingPlan(length: number): void {
+    setReadingPlan(length: number, books: string[] = []): void {
       this.data.plan.reading_length = length;
+      // 空数组 = 全部教材（兼容老数据），有值则按选择切分
+      this.data.plan.reading_books = [...new Set(books)].sort();
       this.markDirty();
     },
     deleteReadingPlan(): void {
       this.data.plan.reading_length = 0;
       this.data.plan.reading_days_done = [];
+      this.data.plan.reading_books = [];
       this.markDirty();
     },
     markReadingDayDone(day: number): void {
@@ -256,7 +259,9 @@ export const useLearningStore = defineStore("learning", {
       this.markDirty();
     },
     deletePlan(): void {
-      this.data.plan = { length: 0, days_done: [], reading_length: 0, reading_days_done: [] };
+      this.data.plan = {
+        length: 0, days_done: [], reading_length: 0, reading_days_done: [], reading_books: [],
+      };
       this.markDirty();
     },
   },

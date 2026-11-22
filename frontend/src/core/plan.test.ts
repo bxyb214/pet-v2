@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { splitPlan, validatePlan, buildReadingPlan, validateReadingPlan, readingDayOf, type WordBanks } from "./plan";
+import {
+  splitPlan, validatePlan, buildReadingPlan, validateReadingPlan, readingDayOf, readingParts,
+  type WordBanks,
+} from "./plan";
 
 function makeBank(prefix: string, n: number) {
   return Array.from({ length: n }, (_, i) => ({ id: `${prefix}-${i + 1}`, en: `word${i}`, cn: `词${i}` }));
@@ -82,5 +85,43 @@ describe("阅读计划（R9）", () => {
     expect(readingDayOf(plan, "t2:1:4")).toBe(1); // [0..3]
     expect(readingDayOf(plan, "t2:2:4")).toBe(3); // [8..9]
     expect(readingDayOf(plan, "t2:9:9")).toBe(0);
+  });
+});
+
+describe("readingParts（教材选择）", () => {
+  const tests = [
+    { no: 1, book: "t1", parts: [{ part: 1 }, { part: 2 }] },
+    { no: 2, book: "t1", parts: [{ part: 1 }] },
+    { no: 1, book: "t2", parts: [{ part: 1 }, { part: 2 }] },
+  ];
+
+  it("空选择 = 全部教材，顺序与 tests 一致", () => {
+    expect(readingParts(tests)).toEqual([
+      { book: "t1", testNo: 1, part: 1 },
+      { book: "t1", testNo: 1, part: 2 },
+      { book: "t1", testNo: 2, part: 1 },
+      { book: "t2", testNo: 1, part: 1 },
+      { book: "t2", testNo: 1, part: 2 },
+    ]);
+    expect(readingParts(tests, [])).toHaveLength(5);
+  });
+
+  it("按选择的教材顺序排（t2 在前）", () => {
+    expect(readingParts(tests, ["t2", "t1"]).map((p) => p.book)).toEqual([
+      "t2", "t2", "t1", "t1", "t1",
+    ]);
+  });
+
+  it("只选一本教材", () => {
+    const only = readingParts(tests, ["t2"]);
+    expect(only).toHaveLength(2);
+    expect(only.every((p) => p.book === "t2")).toBe(true);
+  });
+
+  it("选中的教材一起切分：不重不漏", () => {
+    const parts = readingParts(tests, ["t1", "t2"]);
+    const plan = buildReadingPlan(parts, 2);
+    expect(validateReadingPlan(parts, plan)).toBe(true);
+    expect(plan.map((d) => d.parts.length)).toEqual([3, 2]);
   });
 });
