@@ -26,7 +26,10 @@
         </n-button>
       </n-form>
 
-      <p class="hint">没有账号？向老师要一个邀请码注册</p>
+      <p class="hint">
+        没有账号？
+        <router-link to="/register">用邀请码注册</router-link>
+      </p>
     </div>
   </main>
 </template>
@@ -90,4 +93,5 @@ async function submit(): Promise<void> {
 h1 { font-size: 22px; font-weight: 800; color: var(--c-text, #1f3d2b); margin: 0 0 6px; }
 .sub { font-size: 13px; color: var(--c-text-2, #6b7f74); margin: 0; }
 .hint { text-align: center; font-size: 12px; color: var(--c-text-2, #6b7f74); margin: 16px 0 0; }
+.hint a { color: #1f7a4d; text-decoration: none; font-weight: 600; }
 </style>

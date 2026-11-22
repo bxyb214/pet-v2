@@ -116,6 +116,23 @@
           </n-form>
         </n-tab-pane>
 
+        <!-- ---------- 账号与邀请码 ---------- -->
+        <n-tab-pane name="accounts" tab="账号与邀请码">
+          <div class="uhead">
+            <n-input-number v-model:value="codeCount" :min="1" :max="20" size="small" style="width: 110px" />
+            <n-button size="small" type="primary" :loading="making" @click="makeCodes">生成邀请码</n-button>
+            <span class="tot">未使用 <b>{{ unusedCount }}</b> 个</span>
+          </div>
+          <n-data-table size="small" :columns="codeCols" :data="codes" :bordered="false" />
+          <p class="hint">
+            把邀请码给孩子：打开登录页 → 「用邀请码注册」→ 填邀请码 + 用户名 + 密码即可。邀请码一次性使用。
+          </p>
+
+          <div class="uhead" style="margin-top: 22px"><span>已有账号</span></div>
+          <n-data-table size="small" :columns="userCols" :data="users" :bordered="false" />
+          <p v-if="!users.length" class="hint">还没有账号。</p>
+        </n-tab-pane>
+
         <!-- ---------- 用量 ---------- -->
         <n-tab-pane name="usage" tab="AI 用量（只记录）">
           <div class="uhead">
@@ -142,7 +159,7 @@
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from "vue";
+import { computed, h, onMounted, reactive, ref } from "vue";
 import { NButton, NCard, NForm, NFormItem, NGi, NGrid, NInput, NInputNumber, NAlert, NTabPane, NTabs, NDatePicker, NDataTable, useMessage, type DataTableColumns } from "naive-ui";
 import { api } from "../core/api";
 
@@ -206,6 +223,86 @@ async function loadMonth(): Promise<void> {
   } catch { /* 忽略 */ }
 }
 
+// ---------- 账号与邀请码 ----------
+type CodeRow = { code: string; used: boolean; used_by: string; used_at: string | null };
+type UserRow = { id: number; username: string; display_name: string; is_admin: boolean; perms: string };
+
+const codes = ref<CodeRow[]>([]);
+const users = ref<UserRow[]>([]);
+const codeCount = ref(3);
+const making = ref(false);
+const unusedCount = computed(() => codes.value.filter((c) => !c.used).length);
+
+const codeCols: DataTableColumns<CodeRow> = [
+  {
+    title: "邀请码",
+    key: "code",
+    render: (r) =>
+      h(
+        "b",
+        {
+          style: `font-family:ui-monospace,Consolas,monospace;letter-spacing:.5px;cursor:pointer;color:${
+            r.used ? "#9aa8a0" : "var(--c-primary,#16a34a)"
+          }`,
+          title: "点击复制",
+          onClick: () => copyCode(r.code),
+        },
+        r.code,
+      ),
+  },
+  {
+    title: "状态",
+    key: "used",
+    width: 150,
+    render: (r) =>
+      r.used
+        ? h("span", { style: "color:#9aa8a0" }, `已被 ${r.used_by || "他人"} 使用`)
+        : h("span", { style: "color:var(--c-primary,#16a34a)" }, "未使用"),
+  },
+];
+
+const userCols: DataTableColumns<UserRow> = [
+  { title: "用户名", key: "username" },
+  { title: "昵称", key: "display_name" },
+  { title: "管理员", key: "is_admin", width: 90, render: (r) => (r.is_admin ? "是" : "—") },
+  { title: "权限", key: "perms", render: (r) => r.perms || "—" },
+];
+
+async function copyCode(code: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(code);
+    message.success("已复制 " + code);
+  } catch {
+    message.info(code);
+  }
+}
+
+async function loadCodes(): Promise<void> {
+  try {
+    codes.value = await api<CodeRow[]>("/admin/codes");
+  } catch { /* 忽略 */ }
+}
+async function loadUsers(): Promise<void> {
+  try {
+    users.value = await api<UserRow[]>("/admin/users");
+  } catch { /* 忽略 */ }
+}
+async function makeCodes(): Promise<void> {
+  making.value = true;
+  try {
+    const made = await api<string[]>("/admin/codes", {
+      method: "POST",
+      body: JSON.stringify({ count: codeCount.value }),
+    });
+    message.success(`已生成 ${made.length} 个：${made.join(" ")}`);
+    await loadCodes();
+  } catch (e) {
+    message.error("生成失败：" + (e as Error).message);
+  } finally {
+    making.value = false;
+  }
+}
+
 // ---------- 配置加载 / 保存 ----------
 function pick(d: Record<string, string>, k: string): string {
   return String(d[k] ?? "");
@@ -233,6 +330,8 @@ onMounted(async () => {
   }
   await loadUsage();
   await loadMonth();
+  await loadCodes();
+  await loadUsers();
 });
 
 async function save(): Promise<void> {

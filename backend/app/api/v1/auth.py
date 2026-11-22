@@ -83,6 +83,17 @@ def refresh(body: RefreshIn, db: Session = Depends(get_db)) -> TokenOut:
     return _token_out(user)
 
 
+@router.get("/setup")
+def setup(db: Session = Depends(get_db)) -> dict:
+    """公开：前端判断该显示「首次初始化」还是「邀请码注册」。"""
+    settings = get_settings()
+    return {
+        "initialized": db.query(User).count() > 0,
+        "allow_claim": settings.allow_claim,
+        "has_invite": db.query(InviteCode).filter(InviteCode.used_by.is_(None)).count() > 0,
+    }
+
+
 @router.post("/claim", response_model=TokenOut, status_code=201)
 def claim(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
     """首次初始化：仅当库内无任何账号时，用邀请码创建管理员账号。"""

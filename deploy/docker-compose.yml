@@ -12,7 +12,12 @@ services:
       - api
 
   api:
-    build: ../backend
+    build:
+      context: ../backend
+      args:
+        # 国内装依赖走清华源；需要换源在 deploy/.env 里设 PIP_INDEX_URL
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
     image: pet-api:latest
     restart: unless-stopped
     expose:

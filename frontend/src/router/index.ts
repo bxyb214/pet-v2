@@ -50,6 +50,7 @@ export const router = createRouter({
   routes: [
     { path: "/", redirect: "/english/words/browse" },
     { path: "/login", component: () => import("../views/Login.vue") },
+    { path: "/register", component: () => import("../views/Register.vue") },
 
     {
       path: "/",
@@ -184,7 +185,8 @@ export const router = createRouter({
 // 未开通口语的用户进入口语子页 → 回口语首页并弹权限提示（AI 调用有费用）
 router.beforeEach(async (to) => {
   const localOnly = localStorage.getItem("pet_local_only") === "true";
-  if (!localOnly && to.path !== "/login" && !getToken()) return "/login";
+  const PUBLIC = new Set(["/login", "/register"]);
+  if (!localOnly && !PUBLIC.has(to.path) && !getToken()) return "/login";
   if (to.path === "/admin") {
     const { useAuthStore } = await import("../stores/auth");
     const auth = useAuthStore();

@@ -54,3 +54,9 @@ Thumbs.db
 .idea/
 .vscode/
 *.log
+
+# ---------- 凭据兜底（正常都在仓库外，这里只做双保险）----------
+*credential*
+*passwd*
+nas*.md
+server.md

@@ -48,6 +48,8 @@
 
 ## 二、部署步骤（NAS Docker 就绪后我执行）
 
+> **2026-11-22 已实际部署成功**，下面命令仅作参考；日常请用 `tools/deploy_nas.py`（见第五节）。
+
 ```bash
 # 0. 代码上 NAS（打包上传，dist 产物一起）
 #    pet-v2/{backend,frontend/dist,deploy} → /vol1/1000/docker/pet-v2/
@@ -88,3 +90,67 @@ curl http://127.0.0.1:8088/api/v1/healthz     # {"status":"ok"}
 - TTS 缓存目录在 `data/tts/`，跟数据库同一挂卷，持久化
 - WebSocket（SOE 评测 WSS、WebRTC 信令）都是浏览器直连第三方，**不经过 NAS**——NAS 只承担 HTTPS 静态与 REST API，带宽压力很小
 - WebRTC 需要页面为 HTTPS（或 localhost），所以外网访问必须走你的 HTTPS 域名
+
+---
+
+## 五、实际部署记录（2026-11-22 首次上线）
+
+### 环境实测
+
+| 项 | 实测值 |
+|---|---|
+| NAS 内网地址 | `<NAS内网IP>`（与开发机不在同一网段，ping 1ms 可达；实际 IP 记在本地凭据文件） |
+| 系统 | fnOS / Debian 12，内核 `6.18.18.c1186-trim` |
+| Docker | 28.5.2，compose v2.40.3 |
+| 项目目录 | `/vol1/1000/docker/pet-v2`（可直接写，**免 sudo**） |
+| 磁盘 | `/vol1/1000` 390G 可用 |
+| 内存 | 7.6G（实际占用：api ≈ 90MB，nginx ≈ 5MB） |
+| 访问地址 | `http://<NAS内网IP>:8088`（管理页 `/admin`） |
+
+### 两个必须知道的坑
+
+**1. `admin` 用户不在 docker 组，docker 命令必须 sudo**
+
+```
+permission denied while trying to connect to the Docker daemon socket
+```
+
+`tools/deploy_nas.py` 会自动探测：直连 `docker info` 失败就整体切到 `sudo -S`（密码走 stdin，不落盘不回显）。注意 `sudo cmd1 && cmd2` 只有 cmd1 提权，必须 `sudo sh -c "cmd1 && cmd2"`，脚本里已按此处理。
+
+**2. fnOS 自带镜像加速对部分镜像返回 401，pip 也太慢**
+
+```
+failed to resolve source metadata for docker.io/library/python:3.12-slim:
+unexpected status from HEAD request to https://docker.fnnas.com/...: 401 Unauthorized
+```
+
+`daemon.json` 里注册的是 `docker.fnnas.com` + `registry.hub.docker.com`，前者对 `python:3.12-slim` 报 401、后者在国内不可达（`nginx:1.27-alpine` 却能拉下来）。处理方式：
+
+```bash
+# 用可达的镜像源显式拉，再打上官方标签，之后 build 会用本地镜像，不去访问 registry
+sudo docker pull docker.m.daocloud.io/library/python:3.12-slim
+sudo docker tag  docker.m.daocloud.io/library/python:3.12-slim python:3.12-slim
+```
+
+`backend/Dockerfile` 已改成默认走清华 PyPI（`PIP_INDEX_URL` 可在 `deploy/.env` 覆盖），否则 `pip install` 实测只有 20 kB/s，装一次 8 分钟还装不完。
+
+### 首次初始化（关键）
+
+库里没有任何账号时，前端「注册」页会自动进入**首次初始化**模式，调用 `/api/v1/auth/claim` 建管理员。但它需要一个**尚未使用的邀请码**，而新库是空的 —— 已预置一个：
+
+预置方式：直接向 SQLite 的 `invite_codes` 表插一条未使用的码（`claim` 要求有可用邀请码）。
+
+操作：打开 `http://<NAS内网IP>:8088/register` → 填预置邀请码 + 用户名 + 密码 → 自动创建管理员并登录。
+（预置的邀请码明文记在本地凭据文件，不入库。）
+
+之后的账号：登录管理员 → `/admin` → 「账号与邀请码」标签 → 生成邀请码 → 孩子在 `/register` 用码注册。
+（对齐接口：`GET/POST /api/v1/admin/codes`、`GET /api/v1/admin/users`、`GET /api/v1/auth/setup`）
+
+### 部署耗时基准
+
+| 场景 | 耗时 |
+|---|---|
+| 首次 pip 安装（清华源） | ≈ 3 分钟 |
+| 代码不变的重跑（全 CACHED） | 13 秒 |
+| 只改前端 dist | ≈ 15 秒 + 上传 73MB |
+| 打包上传 73MB（局域网） | ≈ 10 秒 |

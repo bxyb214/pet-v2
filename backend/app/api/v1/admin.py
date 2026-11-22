@@ -1,5 +1,6 @@
 """管理后台：配置管理（F-5，M2）。明文 Key 回显尾 4 位；JSON 配置脱敏 api_key/secret_key。"""
 import json
+import secrets
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -7,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import require_admin
 from app.db import get_db
+from app.models.user import InviteCode, User
 from app.services import ai_enrich, usage as usage_svc
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -98,3 +100,75 @@ def admin_usage_summary(
     """月度汇总（YYYY-MM，缺省当月）：按用户汇总 token / 次数 / 预估费用。"""
     month = month or usage_svc.today()[:7]
     return usage_svc.admin_month(db, month)
+
+
+# ---------------------------------------------------------------- 邀请码 / 账号
+class CodeIn(BaseModel):
+    count: int = Field(default=1, ge=1, le=20)
+    prefix: str = Field(default="PET", max_length=8)
+
+
+def _gen_code(prefix: str) -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # 去掉易混的 I/O/0/1
+    body = "".join(secrets.choice(alphabet) for _ in range(8))
+    return f"{prefix}-{body[:4]}-{body[4:]}"
+
+
+@router.get("/codes")
+def list_codes(
+    _admin: object = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """邀请码列表：未用的排前面，附使用者用户名。"""
+    rows = db.query(InviteCode).order_by(InviteCode.used_by.isnot(None), InviteCode.id.desc()).all()
+    user_ids = [r.used_by for r in rows if r.used_by]
+    names = {
+        u.id: u.username
+        for u in db.query(User).filter(User.id.in_(user_ids)).all()
+    } if user_ids else {}
+    return [
+        {
+            "code": r.code,
+            "used": r.used_by is not None,
+            "used_by": names.get(r.used_by or 0, ""),
+            "used_at": r.used_at.isoformat() if r.used_at else None,
+        }
+        for r in rows
+    ]
+
+
+@router.post("/codes")
+def make_codes(
+    body: CodeIn,
+    _admin: object = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[str]:
+    """批量生成邀请码，返回明文列表（只在此刻可见）。"""
+    made: list[str] = []
+    for _ in range(body.count):
+        for _try in range(5):
+            code = _gen_code(body.prefix)
+            if db.query(InviteCode).filter(InviteCode.code == code).first() is None:
+                db.add(InviteCode(code=code))
+                made.append(code)
+                break
+    db.commit()
+    return made
+
+
+@router.get("/users")
+def list_users(
+    _admin: object = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "display_name": u.display_name,
+            "is_admin": u.is_admin,
+            "perms": u.perms,
+            "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None,
+        }
+        for u in db.query(User).order_by(User.id).all()
+    ]
