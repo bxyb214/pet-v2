@@ -17,9 +17,9 @@ describe("phaseOfDay", () => {
 });
 
 describe("dayDone", () => {
-  it("跟读+对话都完成才算", () => {
-    expect(dayDone({ day: 1, shadow_done: true, talk_done: true, score: 80 })).toBe(true);
-    expect(dayDone({ day: 1, shadow_done: true, talk_done: false, score: 0 })).toBe(false);
+  it("跟读+造句+对话都完成才算", () => {
+    expect(dayDone({ day: 1, shadow_done: true, make_done: true, talk_done: true, score: 80 })).toBe(true);
+    expect(dayDone({ day: 1, shadow_done: true, make_done: true, talk_done: false, score: 0 })).toBe(false);
     expect(dayDone(undefined)).toBe(false);
   });
 });
@@ -55,9 +55,9 @@ describe("phaseOfDay", () => {
 });
 
 describe("dayDone", () => {
-  it("跟读+对话都完成才算", () => {
-    expect(dayDone({ day: 1, shadow_done: true, talk_done: true, score: 80 })).toBe(true);
-    expect(dayDone({ day: 1, shadow_done: true, talk_done: false, score: 0 })).toBe(false);
+  it("跟读+造句+对话都完成才算", () => {
+    expect(dayDone({ day: 1, shadow_done: true, make_done: true, talk_done: true, score: 80 })).toBe(true);
+    expect(dayDone({ day: 1, shadow_done: true, make_done: true, talk_done: false, score: 0 })).toBe(false);
     expect(dayDone(undefined)).toBe(false);
   });
 });

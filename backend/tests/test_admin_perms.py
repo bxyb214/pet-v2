@@ -83,6 +83,26 @@ def test_toggle_keeps_other_flags():
     assert perms == {"!listen", "speak"}
 
 
+def test_admin_can_close_and_reopen_own_speak():
+    """管理员默认开通，但也能显式关闭自己的口语权限，且不影响管理后台。"""
+    admin = _claim("boss4")
+    H = {"Authorization": f"Bearer {admin}"}
+    me = client.get("/api/v1/auth/me", headers=H).json()
+    assert "speak" in me["perms"].split(",")
+    uid = me["id"]
+
+    r = client.put(f"/api/v1/admin/users/{uid}/perms", json={"speak": False}, headers=H)
+    assert r.status_code == 200
+    assert "speak" not in r.json()["perms"].split(",")
+    assert client.post("/api/v1/speak/boot", json={"mode": "shadow"}, headers=H).status_code == 403
+    assert client.get("/api/v1/admin/users", headers=H).status_code == 200
+
+    r = client.put(f"/api/v1/admin/users/{uid}/perms", json={"speak": True}, headers=H)
+    assert r.status_code == 200
+    assert "speak" in r.json()["perms"].split(",")
+    assert client.post("/api/v1/speak/boot", json={"mode": "shadow"}, headers=H).status_code == 200
+
+
 def test_toggle_requires_admin_and_existing_user():
     _claim("boss3")
     uid = _register("kid3")

@@ -1,11 +1,7 @@
 <template>
   <main class="page">
     <h1>听力</h1>
-    <p class="sub">官方真题 · 听音频 → 答题 → 提交判分（错题自动进错题本）</p>
-
-    <n-alert v-if="dueCount" type="warning" :bordered="false" class="mistake-bar" @click="goReview">
-      🔁 到期错题 {{ dueCount }} 题 · 点击复习
-    </n-alert>
+    <p class="sub">官方真题 · 听音频 · 对照字幕（可隐藏）· 0.8–1.2 倍速</p>
 
     <div v-if="!data" class="empty card">加载中…</div>
     <template v-else>
@@ -27,10 +23,8 @@
                 <button
                   v-for="p in t.parts" :key="p.part"
                   class="part-row"
-                  :class="{ done: isDone(t, p) }"
                   @click="goPart(t.no, p.part)"
                 >
-                  <span class="pcheck" :class="{ on: isDone(t, p) }">{{ isDone(t, p) ? "✓" : "" }}</span>
                   <span class="plabel">Part {{ p.part }} · {{ p.label || p.kind }}</span>
                   <span class="pmeta">{{ p.qRange }} · {{ p.items.length }} 题</span>
                   <svg class="pgo" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
@@ -45,14 +39,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { NAlert } from "naive-ui";
-import { useLearningStore } from "../stores/learning";
-import { loadListening, progressKey, type ListeningData, type LPart, type LTest } from "../core/listening";
+import { loadListening, type ListeningData, type LTest } from "../core/listening";
 
 const router = useRouter();
-const learning = useLearningStore();
 const data = ref<ListeningData | null>(null);
 const openMap = reactive<Record<string, boolean>>({});
 
@@ -69,34 +60,19 @@ function toggle(id: string): void {
 function testsOf(bookId: string): LTest[] {
   return (data.value?.tests ?? []).filter((t) => t.book === bookId);
 }
-function isDone(t: LTest, p: LPart): boolean {
-  const rec = learning.progressOf(progressKey(t.book, t.no, p.part));
-  return !!rec && rec.seen.length > 0;
-}
 function goPart(no: number, part: number): void {
-  void router.push(`/english/listening/${no}/${part}`);
-}
-function goReview(): void {
-  void router.push("/english/listening/review");
+  void router.push(`/english/listening/part/${no}/${part}`);
 }
 function fmtDur(sec: number): string {
   const m = Math.round(sec / 60);
   return `约 ${m} 分钟`;
 }
-const dueCount = computed(() => {
-  const today = new Date().toISOString().slice(0, 10);
-  return learning.data.mistakes.filter((m) => m.word_id.startsWith("listen:") && m.due_at <= today).length;
-});
 </script>
 
 <style scoped>
 .page { width: 100%; }
 h1 { color: var(--c-text); font-size: var(--fs-display); margin: 0 0 6px; }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 18px; }
-.mistake-bar {
-  background: var(--c-accent-soft, #fffbeb); color: var(--c-accent); border-radius: var(--r-btn);
-  padding: 12px 16px; margin-bottom: 16px; cursor: pointer; font-weight: 600;
-}
 .book { margin-bottom: 14px; }
 .book-head {
   display: flex; align-items: center; gap: 12px; width: 100%;
@@ -125,9 +101,6 @@ h1 { color: var(--c-text); font-size: var(--fs-display); margin: 0 0 6px; }
   font: inherit; color: var(--c-text); transition: background 0.15s, border-color 0.15s;
 }
 .part-row:hover { background: var(--c-primary-soft); border-color: color-mix(in srgb, var(--c-primary) 30%, transparent); }
-.part-row.done { background: var(--c-primary-soft, #e7f6ec); }
-.pcheck { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--c-line); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: #fff; flex: none; }
-.pcheck.on { background: var(--c-primary); border-color: var(--c-primary); }
 .plabel { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; }
 .pmeta { color: var(--c-text-2); font-size: var(--fs-sub); white-space: nowrap; }
 .pgo { color: var(--c-text-2); flex: none; }

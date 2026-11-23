@@ -30,6 +30,8 @@ export type SpeakConn = {
   closed: boolean;
   /** 会话已持续秒数（记账上报用） */
   elapsedSec: () => number;
+  /** 孩子真正开口的累计秒数（本地麦克风能量检测） */
+  speechSec: () => number;
 };
 
 // talk 模式客户端工具：屏幕提示卡 + 奖励（§5 屏幕辅助区）
@@ -69,12 +71,16 @@ function parseSdpError(raw: string): string {
 export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
   const pc = new RTCPeerConnection({ iceServers: [] });
   const startedAt = Date.now();
+  let speechMs = 0;
+  let meter: ReturnType<typeof setInterval> | null = null;
+  let meterCtx: AudioContext | null = null;
   const dc = pc.createDataChannel("oai-events");
   const conn: SpeakConn & { text: string; lastReply: string } = {
     ready: false,
     text: "",
     lastReply: "",
     elapsedSec: () => Math.max(0, Math.round((Date.now() - startedAt) / 1000)),
+    speechSec: () => Math.round(speechMs / 1000),
     send(m) {
       if (dc.readyState === "open") dc.send(JSON.stringify(m));
     },
@@ -90,6 +96,10 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
     },
     close() {
       conn.closed = true;
+      if (meter) clearInterval(meter);
+      meter = null;
+      try { void meterCtx?.close(); } catch { /* noop */ }
+      meterCtx = null;
       try { pc.getSenders().forEach((s) => s.track?.stop()); } catch { /* noop */ }
       try { dc.close(); } catch { /* noop */ }
       try { pc.close(); } catch { /* noop */ }
@@ -194,6 +204,25 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       stream.getTracks().forEach((tr) => pc.addTrack(tr, stream));
+      // 本地能量检测：只累计孩子真正开口的时长（AI 声音被回声消除过滤）
+      try {
+        meterCtx = new AudioContext();
+        const meterSrc = meterCtx.createMediaStreamSource(stream);
+        const analyser = meterCtx.createAnalyser();
+        analyser.fftSize = 512;
+        meterSrc.connect(analyser);
+        const buf = new Uint8Array(analyser.fftSize);
+        void meterCtx.resume();
+        meter = setInterval(() => {
+          analyser.getByteTimeDomainData(buf);
+          let sum = 0;
+          for (let i = 0; i < buf.length; i++) {
+            const v = (buf[i] - 128) / 128;
+            sum += v * v;
+          }
+          if (Math.sqrt(sum / buf.length) > 0.02) speechMs += 200;
+        }, 200);
+      } catch { /* 环境不支持能量检测时只记 0 秒 */ }
       conn.send({
         type: "session.update",
         session: {

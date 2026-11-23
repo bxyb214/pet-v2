@@ -73,6 +73,7 @@ export class SoeEval {
   private final = false;
   private parser: (raw: string) => SoeResult;
   private lastResult: SoeResult | null = null;
+  private speechMs = 0;
 
   constructor(private opts: SoeOpts) {
     this.parser = opts.parser ?? parseSoeResult;
@@ -148,10 +149,25 @@ export class SoeEval {
   }
 
   private enqueue(chunk: Int16Array): void {
+    if (chunk.length) {
+      let sum = 0;
+      for (let i = 0; i < chunk.length; i++) {
+        const v = chunk[i] / 32768;
+        sum += v * v;
+      }
+      if (Math.sqrt(sum / chunk.length) > 0.02) {
+        this.speechMs += (chunk.length / 16000) * 1000;
+      }
+    }
     const merged = new Int16Array(this.pending.length + chunk.length);
     merged.set(this.pending);
     merged.set(chunk, this.pending.length);
     this.pending = merged;
+  }
+
+  /** 孩子真正开口的累计秒数（本地能量检测） */
+  speechSec(): number {
+    return Math.round(this.speechMs / 1000);
   }
 
   /** 按 1280 字节分包发送，单次 tick 最多 3 包（服务端 1s 内最多收 3s 音频）。 */

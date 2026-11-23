@@ -99,10 +99,12 @@ def test_log_creates_day_checkin():
     token = _fresh_user()
     H = {"Authorization": f"Bearer {token}"}
     assert client.post("/api/v1/speak/log", json={"mode": "shadow", "ref": "p1-intro", "day": 1, "turns": 5, "score": 88}, headers=H).status_code == 200
+    assert client.post("/api/v1/speak/log", json={"mode": "make", "day": 1, "turns": 1}, headers=H).status_code == 200
     assert client.post("/api/v1/speak/log", json={"mode": "talk", "ref": "c101", "day": 1, "turns": 6, "score": 75}, headers=H).status_code == 200
     d = client.get("/api/v1/speak/days", headers=H).json()
     assert d["days"][0]["day"] == 1
     assert d["days"][0]["shadow_done"] is True
+    assert d["days"][0]["make_done"] is True
     assert d["days"][0]["talk_done"] is True
     assert d["days"][0]["score"] == 88  # 历史最高
 
@@ -141,3 +143,77 @@ def test_instructions_pure_functions():
     assert "day 9" in s2
     assert "70/100" in s2
     assert "  1) x" in s2
+
+
+def test_speak_plan_crud():
+    token = _fresh_user("planner")
+    H = {"Authorization": f"Bearer {token}"}
+    assert client.get("/api/v1/speak/plan", headers=H).json()["length"] == 0
+    assert client.put("/api/v1/speak/plan", json={"length": 30}, headers=H).json()["length"] == 30
+    assert client.get("/api/v1/speak/plan", headers=H).json()["length"] == 30
+    assert client.put("/api/v1/speak/plan", json={"length": 0}, headers=H).status_code == 422
+    assert client.put("/api/v1/speak/plan", json={"length": 91}, headers=H).status_code == 422
+    assert client.delete("/api/v1/speak/plan", headers=H).json()["length"] == 0
+
+
+def test_review_import_and_grade():
+    token = _fresh_user("importer")
+    H = {"Authorization": f"Bearer {token}"}
+    r = client.post(
+        "/api/v1/speak/log",
+        json={
+            "mode": "talk", "day": 3, "turns": 1,
+            "transcript": [{"role": "user", "text": "I go school by bus."}],
+        },
+        headers=H,
+    )
+    assert r.status_code == 200
+    log_id = r.json()["log_id"]
+    payload = {
+        "log_id": log_id,
+        "items": [{
+            "child_said": "I go school by bus.",
+            "improved_en": "I go to school by bus.",
+            "improved_cn": "我坐公交车上学。",
+            "focus": "grammar",
+            "dims": ["grammar:preposition"],
+        }],
+    }
+    r = client.post("/api/v1/speak/review/import", json=payload, headers=H)
+    assert r.status_code == 200, r.text
+    item = r.json()["items"][0]
+    assert item["improved_en"] == "I go to school by bus."
+    # 幂等：重复导入不新增
+    r2 = client.post("/api/v1/speak/review/import", json=payload, headers=H)
+    assert len(r2.json()["items"]) == 1
+    # 评分过关 → 维度划掉并毕业
+    g = client.post(
+        "/api/v1/speak/review/grade",
+        json={"id": item["id"], "score": 90, "dims_ok": ["grammar:preposition"]},
+        headers=H,
+    )
+    assert g.status_code == 200
+    assert g.json()["done"] is True
+
+
+def test_speak_time_accumulates():
+    token = _fresh_user("timer")
+    H = {"Authorization": f"Bearer {token}"}
+    assert client.get("/api/v1/speak/time/today", headers=H).json()["totals"]["talk"] == 0
+    r = client.post("/api/v1/speak/time", json={"mode": "talk", "seconds": 120}, headers=H)
+    assert r.status_code == 200
+    assert r.json()["totals"]["talk"] == 120
+    client.post("/api/v1/speak/time", json={"mode": "talk", "seconds": 30}, headers=H)
+    client.post("/api/v1/speak/time", json={"mode": "shadow", "seconds": 45}, headers=H)
+    totals = client.get("/api/v1/speak/time/today", headers=H).json()["totals"]
+    assert totals == {"shadow": 45, "make": 0, "talk": 150}
+    assert client.post("/api/v1/speak/time", json={"mode": "talk", "seconds": 0}, headers=H).status_code == 422
+
+
+def test_new_plan_resets_day_checks():
+    token = _fresh_user("planner2")
+    H = {"Authorization": f"Bearer {token}"}
+    client.post("/api/v1/speak/log", json={"mode": "talk", "day": 1, "turns": 1}, headers=H)
+    assert client.get("/api/v1/speak/days", headers=H).json()["days"]
+    client.put("/api/v1/speak/plan", json={"length": 30}, headers=H)
+    assert client.get("/api/v1/speak/days", headers=H).json()["days"] == []

@@ -81,6 +81,50 @@ def generate_review(db: Session, user_id: int, log: SpeakLog) -> list[dict]:
     return out
 
 
+def import_items(
+    db: Session, user_id: int, log: SpeakLog, items: list[dict]
+) -> list[dict]:
+    """把对话中即时优化的句子落库（同一 log + child_said 幂等更新，不清旧评分）。"""
+    existing = {
+        r.child_said: r
+        for r in db.query(SpeakReview)
+        .filter(SpeakReview.user_id == user_id, SpeakReview.log_id == log.id)
+        .all()
+    }
+    today = usage.today()
+    out: list[dict] = []
+    for it in items[:12]:
+        child = str(it.get("child_said", "")).strip()[:400]
+        improved = str(it.get("improved_en", "")).strip()[:200]
+        if not child or not improved:
+            continue
+        dims = [str(d)[:40] for d in it.get("dims", []) if str(d).strip()][:2]
+        dims = dims or ["grammar:general"]
+        row = existing.get(child)
+        if row is None:
+            row = SpeakReview(
+                user_id=user_id,
+                log_id=log.id,
+                child_said=child,
+                improved_en=improved,
+                improved_cn=str(it.get("improved_cn", "")).strip()[:200],
+                focus=str(it.get("focus", "grammar")).strip()[:64],
+                dims=json.dumps(dims, ensure_ascii=False),
+                stage=0,
+                due_at=today,
+            )
+            db.add(row)
+            db.flush()
+        else:
+            row.improved_en = improved
+            row.improved_cn = str(it.get("improved_cn", "")).strip()[:200]
+            row.focus = str(it.get("focus", "grammar")).strip()[:64]
+            row.dims = json.dumps(dims, ensure_ascii=False)
+        out.append(_to_dict(row))
+    db.commit()
+    return out
+
+
 def _to_dict(r: SpeakReview) -> dict:
     return {
         "id": r.id,
