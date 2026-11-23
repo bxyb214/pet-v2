@@ -9,6 +9,8 @@ interface ApiError extends Error {
 }
 
 let accessToken: string | null = localStorage.getItem("pet_access") ?? "";
+let unauthorizedHandler: (() => void) | null = null;
+let unauthorizedFired = false;
 
 export function setToken(token: string | null): void {
   accessToken = token;
@@ -17,7 +19,30 @@ export function setToken(token: string | null): void {
 }
 
 export function getToken(): string | null {
+  // 多标签页 / 手动清除 localStorage 时，内存值可能过期，守卫以存储为准
+  const stored = localStorage.getItem("pet_access");
+  if (stored !== accessToken) accessToken = stored;
   return accessToken;
+}
+
+/** 由 main.ts 注册：任一接口 401 时清会话并回登录页。 */
+export function setUnauthorizedHandler(fn: (() => void) | null): void {
+  unauthorizedHandler = fn;
+}
+
+/** 仅测试用：重置 401 去重锁。 */
+export function resetUnauthorizedForTest(): void {
+  unauthorizedFired = false;
+}
+
+function fireUnauthorized(): void {
+  if (unauthorizedFired) return;
+  unauthorizedFired = true;
+  setToken(null);
+  unauthorizedHandler?.();
+  window.setTimeout(() => {
+    unauthorizedFired = false;
+  }, 0);
 }
 
 export async function api<T>(
@@ -26,7 +51,8 @@ export async function api<T>(
 ): Promise<T> {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   const res = await fetch(BASE + path, { ...options, headers });
   if (!res.ok) {
     let detail: unknown;
@@ -37,6 +63,10 @@ export async function api<T>(
       if (typeof body?.detail === "string") message = body.detail;
     } catch {
       /* 保留默认消息 */
+    }
+    // 登录/刷新失败由表单自己提示；其余 401 一律视为会话失效
+    if (res.status === 401 && path !== "/auth/login" && path !== "/auth/refresh") {
+      fireUnauthorized();
     }
     const err = new Error(message) as ApiError;
     err.status = res.status;

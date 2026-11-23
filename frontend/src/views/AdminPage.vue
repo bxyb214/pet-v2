@@ -204,9 +204,8 @@
                 <n-switch
                   size="small"
                   :value="u.perms.includes('speak')"
-                  :disabled="u.is_admin"
                   :loading="permBusy === u.id"
-                  :title="u.is_admin ? '管理员默认开通，无需设置' : '开通后可进入跟读 / 对话 / 复盘 / 造句'"
+                  :title="u.is_admin ? '管理员默认开通，也可以关闭自己的口语权限' : '开通后可进入跟读 / 对话 / 造句'"
                   @update:value="(v: boolean) => toggleSpeak(u, v)"
                 />
               </span>
@@ -215,7 +214,7 @@
         </div>
         <p v-else class="empty">还没有账号。</p>
         <p class="foot-hint">
-          口语按账号开通：打开后该账号即可进入「跟读 / 对话 / 复盘 / 造句」，关闭后相关接口一律拒绝；管理员恒为开通。
+          口语按账号开通：打开后该账号即可进入「跟读 / 对话 / 造句」，关闭后相关接口一律拒绝。管理员默认开通，也可关闭自己的口语权限。
         </p>
       </section>
     </template>

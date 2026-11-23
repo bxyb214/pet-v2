@@ -34,16 +34,12 @@ const READING_TABS = [
   { label: "计划", to: "/english/reading/plan" },
   { label: "错题", to: "/english/reading/mistakes" },
 ];
-const LISTEN_TABS = [
-  { label: "教材", to: "/english/listening/home" },
-  { label: "错题", to: "/english/listening/review" },
-];
 const SPEAK_TABS = [
   { label: "计划", to: "/english/speak" },
   { label: "跟读", to: "/english/speak/shadow" },
-  { label: "对话", to: "/english/speak/talk" },
-  { label: "复盘", to: "/english/speak/review" },
   { label: "造句", to: "/english/speak/make" },
+  { label: "对话", to: "/english/speak/talk" },
+  { label: "题库", to: "/english/speak/scenes" },
 ];
 
 export const router = createRouter({
@@ -71,6 +67,11 @@ export const router = createRouter({
         {
           path: "english/words/study",
           component: () => import("../views/QuizPage.vue"),
+          meta: { subject: "english", module: "words", crumbs: ["英语", "单词", "学习"], tabs: WORD_TABS },
+        },
+        {
+          path: "english/words/study/day",
+          component: () => import("../views/PlanStudyPage.vue"),
           meta: { subject: "english", module: "words", crumbs: ["英语", "单词", "学习"], tabs: WORD_TABS },
         },
         {
@@ -124,18 +125,15 @@ export const router = createRouter({
         {
           path: "english/listening/home",
           component: () => import("../views/ListeningHome.vue"),
-          meta: { subject: "english", module: "listening", crumbs: ["英语", "听力", "教材"], tabs: LISTEN_TABS },
+          meta: { subject: "english", module: "listening", crumbs: ["英语", "听力", "教材"] },
         },
         {
           path: "english/listening/part/:testNo/:part",
           component: () => import("../views/ListeningPartPage.vue"),
-          meta: { subject: "english", module: "listening", crumbs: ["英语", "听力", "测验"] },
+          meta: { subject: "english", module: "listening", crumbs: ["英语", "听力", "播放"] },
         },
-        {
-          path: "english/listening/review",
-          component: () => import("../views/ListeningReview.vue"),
-          meta: { subject: "english", module: "listening", crumbs: ["英语", "听力", "错题"], tabs: LISTEN_TABS },
-        },
+        // 听力错题本已下线，旧链接回首页
+        { path: "english/listening/review", redirect: "/english/listening/home" },
         // ---------- 英语 · 口语 ----------
         {
           path: "english/speak",
@@ -152,15 +150,17 @@ export const router = createRouter({
           component: () => import("../views/SpeakTalk.vue"),
           meta: { subject: "english", module: "speak", crumbs: ["英语", "口语", "对话"], width: "narrow" },
         },
-        {
-          path: "english/speak/review",
-          component: () => import("../views/SpeakReview.vue"),
-          meta: { subject: "english", module: "speak", crumbs: ["英语", "口语", "复盘"], width: "narrow" },
-        },
+        // 复盘已并入自由对话页，旧链接回口语首页
+        { path: "english/speak/review", redirect: "/english/speak" },
         {
           path: "english/speak/make",
           component: () => import("../views/SentencePage.vue"),
           meta: { subject: "english", module: "speak", crumbs: ["英语", "口语", "造句"] },
+        },
+        {
+          path: "english/speak/scenes",
+          component: () => import("../views/SpeakScenes.vue"),
+          meta: { subject: "english", module: "speak", crumbs: ["英语", "口语", "题库"], tabs: SPEAK_TABS },
         },
         // ---------- 其他学科 / 管理 ----------
         {
@@ -183,40 +183,47 @@ export const router = createRouter({
     { path: "/words/add", redirect: "/english/words/browse" },
     { path: "/quiz", redirect: "/english/words/study" },
     { path: "/reading", redirect: "/english/reading/home" },
-    { path: "/reading/study/:testNo/:part", redirect: "/english/reading/study/:testNo/:part" },
-    { path: "/reading/quiz/:testNo", redirect: "/english/reading/quiz/:testNo" },
+    { path: "/reading/study/:testNo/:part", redirect: (to) => `/english/reading/study/${String(to.params.testNo)}/${String(to.params.part)}` },
+    { path: "/reading/quiz/:testNo", redirect: (to) => `/english/reading/quiz/${String(to.params.testNo)}` },
     { path: "/reading/add", redirect: "/english/reading/add" },
     { path: "/listening", redirect: "/english/listening/home" },
-    { path: "/listening/review", redirect: "/english/listening/review" },
-    { path: "/listening/:testNo/:part", redirect: "/english/listening/part/:testNo/:part" },
+    { path: "/listening/review", redirect: "/english/listening/home" },
+    { path: "/listening/:testNo/:part", redirect: (to) => `/english/listening/part/${String(to.params.testNo)}/${String(to.params.part)}` },
+    // 旧版听力首页用了错误链接 /english/listening/:testNo/:part
+    { path: "/english/listening/:testNo/:part", redirect: (to) => `/english/listening/part/${String(to.params.testNo)}/${String(to.params.part)}` },
     { path: "/speak", redirect: "/english/speak" },
     { path: "/speak/shadow", redirect: "/english/speak/shadow" },
     { path: "/speak/talk", redirect: "/english/speak/talk" },
-    { path: "/speak/review", redirect: "/english/speak/review" },
+    { path: "/speak/review", redirect: "/english/speak" },
     { path: "/speak/make", redirect: "/english/speak/make" },
+    { path: "/speak/scenes", redirect: "/english/speak/scenes" },
     { path: "/:pathMatch(.*)*", redirect: "/english/words/browse" },
   ],
 });
 
-// 路由守卫：未登录跳转登录页（本地模式除外）；非管理员禁止进管理页；
-// 未开通口语的用户进入口语子页 → 回口语首页并弹权限提示（AI 调用有费用）
+// 路由守卫：除登录/注册外，所有页面都必须有有效会话；
+// 会话缺失/过期/被服务端拒绝 → 统一回登录页，不再渲染任何业务页面。
 router.beforeEach(async (to) => {
-  const localOnly = localStorage.getItem("pet_local_only") === "true";
   const PUBLIC = new Set(["/login", "/register"]);
-  if (!localOnly && !PUBLIC.has(to.path) && !getToken()) return "/login";
-  if (to.path === "/admin") {
-    const { useAuthStore } = await import("../stores/auth");
-    const auth = useAuthStore();
-    await auth.restore();
-    if (!auth.isAdmin) return "/english/words/browse";
-  }
-  if (to.path.startsWith("/english/speak") && to.path !== "/english/speak") {
-    const { useAuthStore } = await import("../stores/auth");
-    const auth = useAuthStore();
-    if (!localOnly) {
-      await auth.restore();
-      if (auth.username && !auth.perms.includes("speak")) return "/english/speak?locked=1";
-    }
+  if (PUBLIC.has(to.path)) return true;
+
+  if (!getToken()) return { path: "/login", replace: true };
+
+  const { useAuthStore } = await import("../stores/auth");
+  const auth = useAuthStore();
+  await auth.restore();
+  if (!auth.username) return { path: "/login", replace: true };
+
+  // 非管理员禁止进管理页
+  if (to.path === "/admin" && !auth.isAdmin) return "/english/words/browse";
+
+  // 未开通口语的用户进入口语子页 → 回口语首页并弹权限提示
+  if (
+    to.path.startsWith("/english/speak") &&
+    to.path !== "/english/speak" &&
+    !auth.perms.includes("speak")
+  ) {
+    return "/english/speak?locked=1";
   }
   return true;
 });

@@ -73,6 +73,8 @@ describe("mergePlan", () => {
       reading_length: 0,
       reading_days_done: [],
       reading_books: [],
+      plan_updated_at: 0,
+      reading_updated_at: 0,
     });
   });
 
@@ -88,7 +90,42 @@ describe("mergePlan", () => {
       reading_length: 20,
       reading_days_done: ["1", "2"],
       reading_books: [],
+      plan_updated_at: 0,
+      reading_updated_at: 0,
     });
+  });
+
+  it("删除计划（时间戳更新）覆盖服务端旧计划，不再被并回来", () => {
+    const out = mergePlan(
+      { length: 30, days_done: ["1", "2"], reading_length: 0, reading_days_done: [], plan_updated_at: 100 },
+      { length: 0, days_done: [], reading_length: 0, reading_days_done: [], plan_updated_at: 200 },
+    );
+    expect(out.length).toBe(0);
+    expect(out.days_done).toEqual([]);
+    expect(out.plan_updated_at).toBe(200);
+  });
+
+  it("新建计划时间戳更新：旧计划打卡被重置", () => {
+    const out = mergePlan(
+      { length: 30, days_done: ["1", "2"], reading_length: 0, reading_days_done: [], plan_updated_at: 100 },
+      { length: 45, days_done: [], reading_length: 0, reading_days_done: [], plan_updated_at: 300 },
+    );
+    expect(out.length).toBe(45);
+    expect(out.days_done).toEqual([]);
+  });
+
+  it("词汇与阅读时间戳互不影响：删词汇不丢阅读计划", () => {
+    const out = mergePlan(
+      {
+        length: 30, days_done: ["1"], reading_length: 20, reading_days_done: ["1"],
+        reading_books: ["t1"], plan_updated_at: 100, reading_updated_at: 100,
+      },
+      { length: 0, days_done: [], reading_length: 20, reading_days_done: ["1"], plan_updated_at: 200 },
+    );
+    expect(out.length).toBe(0);
+    expect(out.reading_length).toBe(20);
+    expect(out.reading_days_done).toEqual(["1"]);
+    expect(out.reading_books).toEqual(["t1"]);
   });
 });
 

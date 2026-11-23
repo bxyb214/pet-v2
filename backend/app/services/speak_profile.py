@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models.speak import SpeakDay, SpeakLog, SpeakProfile, SpeakReview
-from app.services import ai_enrich, usage
+from app.services import ai_enrich, dev_mock, usage
 
 _CST = timezone(timedelta(hours=8))
 
@@ -109,23 +109,26 @@ def get_profile(db: Session, user_id: int, rebuild: bool = True) -> str:
         )
     user_block = "\n".join(facts) or "(no data)"
 
-    content = ""
-    try:
-        data, llm_usage = ai_enrich.chat(
-            db,
-            [
-                {"role": "system", "content": _PROFILE_PROMPT},
-                {"role": "user", "content": user_block[:3000]},
-            ],
-            max_tokens=220,
-            temperature=0.2,
-        )
-        content = str(data.get("text") or "").strip()
-        usage.record_llm(db, user_id, llm_usage)
-    except (LookupError, RuntimeError):
-        content = ""
-    if not content:
+    if dev_mock.is_dev():
         content = _fallback_profile(db, user_id, stats)
+    else:
+        content = ""
+        try:
+            data, llm_usage = ai_enrich.chat(
+                db,
+                [
+                    {"role": "system", "content": _PROFILE_PROMPT},
+                    {"role": "user", "content": user_block[:3000]},
+                ],
+                max_tokens=220,
+                temperature=0.2,
+            )
+            content = str(data.get("text") or "").strip()
+            usage.record_llm(db, user_id, llm_usage)
+        except (LookupError, RuntimeError):
+            content = ""
+        if not content:
+            content = _fallback_profile(db, user_id, stats)
 
     if row is None:
         row = SpeakProfile(user_id=user_id, built_day=today, content=content)
@@ -149,6 +152,10 @@ def summarize_session(db: Session, user_id: int, log: SpeakLog) -> str:
     )
     if not convo.strip():
         return ""
+    if dev_mock.is_dev():
+        log.summary = "Dev session: speaking practice completed (mock summary)."
+        db.commit()
+        return log.summary
     try:
         data, llm_usage = ai_enrich.chat(
             db,

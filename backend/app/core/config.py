@@ -16,6 +16,9 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/pet.db"
 
+    # 开发/测试环境：右上角显示 DEV，AI 接口返回确定性模拟结果，不调用任何外部服务
+    dev_mode: bool = False
+
     # Qwen Realtime Key（口语），只存服务端，接口仅回尾号
     qwen_api_key: str = ""
     qwen_sdp_endpoint: str = "https://dashscope.aliyuncs.com/api/v1/services/aigc/realtime"

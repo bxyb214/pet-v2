@@ -32,10 +32,13 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
 
 
 def effective_perms(user: User) -> str:
-    """实际生效的权限串：管理员默认拥有全部权限（含口语），普通用户按 perms 字段。"""
+    """实际生效的权限串：管理员默认拥有口语权限，但可用 `!speak` 显式关闭；普通用户按 perms。"""
     parts = [p.strip() for p in (user.perms or "").split(",") if p.strip()]
-    if user.is_admin and "speak" not in parts:
-        parts.append("speak")
+    if user.is_admin:
+        if "!speak" in parts:
+            parts = [p for p in parts if p != "!speak"]
+        elif "speak" not in parts:
+            parts.append("speak")
     return ",".join(parts)
 
 

@@ -30,7 +30,10 @@ Pydantic schema：`SyncItemMastery{word_id, mastered_dims[]}`、`SyncItemMistake
 | mastery | word_id | mastered_dims 并集 |
 | mistakes | word_id | dims 并集；stage 取小（欠得多）；due_at 取早；repeats 取小 |
 | progress | key | seen 并集；idx 取大 |
-| plan | 用户单条 | days_done 并集；length 取已确认值（非空优先） |
+| plan | 用户单条 | 同一代际 days_done 并集；创建/删除/改天数按 `plan_updated_at`（阅读 `reading_updated_at`）取较新一侧，删除写入 0 + 空打卡后不会被服务端旧计划并回来 |
+
+> 计划时间戳是红线的**最小扩展**：同一代际的 days_done 仍然并集；只有创建/删除/改天数
+> 这种结构性变更才切换代际。老数据时间戳为 0，保持原并集行为。
 
 > **新增记忆曲线字段（stage/due_at/repeats）的合并规则为本设计的红线变更**：原则是「保留欠得多的状态」，
 > 避免多端重复做题导致间隔被意外跳级。**待用户追认**（已在 99-self-review 标注）。
@@ -41,7 +44,7 @@ Pydantic schema：`SyncItemMastery{word_id, mastered_dims[]}`、`SyncItemMistake
 - `mastery(user_id, word_id, mastered_dims TEXT, PK(user_id,word_id))`
 - `mistakes(user_id, word_id, dims TEXT, stage INT, due_at TEXT, repeats INT, PK(user_id,word_id))`
 - `progress(user_id, key TEXT, seen TEXT(JSON), idx INT, PK(user_id,key))`
-- `plans(user_id, length INT, days_done TEXT(JSON), PK(user_id))`
+- `plans(user_id, length INT, days_done TEXT(JSON), plan_updated_at BIGINT, reading_updated_at BIGINT, PK(user_id))`
 
 日期统一 ISO 字符串（YYYY-MM-DD），避免时区序列化问题。
 

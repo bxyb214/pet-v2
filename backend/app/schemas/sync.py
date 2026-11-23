@@ -27,6 +27,8 @@ class PlanData(BaseModel):
     reading_length: int = Field(default=0)  # 阅读计划天数，0=未生成
     reading_days_done: list[str] = Field(default_factory=list)
     reading_books: list[str] = Field(default_factory=list)  # 阅读计划覆盖的教材 id；空=全部
+    plan_updated_at: int = Field(default=0, ge=0)  # 词汇计划结构变更时间（epoch ms）
+    reading_updated_at: int = Field(default=0, ge=0)  # 阅读计划结构变更时间（epoch ms）
 
 
 class CustomWordItem(BaseModel):

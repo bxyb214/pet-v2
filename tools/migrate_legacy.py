@@ -16,7 +16,8 @@
   repeats=0，旧欠账全部视为到期，记忆曲线重新开始走）
 - pet_progress → progress：只迁阅读（reading::t{N}p{K} → read:{book}:{N}:{K}；idx>0 另记
   rstudy:{book}:{N}:{K} 续学位置；N<=6 归 Trainer 2、101+ 归 Trainer 1）；plan/browse 来源跳过
-- pet_plan（exam='pet'）→ plans（length=最大天，days_done=state='done' 天）；exam='ket' 跳过并报告
+- pet_plan（exam='pet'）→ plans（length=固定 30（v1 PLAN_DAYS）；days_done=state='done' 天；
+  超出 30 的脏数据行忽略并 warning）；exam='ket' 跳过并报告
 - pet_speak → speak_logs（scene→ref；issues_json 里对象取 text 归一）
 - pet_speak_day → speak_days
 - pet_session / pet_ai_usage / pet_tokens：跳过（v2 无对应/重新登录/重新发 token）
@@ -166,6 +167,8 @@ def map_plan(rows: list[dict], plan_days: int = 0) -> tuple[dict[int, dict], lis
 
     旧站计划天数是代码里写死的 `PLAN_DAYS = 30`（js/app.js），库里只存已经动过的那些天，
     所以 CLI 传 plan_days=30 兜底，否则「做完 23 天」会被当成「23 天计划已全部完成」。
+    传了 plan_days 时以它为准：超出范围的行（历史脏数据）忽略并 warning，
+    不能把 v2 计划拉成 34 天（否则按 34 天切分，第 24 天会少词）。
     plan_days=0 时按最大天数推断（纯函数默认，单测用）。
     阅读计划是 v2 才有的，旧库没有对应数据，reading_length 保持 0。
     """
@@ -180,8 +183,17 @@ def map_plan(rows: list[dict], plan_days: int = 0) -> tuple[dict[int, dict], lis
             continue
         by_user.setdefault(uid, {}).setdefault(int(r["day"]), []).append(r)
     for uid, days in by_user.items():
-        length = max(max(days), plan_days) if plan_days else max(days)
-        done = sorted(d for d, rs in days.items() if any(str(x.get("state")) == "done" for x in rs))
+        # v1 的 PLAN_DAYS 固定 30；超出范围的行（历史脏数据）不能把计划拉长。
+        valid = {d: rs for d, rs in days.items() if d >= 1}
+        if plan_days:
+            for d in sorted(valid):
+                if d > plan_days:
+                    warns.append(f"user {uid}：day={d} 超出 v1 固定 {plan_days} 天，忽略")
+            valid = {d: rs for d, rs in valid.items() if d <= plan_days}
+            length = plan_days
+        else:
+            length = max(valid) if valid else 0
+        done = sorted(d for d, rs in valid.items() if any(str(x.get("state")) == "done" for x in rs))
         out[uid] = {"length": length, "days_done": done}
     return out, warns
 

@@ -26,4 +26,10 @@ app.include_router(api_router)
 
 @app.get("/api/v1/healthz")
 def healthz() -> dict:
-    return {"status": "ok", "version": app.version, "app": settings.app_name}
+    s = get_settings()
+    return {
+        "status": "ok",
+        "version": app.version,
+        "app": s.app_name,
+        "dev_mode": s.dev_mode,
+    }

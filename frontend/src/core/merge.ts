@@ -13,6 +13,10 @@ type PlanData = {
   reading_days_done: string[];
   /** 阅读计划覆盖的教材 id；空/缺省 = 全部教材（兼容老数据） */
   reading_books?: string[];
+  /** 词汇计划结构变更时间（创建/删除/改天数）；用于让“删除”覆盖服务端旧计划 */
+  plan_updated_at?: number;
+  /** 阅读计划结构变更时间（创建/删除） */
+  reading_updated_at?: number;
 };
 type CustomWordItem = {
   id: number;
@@ -48,6 +52,8 @@ export const EMPTY_PLAN: PlanData = {
   reading_length: 0,
   reading_days_done: [],
   reading_books: [],
+  plan_updated_at: 0,
+  reading_updated_at: 0,
 };
 
 function splitDims(v: string[] | string | undefined): string[] {
@@ -107,19 +113,69 @@ export function mergeProgress(server: ProgressItem[], client: ProgressItem[]): P
     .map(([key, v]) => ({ key, seen: [...v.seen].sort(), idx: v.idx }));
 }
 
+/** newer: 计划结构（创建/删除）以更新的一方为准；equal: 兼容老数据，按原并集语义 */
+type PlanFreshness = "client" | "server" | "equal";
+
+function freshness(serverAt: unknown, clientAt: unknown): PlanFreshness {
+  const s = Number(serverAt) || 0;
+  const c = Number(clientAt) || 0;
+  if (c > s) return "client";
+  if (s > c) return "server";
+  return "equal";
+}
+
+function sortDays(days: Iterable<string>): string[] {
+  return [...new Set(days)].sort((a, b) => Number(a) - Number(b));
+}
+
 export function mergePlan(server: PlanData | undefined, client: PlanData | undefined): PlanData {
   const srv = server ?? EMPTY_PLAN;
   const cli = client ?? EMPTY_PLAN;
-  const days = [...new Set([...toSeen(srv.days_done), ...toSeen(cli.days_done)])];
-  const rdays = [...new Set([...toSeen(srv.reading_days_done), ...toSeen(cli.reading_days_done)])];
-  // 教材选择是同一份计划的属性，不做并集：客户端非空即以客户端为准
-  const rbooks = (cli.reading_books?.length ? cli.reading_books : srv.reading_books) ?? [];
+  const srvAt = Number(srv.plan_updated_at) || 0;
+  const cliAt = Number(cli.plan_updated_at) || 0;
+
+  // 词汇计划：创建/删除是结构性变更，新的时间戳覆盖旧的；同代际仍按 days_done 并集
+  const vFresh = freshness(srvAt, cliAt);
+  const length = vFresh === "client"
+    ? cli.length || 0
+    : vFresh === "server"
+      ? srv.length || 0
+      : cli.length || srv.length || 0;
+  const days = vFresh === "client"
+    ? toSeen(cli.days_done)
+    : vFresh === "server"
+      ? toSeen(srv.days_done)
+      : [...toSeen(srv.days_done), ...toSeen(cli.days_done)];
+
+  // 阅读计划独立时间戳
+  const srvRAt = Number(srv.reading_updated_at) || 0;
+  const cliRAt = Number(cli.reading_updated_at) || 0;
+  const rFresh = freshness(srvRAt, cliRAt);
+  const rlength = rFresh === "client"
+    ? cli.reading_length || 0
+    : rFresh === "server"
+      ? srv.reading_length || 0
+      : cli.reading_length || srv.reading_length || 0;
+  const rdays = rFresh === "client"
+    ? toSeen(cli.reading_days_done)
+    : rFresh === "server"
+      ? toSeen(srv.reading_days_done)
+      : [...toSeen(srv.reading_days_done), ...toSeen(cli.reading_days_done)];
+  // 教材选择是同一份计划的属性，不做并集：同代际客户端非空以客户端为准
+  const rbooks = rFresh === "client"
+    ? cli.reading_books ?? []
+    : rFresh === "server"
+      ? srv.reading_books ?? []
+      : (cli.reading_books?.length ? cli.reading_books : srv.reading_books) ?? [];
+
   return {
-    length: cli.length || srv.length || 0,
-    days_done: days.sort((a, b) => Number(a) - Number(b)),
-    reading_length: cli.reading_length || srv.reading_length || 0,
-    reading_days_done: rdays.sort((a, b) => Number(a) - Number(b)),
+    length,
+    days_done: sortDays(days),
+    reading_length: rlength,
+    reading_days_done: sortDays(rdays),
     reading_books: [...new Set(rbooks)].sort(),
+    plan_updated_at: Math.max(srvAt, cliAt),
+    reading_updated_at: Math.max(srvRAt, cliRAt),
   };
 }
 

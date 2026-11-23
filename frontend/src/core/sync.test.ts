@@ -62,11 +62,20 @@ describe("sync engine", () => {
     expect(getLocal().plan.days_done).toEqual(["1", "2"]);
   });
 
+  it("rev=0 时先 pull 拿到 rev 再 push（新用户首次同步）", async () => {
+    const { deps } = makeDeps();
+    const engine = createSyncEngine(deps);
+    await engine.flushPush();
+    expect(deps.pull).toHaveBeenCalledTimes(1);
+    expect(deps.push).toHaveBeenCalledWith(1, expect.anything());
+  });
+
   it("markDirty 防抖：多次调用只推一次", async () => {
     const push = vi.fn(async (rev: number, d: SyncData) => ({ rev: rev + 1, data: d }));
     const timers = fakeTimers();
     const { deps } = makeDeps({ push, pushDelayMs: 1200, timers: timers as unknown as SyncDeps["timers"] });
     const engine = createSyncEngine(deps);
+    await engine.init();
     engine.markDirty();
     engine.markDirty();
     engine.markDirty();
@@ -81,6 +90,7 @@ describe("sync engine", () => {
     const push = vi.fn(async (rev: number, d: SyncData) => ({ rev: 7, data: d }));
     const { deps, saved, statuses } = makeDeps({ push });
     const engine = createSyncEngine(deps);
+    await engine.init();
     engine.markDirty();
     await engine.flushPush();
     expect(engine.rev).toBe(7);
@@ -132,6 +142,6 @@ describe("sync engine", () => {
     const engine = createSyncEngine(deps);
     await engine.flushPush();
     expect(statuses).toContain("offline");
-    expect(engine.rev).toBe(0);
+    expect(engine.rev).toBe(1); // 先 pull 成功拿到 rev，push 失败只影响本地待推数据
   });
 });

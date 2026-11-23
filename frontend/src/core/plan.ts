@@ -1,6 +1,8 @@
 /**
- * 计划切分（F-1）：四库按天切分，任意天数，不重不漏（V1/P1）。
- * 沿用现站语义推广：每库按 ceil(库长/N) 配额顺序切片，末天吸收余量。
+ * 计划切分（F-1）：每种词库各自平均分到各天，任意天数，不重不漏（V1/P1）。
+ * 对每个词库，第 d 天取 [floor(d*L/N), floor((d+1)*L/N))：
+ * 各天条数最多差 1，余量均匀散布；只要 L >= N，每天都有该词库的词。
+ * 库内单词顺序不变。
  */
 /** 词库 id（bimo/gaopin/guding/tongyi/kword/kcore/kphrase/kconfuse/ksyn…），可扩展 */
 export type BankKey = string;
@@ -32,29 +34,31 @@ function chunk<T>(arr: T[], size: number): T[][] {
 export function splitPlan(banks: WordBanks, days: number, keys?: BankKey[]): PlanDay[] {
   if (!Number.isInteger(days) || days <= 0) throw new Error("天数必须为正整数");
   const order = (keys ?? Object.keys(banks)).filter((k) => (banks[k] ?? []).length > 0);
-  const perBank: Record<BankKey, PlanWord[][]> = {};
+
+  const out: PlanDay[] = Array.from({ length: days }, (_, i) => ({
+    day: i + 1,
+    banks: {},
+    total: 0,
+  }));
+
   for (const key of order) {
-    const quota = Math.ceil(banks[key].length / days);
-    perBank[key] = chunk(banks[key], quota);
-  }
-  const out: PlanDay[] = [];
-  for (let d = 1; d <= days; d++) {
-    const dayBanks: Record<BankKey, PlanWord[]> = {};
-    let total = 0;
-    for (const key of order) {
-      const slice = perBank[key][d - 1] ?? [];
-      dayBanks[key] = slice;
-      total += slice.length;
+    const words = banks[key] ?? [];
+    for (let d = 0; d < days; d++) {
+      // 均匀散布余量：各天条数差 ≤1，且每天尽量都有该库
+      const start = Math.floor((d * words.length) / days);
+      const end = Math.floor(((d + 1) * words.length) / days);
+      const slice = words.slice(start, end);
+      out[d].banks[key] = slice;
+      out[d].total += slice.length;
     }
-    out.push({ day: d, banks: dayBanks, total });
   }
   return out;
 }
 
-/** 不变量校验：各库拼回 = 原库且无重复（生成计划后前端自检） */
-export function validatePlan(banks: WordBanks, plan: PlanDay[]): boolean {
-  for (const key of Object.keys(banks)) {
-    if (!banks[key].length) continue;
+/** 不变量校验：各库拼回 = 原库且无重复；每库每天条数差 ≤1。keys 与 splitPlan 保持一致。 */
+export function validatePlan(banks: WordBanks, plan: PlanDay[], keys?: BankKey[]): boolean {
+  const order = (keys ?? Object.keys(banks)).filter((k) => (banks[k] ?? []).length > 0);
+  for (const key of order) {
     const original = banks[key].map((w) => w.id);
     const rebuilt = plan.flatMap((d) => d.banks[key] ?? []).map((w) => w.id);
     if (original.length !== rebuilt.length) return false;
@@ -62,6 +66,8 @@ export function validatePlan(banks: WordBanks, plan: PlanDay[]): boolean {
     for (let i = 0; i < original.length; i++) {
       if (original[i] !== rebuilt[i]) return false;
     }
+    const counts = plan.map((d) => (d.banks[key] ?? []).length);
+    if (counts.length && Math.max(...counts) - Math.min(...counts) > 1) return false;
   }
   return true;
 }

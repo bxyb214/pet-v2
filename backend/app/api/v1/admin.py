@@ -188,13 +188,20 @@ def set_user_perms(
 ) -> dict:
     """开通 / 关闭某个账号的口语权限（只动 speak 位，!listen 等其他标记原样保留）。
 
-    管理员恒为开通（effective_perms 兜底），这里只对普通账号有意义；
-    仍允许改，便于以后回收时库内状态与界面一致。
+    管理员默认开通，但允许显式关闭：关闭时写入 `!speak`，effective_perms 不再补 speak。
     """
     u = db.get(User, user_id)
     if u is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "用户不存在")
-    others = [p for p in (u.perms or "").split(",") if p.strip() and p.strip() != "speak"]
-    u.perms = ",".join(others + (["speak"] if body.speak else []))
+    others = [
+        p for p in (u.perms or "").split(",")
+        if p.strip() and p.strip() not in ("speak", "!speak")
+    ]
+    if body.speak:
+        u.perms = ",".join(others + ["speak"])
+    elif u.is_admin:
+        u.perms = ",".join(others + ["!speak"])
+    else:
+        u.perms = ",".join(others)
     db.commit()
     return _user_row(u)

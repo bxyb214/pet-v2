@@ -25,6 +25,8 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - PET_JWT_SECRET=${PET_JWT_SECRET:?请在 deploy/.env 设置}
+      # 开发/测试环境置 1：顶栏显示 DEV，AI 接口返回模拟结果，不调用外部服务
+      - PET_DEV_MODE=${PET_DEV_MODE:-0}
       # Qwen/腾讯 SOE 的 Key 不走环境变量：部署后在管理页（/admin）配置，存 app_cfg 表
       - PET_DATABASE_URL=sqlite:///./data/pet.db
     volumes:

@@ -8,9 +8,9 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.deps import require_speak
 from app.db import get_db
-from app.models.speak import SpeakDay, SpeakLog
+from app.models.speak import SpeakDay, SpeakLog, SpeakPlan, SpeakTime
 from app.models.user import User
-from app.services import qwen_speak, speak_profile, speak_review, tencent_soe, usage
+from app.services import ai_enrich, dev_mock, qwen_speak, speak_profile, speak_review, tencent_soe, usage
 
 router = APIRouter(prefix="/speak", tags=["speak"])
 
@@ -59,6 +59,8 @@ class SdpIn(BaseModel):
 
 @router.post("/sdp")
 def sdp(body: SdpIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+    if dev_mock.is_dev():
+        raise HTTPException(503, "开发环境不连接语音服务（前端使用模拟对话）")
     try:
         return qwen_speak.proxy_sdp(db, body.sdp, body.mode)
     except PermissionError as e:
@@ -76,6 +78,8 @@ class SessionEndIn(BaseModel):
 @router.post("/session_end")
 def session_end(body: SessionEndIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
     """会话关闭记账（不限流，只记录）：服务端按官方换算率折算音频 token。"""
+    if dev_mock.is_dev():
+        return {"est_cost_milli": 0, "dev": True}
     row = usage.record_session(db, user.id, body.seconds, body.ai_seconds)
     return {"est_cost_milli": row.est_cost_milli}
 
@@ -89,6 +93,8 @@ class SoeUrlIn(BaseModel):
 @router.post("/soe_url")
 def soe_url(body: SoeUrlIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
     """生成一次腾讯 SOE（口语评测新版）带签名的 WSS 地址。SecretKey 不回传。签发即记账。"""
+    if dev_mock.is_dev():
+        raise HTTPException(503, "开发环境不调用 SOE（前端使用模拟评分）")
     try:
         cfg = tencent_soe.soe_cfg(db)
         usage.record_soe(db, user.id, body.ref_text)
@@ -103,7 +109,7 @@ def soe_url(body: SoeUrlIn, user: User = Depends(require_speak), db: Session = D
 
 
 class LogIn(BaseModel):
-    mode: str = Field(pattern="^(shadow|talk)$")
+    mode: str = Field(pattern="^(shadow|make|talk)$")
     ref: str = Field(default="", max_length=128)
     day: int = Field(default=0, ge=0, le=365)
     turns: int = Field(default=0, ge=0, le=200)
@@ -124,10 +130,15 @@ def log(body: LogIn, user: User = Depends(require_speak), db: Session = Depends(
     if body.day > 0:
         d = db.get(SpeakDay, (user.id, body.day))
         if d is None:
-            d = SpeakDay(user_id=user.id, day=body.day, shadow_done=False, talk_done=False, score=0)
+            d = SpeakDay(
+                user_id=user.id, day=body.day, shadow_done=False,
+                make_done=False, talk_done=False, score=0,
+            )
             db.add(d)
         if body.mode == "shadow":
             d.shadow_done = True
+        elif body.mode == "make":
+            d.make_done = True
         else:
             d.talk_done = True
         if body.score > d.score:
@@ -147,16 +158,143 @@ def days(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> 
     rows = db.query(SpeakDay).filter(SpeakDay.user_id == user.id).all()
     return {
         "days": [
-            {"day": r.day, "shadow_done": r.shadow_done, "talk_done": r.talk_done, "score": r.score}
+            {
+                "day": r.day, "shadow_done": r.shadow_done,
+                "make_done": r.make_done, "talk_done": r.talk_done, "score": r.score,
+            }
             for r in sorted(rows, key=lambda r: r.day)
         ]
     }
+
+
+class PlanIn(BaseModel):
+    length: int = Field(ge=1, le=90)
+
+
+@router.get("/plan")
+def get_plan(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+    """口语计划天数；0 = 未创建（前端按默认 90 天展示）。"""
+    row = db.get(SpeakPlan, user.id)
+    return {"length": row.length if row else 0}
+
+
+@router.put("/plan")
+def put_plan(
+    body: PlanIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
+) -> dict:
+    row = db.get(SpeakPlan, user.id)
+    old_length = row.length if row else 0
+    if row is None:
+        row = SpeakPlan(user_id=user.id, length=body.length)
+        db.add(row)
+    else:
+        row.length = body.length
+    # 新计划从零开始：避免旧的 90 天打卡把新计划的第 1 天直接点亮
+    if body.length != old_length:
+        db.query(SpeakDay).filter(SpeakDay.user_id == user.id).delete()
+    db.commit()
+    return {"length": row.length}
+
+
+@router.delete("/plan")
+def delete_plan(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+    """删除计划但保留打卡记录（与词汇计划一致）。"""
+    row = db.get(SpeakPlan, user.id)
+    if row is not None:
+        row.length = 0
+        db.commit()
+    return {"length": 0}
 
 
 @router.get("/usage_today")
 def usage_today(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
     """用户端「今日已用」轻展示（不限流）。"""
     return usage.day_row(db, user.id)
+
+
+# ---------- 今日练习时长（真实说话秒数，服务端累计，刷新不丢） ----------
+
+
+def _time_totals(db: Session, user_id: int, day: str) -> dict:
+    out = {"shadow": 0, "make": 0, "talk": 0}
+    rows = db.query(SpeakTime).filter(SpeakTime.user_id == user_id, SpeakTime.day == day).all()
+    for r in rows:
+        if r.mode in out:
+            out[r.mode] = r.seconds
+    return out
+
+
+class TimeIn(BaseModel):
+    mode: str = Field(pattern="^(shadow|make|talk)$")
+    seconds: int = Field(ge=1, le=600)
+
+
+@router.get("/time/today")
+def time_today(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+    day = usage.today()
+    return {"day": day, "totals": _time_totals(db, user.id, day)}
+
+
+@router.post("/time")
+def add_time(
+    body: TimeIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
+) -> dict:
+    """累加一段真实练习秒数（前端按说话时段分批上报）。"""
+    day = usage.today()
+    row = db.get(SpeakTime, (user.id, day, body.mode))
+    if row is None:
+        row = SpeakTime(user_id=user.id, day=day, mode=body.mode, seconds=0)
+        db.add(row)
+    row.seconds += body.seconds
+    db.commit()
+    return {"day": day, "mode": body.mode, "seconds": row.seconds, "totals": _time_totals(db, user.id, day)}
+
+
+# ---------- 对话中即时优化（穿插在自由对话里） ----------
+
+
+class ImproveIn(BaseModel):
+    text: str = Field(min_length=1, max_length=500)
+    last_ai_text: str = Field(default="", max_length=500)
+    scene_title: str = Field(default="", max_length=200)
+
+
+_IMPROVE_PROMPT = (
+    "You are a PET (B1 Preliminary for Schools) speaking coach. "
+    "The child just said: \"{text}\". The coach's last line was: \"{last_ai}\". "
+    "Rewrite the child's sentence into natural PET B1 English, keeping the child's meaning, "
+    "max 18 words. Return ONE compact JSON object only: "
+    '{{"improved_en": "...", "improved_cn": "中文翻译", '
+    '"focus": "grammar|vocab|phrase", "dims": ["grammar:short-label"]}}. '
+    "dims: 1-2 short labels describing what to practise."
+)
+
+
+@router.post("/improve")
+def improve(
+    body: ImproveIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
+) -> dict:
+    """自由对话中：把孩子刚说的一句改写成 PET B1 版本（穿插显示并跟读）。"""
+    if dev_mock.is_dev():
+        return dev_mock.improve(body.text)
+    prompt = _IMPROVE_PROMPT.format(text=body.text[:400], last_ai=body.last_ai_text[:200])
+    try:
+        data, llm_usage = ai_enrich.chat(
+            db, [{"role": "user", "content": prompt}], max_tokens=240, temperature=0.2
+        )
+        usage.record_llm(db, user.id, llm_usage)
+    except LookupError as e:
+        raise HTTPException(503, str(e))
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    dims = [str(d)[:40] for d in data.get("dims", []) if str(d).strip()][:2]
+    return {
+        "child_said": body.text.strip()[:400],
+        "improved_en": str(data.get("improved_en", "")).strip()[:200],
+        "improved_cn": str(data.get("improved_cn", "")).strip()[:200],
+        "focus": str(data.get("focus", "grammar")).strip()[:64],
+        "dims": dims or ["grammar:general"],
+    }
 
 
 # ---------- 会后复盘（§5.5） ----------
@@ -201,6 +339,31 @@ def review_grade(body: GradeIn, user: User = Depends(require_speak), db: Session
     return out
 
 
+class ReviewItemIn(BaseModel):
+    child_said: str = Field(min_length=1, max_length=400)
+    improved_en: str = Field(min_length=1, max_length=200)
+    improved_cn: str = Field(default="", max_length=200)
+    focus: str = Field(default="grammar", max_length=64)
+    dims: list[str] = Field(default_factory=list, max_length=2)
+
+
+class ReviewImportIn(BaseModel):
+    log_id: int = Field(gt=0)
+    items: list[ReviewItemIn] = Field(default_factory=list, max_length=12)
+
+
+@router.post("/review/import")
+def review_import(
+    body: ReviewImportIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
+) -> dict:
+    """把对话中即时生成的优化句落库为复盘句（同一 log 幂等），返回带 id 的条目供评分。"""
+    row = db.get(SpeakLog, body.log_id)
+    if row is None or row.user_id != user.id:
+        raise HTTPException(404, "会话不存在")
+    items = speak_review.import_items(db, user.id, row, [i.model_dump() for i in body.items])
+    return {"items": items}
+
+
 # ---------- 「怎么说？」求助 + 造句判定 ----------
 
 
@@ -214,6 +377,9 @@ class HelpIn(BaseModel):
 def help_(body: HelpIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
     """「怎么说？」：中文解释 + 简单英文示范句（气泡展示，不打断语音流）。"""
     from app.services import ai_enrich
+
+    if dev_mock.is_dev():
+        return dev_mock.help_payload(body.scene_title)
 
     prompt = (
         "A Chinese primary-school student is in a PET-level English conversation and is stuck. "
@@ -249,6 +415,9 @@ def check(body: CheckIn, user: User = Depends(require_speak), db: Session = Depe
     """造句判定：孩子按句型造句，LLM 判对错并给 PET 级优化。"""
     from app.services import ai_enrich
 
+    if dev_mock.is_dev():
+        return dev_mock.check(body.sentence)
+
     prompt = (
         "A Chinese primary-school student practised this English pattern: "
         f'"{body.pattern[:200]}". The student wrote/said: "{body.sentence[:200]}". '
@@ -279,6 +448,8 @@ class TtsIn(BaseModel):
 
 @router.post("/tts")
 def tts(body: TtsIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+    if dev_mock.is_dev():
+        return dev_mock.tts_payload()
     # 缓存目录与 sqlite 同级（./data/tts），生产 compose 挂卷即可持久化
     settings = get_settings()
     db_path = settings.database_url.replace("sqlite:///", "", 1)

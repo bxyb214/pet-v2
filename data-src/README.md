@@ -1,14 +1,28 @@
 # data-src — 学习数据源
 
-存放四个板块的源数据 JSON（从旧项目 `_work/`、`PET/js/*.js` 迁移整理）：
+> 只有**口语**的结构化源数据入库；词库/阅读/听力的构建脚本仍读取上级旧站 `../PET/js/*.js`，
+> 产物统一输出到 `frontend/public/data/*.json`。运行期 JSON 是生成文件，不要手改。
 
-```
+```text
 data-src/
-├─ vocab/     # 必默 / 高频 / 固搭 / 同义 四库（源：PET/js/data.js）
-├─ reading/   # testN.json + SCHEMA.md（源：_work/gen/）
-├─ listening/ # 题目+原文 JSON（源：_work/listen/src/）
-└─ speak/     # shadow.json / scenes.json（源：_work/speak_src/）
+└─ speak/       part1_85 / part1_130 / patterns / rubric / toc_zhen2 / toc_zhen34 / demos
 ```
 
-构建：`python tools/build_data.py`（待实现）→ 产出 `frontend/public/data/*.js` + 媒体清单。
-迁移期约定：音频/图片文件放 NAS 的 `media/` volume（本地开发放仓库根 `media/`，已 gitignore）。
+## 构建链
+
+| 数据 | 命令 | 源 | 产物 |
+|---|---|---|---|
+| 词库（PET + KET） | `python tools/build_data.py` | `../PET/js/data.js`、`ket-data.js` | `banks.json` |
+| 阅读 | `node tools/build_reading_v2.js` | `../PET/js/reading-data.js` | `reading.json` |
+| 听力 | `node tools/build_listening_v2.js` | `../PET/js/listening-data.js` | `listening.json` |
+| 口语 | `node tools/build_speak_v3.js` | `data-src/speak/*.json` | `speak.json`（schema v3） |
+
+- 脚本支持 `--dry`（只校验、不写文件）。
+- 音频/图片（`frontend/public/audio`、`public/img`）体积大，不进 git，由部署阶段整目录同步。
+- 详细口语数据说明见 [speak/README.md](speak/README.md)。
+
+## 约定
+
+- 构建脚本必须校验 ID 唯一、枚举合法、计数与源一致；跳过或修正的条目要在输出中报告，**不臆造**。
+- 媒体文件一律 ASCII slug（如 `t1-p1.mp3`、`sc1-1.png`）。
+- 修改数据结构时同步更新对应 README 与前端 `src/core/` 的类型。

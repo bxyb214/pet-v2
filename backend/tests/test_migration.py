@@ -112,6 +112,24 @@ def test_map_plan_pet_only():
     assert any("ket" in w for w in warns)
 
 
+def test_map_plan_caps_at_fixed_plan_days():
+    """v1 PLAN_DAYS=30；脏数据 day=34 不能把 v2 计划拉成 34 天。"""
+    rows = [
+        {"user_id": 1, "exam": "pet", "day": 1, "state": "done"},
+        {"user_id": 1, "exam": "pet", "day": 24, "state": "open"},
+        {"user_id": 1, "exam": "pet", "day": 34, "state": "done"},
+    ]
+    out, warns = map_plan(rows, plan_days=30)
+    assert out[1] == {"length": 30, "days_done": [1]}
+    assert any("day=34" in w and "忽略" in w for w in warns)
+
+
+def test_map_plan_infers_when_plan_days_zero():
+    rows = [{"user_id": 1, "exam": "pet", "day": 12, "state": "done"}]
+    out, _ = map_plan(rows)
+    assert out[1] == {"length": 12, "days_done": [12]}
+
+
 def test_map_speak_logs_normalizes_issues():
     rows = [
         {"user_id": 2, "mode": "talk", "scene": "sc01", "day": 3, "turns": 6, "score": 72,

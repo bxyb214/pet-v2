@@ -19,7 +19,16 @@
           <n-button type="primary" secondary @click="goReading">去阅读</n-button>
           <n-button quaternary @click="startCreate">重新规划</n-button>
           <n-popconfirm @positive-click="remove">
-            <template #trigger><n-button type="error" quaternary>删除计划</n-button></template>
+            <template #trigger>
+              <n-button type="error" strong class="del-plan">
+                <template #icon>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+                  </svg>
+                </template>
+                删除计划
+              </n-button>
+            </template>
             删除后可重新生成，精读与错题记录都会保留。确定？
           </n-popconfirm>
         </div>
@@ -195,6 +204,9 @@ h1 { font-size: var(--fs-display); font-weight: 800; letter-spacing: .2px; color
 .empty-t { margin: 0 0 4px; font-weight: 700; font-size: 16px; color: var(--c-text); }
 .empty-s { margin: 0 0 14px; font-size: 13.5px; color: var(--c-text-2); }
 .actions { display: flex; gap: 12px; margin-top: 14px; align-items: center; }
+/* 删除计划：填充红 + 图标 + 投影，避免被当成普通文字按钮 */
+.del-plan { min-height: 42px; padding: 0 18px; box-shadow: 0 6px 14px rgba(220, 38, 38, 0.18); }
+.del-plan:hover { box-shadow: 0 8px 18px rgba(220, 38, 38, 0.26); }
 
 .form { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
 .form.sep { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--c-line); }

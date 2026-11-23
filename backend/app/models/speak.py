@@ -38,8 +38,31 @@ class SpeakDay(Base):
     user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     day: Mapped[int] = mapped_column(Integer, primary_key=True)
     shadow_done: Mapped[bool] = mapped_column(Boolean, default=False)
+    make_done: Mapped[bool] = mapped_column(Boolean, default=False)
     talk_done: Mapped[bool] = mapped_column(Boolean, default=False)
     score: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class SpeakPlan(Base):
+    """用户手动创建的口语计划（天数；0/无行 = 默认 90 天）。"""
+
+    __tablename__ = "speak_plans"
+
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    length: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class SpeakTime(Base):
+    """按天按模式的真实练习秒数（服务端累计，刷新不丢）。"""
+
+    __tablename__ = "speak_times"
+
+    user_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    day: Mapped[str] = mapped_column(String(10), primary_key=True)  # YYYY-MM-DD（北京时间）
+    mode: Mapped[str] = mapped_column(String(16), primary_key=True)  # shadow | make | talk
+    seconds: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
 
 
