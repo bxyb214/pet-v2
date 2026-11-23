@@ -19,6 +19,8 @@ export type SoeOpts = {
   parser?: (raw: string) => SoeResult;
   /** 用户点数字人下的「关闭麦克风」：先回调页面清理状态，再由 SoeEval 停止采集 */
   onMicClosed?: () => void;
+  /** 评测结束（拿到结果、超时或出错）自动 stop 后回调一次，页面据此复位按钮 */
+  onStopped?: () => void;
 };
 
 const WORKLET_SRC = `
@@ -81,6 +83,7 @@ export class SoeEval {
   private dev = false;
   private devStartedAt = 0;
   private releaseMic: (() => void) | null = null;
+  private stoppedNotified = false;
 
   constructor(private opts: SoeOpts) {
     this.parser = opts.parser ?? parseSoeResult;
@@ -106,6 +109,18 @@ export class SoeEval {
       this.opts.onStatus("开发环境：模拟评测就绪，读完点「提交」");
       return;
     }
+    // 先要麦克风权限：点按钮就弹授权，允许后出现数字人，再连评测服务
+    this.opts.onStatus("请允许使用麦克风…");
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+    } catch {
+      const msg = "没有拿到麦克风权限，请在浏览器设置里允许后重试";
+      this.opts.onError(msg);
+      throw new Error(msg);
+    }
+    this.attachMicHold();
     this.opts.onStatus("连接评测服务…");
     let url: string;
     try {
@@ -147,11 +162,7 @@ export class SoeEval {
       ws.onerror = () => reject(new Error("评测连接失败"));
     });
 
-    // 麦克风 16k 采集
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
-    this.attachMicHold();
+    // 16k PCM 采集（麦克风已在前面拿到）
     this.ctx = new AudioContext({ sampleRate: 16000 });
     const src = this.ctx.createMediaStreamSource(this.stream);
     try {
@@ -262,5 +273,9 @@ export class SoeEval {
     this.ctx = null;
     this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
+    if (!this.stoppedNotified) {
+      this.stoppedNotified = true;
+      this.opts.onStopped?.();
+    }
   }
 }

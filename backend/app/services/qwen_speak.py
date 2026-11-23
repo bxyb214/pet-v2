@@ -209,6 +209,8 @@ def proxy_sdp(db: Session, sdp: str, mode: str) -> dict:
         pass
     if not msg:
         msg = body[:200] or str(status_code)
+    if status_code == 403:
+        msg += "（请在管理页确认：Key 属于已配置的业务空间，且该空间已开通此模型）"
     raise RuntimeError(f"连接语音服务失败（HTTP {status_code}，{model}）：{msg}")
 
 

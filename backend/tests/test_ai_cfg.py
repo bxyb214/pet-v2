@@ -109,3 +109,22 @@ def test_speak_key_not_retried_on_other_errors(monkeypatch):
         raise AssertionError("应当抛 RuntimeError")
     db.close()
     assert len(used) == 1
+
+
+def test_403_error_explains_workspace_access(monkeypatch):
+    db = SessionLocal()
+    _put(db, "speak.qwen", '{"workspace": "ws-test", "api_key": "k"}')
+
+    def fake_post(url, content=None, headers=None, timeout=None):
+        return _SdpResp(403, '{"error":{"message":"Workspace endpoint access denied"}}')
+
+    monkeypatch.setattr(qwen_speak.httpx, "post", fake_post)
+    try:
+        qwen_speak.proxy_sdp(db, "v=0\r\n", "shadow")
+    except RuntimeError as e:
+        text = str(e)
+        assert "HTTP 403" in text and "业务空间" in text and "开通此模型" in text
+    else:
+        raise AssertionError("应当抛 RuntimeError")
+    finally:
+        db.close()

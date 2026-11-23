@@ -90,7 +90,7 @@
         <label class="field span2">
           <span class="flabel">业务空间 ID <i class="req">必填</i></span>
           <n-input v-model:value="qwen.workspace" placeholder="ws-xxxx" />
-          <span class="fhint">qwen3.8 系列必须带 workspace，否则握手会失败</span>
+          <span class="fhint">qwen3.8 系列必须带 workspace；Key 也要属于该空间并已开通对话模型，否则报 Workspace endpoint access denied</span>
         </label>
       </div>
 
@@ -131,7 +131,7 @@
     <section v-if="tab === 'soe'" class="panel">
       <div class="panel-h">
         <h2>发音评测 · 腾讯 SOE</h2>
-        <p>跟读页的「精准发音评分」走这套接口，配好即启用</p>
+        <p>跟读页的「跟读评分」走这套接口，配好即启用</p>
       </div>
 
       <div class="notice">
