@@ -6,7 +6,7 @@ declare module "vue-router" {
     /** 所属学科（布局侧边栏高亮） */
     subject?: "english" | "chinese" | "math";
     /** 所属二级板块 */
-    module?: "words" | "reading" | "grammar" | "listening" | "speak" | "lessons" | "progress";
+    module?: "words" | "reading" | "grammar" | "listening" | "speak" | "books" | "progress";
     /** 面包屑 */
     crumbs?: string[];
     /** 三级页签条（内容区顶部） */
@@ -42,7 +42,7 @@ const SPEAK_TABS = [
   { label: "题库", to: "/english/speak/scenes" },
 ];
 const MATH_TABS = [
-  { label: "课程", to: "/math/lessons" },
+  { label: "教材", to: "/math" },
   { label: "学习进度", to: "/math/progress" },
 ];
 
@@ -174,22 +174,29 @@ export const router = createRouter({
         },
         {
           path: "math",
-          redirect: "/math/lessons",
-        },
-        {
-          path: "math/lessons",
           component: () => import("../views/MathHome.vue"),
-          meta: { subject: "math", module: "lessons", crumbs: ["数学", "一课通关", "课程"], tabs: MATH_TABS },
+          meta: { subject: "math", module: "books", crumbs: ["数学", "李永乐一课通关", "教材"], tabs: MATH_TABS },
         },
         {
-          path: "math/lessons/:id",
+          path: "math/books/:bookId",
+          component: () => import("../views/MathBook.vue"),
+          meta: { subject: "math", module: "books", crumbs: ["数学", "李永乐一课通关"] },
+        },
+        {
+          path: "math/books/:bookId/:lessonId",
           component: () => import("../views/MathLesson.vue"),
-          meta: { subject: "math", module: "lessons", crumbs: ["数学", "一课通关"] },
+          meta: { subject: "math", module: "books", crumbs: ["数学", "李永乐一课通关"] },
         },
         {
           path: "math/progress",
           component: () => import("../views/MathProgress.vue"),
-          meta: { subject: "math", module: "progress", crumbs: ["数学", "一课通关", "学习进度"], tabs: MATH_TABS },
+          meta: { subject: "math", module: "progress", crumbs: ["数学", "李永乐一课通关", "学习进度"], tabs: MATH_TABS },
+        },
+        // 首版路径兼容（2026-11-23 已上线过 /math/lessons）
+        { path: "math/lessons", redirect: "/math/books/yongle-g3" },
+        {
+          path: "math/lessons/:id",
+          redirect: (to) => `/math/books/yongle-g3/${String(to.params.id)}`,
         },
         { path: "admin", component: () => import("../views/AdminPage.vue") },
       ],

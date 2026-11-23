@@ -1,4 +1,4 @@
-/** 数学「一课通关」：课程清单、状态与媒体地址（纯逻辑，无组件依赖）。 */
+/** 数学「李永乐一课通关」：课程序列 → 分年级教材 → 课时（纯逻辑，无组件依赖）。 */
 
 export type MathLesson = {
   id: string;
@@ -13,16 +13,19 @@ export type MathLesson = {
   size: number;
 };
 
-export type MathSeries = {
+/** 一本教材 = 一个年级的课程包 */
+export type MathBook = {
   id: string;
-  title: string;
   grade: number;
   gradeName: string;
   mediaDir: string;
   lessons: MathLesson[];
+  /** 还没上传视频的年级：显示「即将上线」，不可进入 */
+  comingSoon?: boolean;
 };
 
-export type MathData = { version: number; series: MathSeries[] };
+export type MathCourse = { id: string; title: string; desc?: string };
+export type MathData = { version: number; course: MathCourse; books: MathBook[] };
 
 /** progress 记录（见 core/merge.ts ProgressItem 的业务子集） */
 export type VideoRec = { idx: number; seen: string[] };
@@ -57,7 +60,7 @@ export function statusOf(rec: VideoRec | null | undefined): LessonStatus {
   return (rec?.idx ?? 0) > 0 ? "watching" : "todo";
 }
 
-export type SeriesProgress = {
+export type ProgressSummary = {
   total: number;
   done: number;
   watching: number;
@@ -65,7 +68,7 @@ export type SeriesProgress = {
   percent: number;
 };
 
-export function seriesProgress(lessons: MathLesson[], recOf: RecLookup): SeriesProgress {
+function summarize(lessons: MathLesson[], recOf: RecLookup): ProgressSummary {
   let done = 0;
   let watching = 0;
   for (const l of lessons) {
@@ -81,6 +84,30 @@ export function seriesProgress(lessons: MathLesson[], recOf: RecLookup): SeriesP
     todo: total - done - watching,
     percent: total ? Math.round((done / total) * 100) : 0,
   };
+}
+
+/** 一本教材的进度 */
+export function bookProgress(book: MathBook, recOf: RecLookup): ProgressSummary {
+  return summarize(book.lessons, recOf);
+}
+
+/** 已上线教材合计（首页大卡用） */
+export function courseProgress(books: MathBook[], recOf: RecLookup): ProgressSummary {
+  return summarize(books.filter((b) => !b.comingSoon).flatMap((b) => b.lessons), recOf);
+}
+
+/** 只有已上传内容、可进入的教材 */
+export function availableBooks(books: MathBook[]): MathBook[] {
+  return books.filter((b) => !b.comingSoon && b.lessons.length > 0);
+}
+
+export function findBook(books: MathBook[], id: string): MathBook | null {
+  return books.find((b) => b.id === id) ?? null;
+}
+
+/** 默认教材：第一个已上线年级 */
+export function firstBook(books: MathBook[]): MathBook | null {
+  return availableBooks(books)[0] ?? null;
 }
 
 /** 第一节没学完的课；全部学完返回 null */

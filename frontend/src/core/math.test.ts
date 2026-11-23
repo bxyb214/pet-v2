@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  DONE_FLAG, formatTime, groupsOf, isDone, lessonKey, nextLesson,
-  seriesProgress, statusOf, videoUrl, type MathLesson, type VideoRec,
+  availableBooks, bookProgress, courseProgress, DONE_FLAG, findBook, firstBook, formatTime,
+  groupsOf, isDone, lessonKey, nextLesson, statusOf, videoUrl,
+  type MathBook, type MathLesson, type VideoRec,
 } from "./math";
 
 const L = (id: string, no: string, group = "枚举法"): MathLesson => ({
   id, no, title: `课 ${no}`, tag: "拓展B", group, file: `${no} 标题(一)(拓展B).mp4`, size: 1,
+});
+
+const B = (id: string, grade: number, lessons: MathLesson[], comingSoon = false): MathBook => ({
+  id, grade, gradeName: `${grade}年级`, mediaDir: `grade_${grade}`, lessons, comingSoon,
 });
 
 describe("数学课程：地址与键", () => {
@@ -42,8 +47,10 @@ describe("数学课程：状态", () => {
   });
 });
 
-describe("数学课程：汇总", () => {
-  const lessons = [L("a", "40"), L("b", "41"), L("c", "42"), L("d", "43")];
+describe("数学课程：教材与汇总", () => {
+  const g3 = B("yongle-g3", 3, [L("a", "40"), L("b", "41"), L("c", "42"), L("d", "43")]);
+  const g4 = B("yongle-g4", 4, [], true);
+  const g5 = B("yongle-g5", 5, []);
   const recs: Record<string, VideoRec> = {
     a: { idx: 600, seen: [DONE_FLAG] },
     b: { idx: 90, seen: [] },
@@ -51,22 +58,39 @@ describe("数学课程：汇总", () => {
   };
   const recOf = (id: string) => recs[id] ?? null;
 
-  it("统计 done / watching / todo 与百分比", () => {
-    expect(seriesProgress(lessons, recOf)).toEqual({
+  it("一本教材的 done / watching / todo 与百分比", () => {
+    expect(bookProgress(g3, recOf)).toEqual({
       total: 4, done: 1, watching: 1, todo: 2, percent: 25,
     });
   });
 
-  it("空清单不除以零", () => {
-    expect(seriesProgress([], recOf)).toEqual({
+  it("空教材不除以零", () => {
+    expect(bookProgress(g5, recOf)).toEqual({
       total: 0, done: 0, watching: 0, todo: 0, percent: 0,
     });
   });
 
+  it("课程总进度只统计已上线教材（未上线的空教材不计）", () => {
+    expect(courseProgress([g3, g4, g5], recOf)).toEqual({
+      total: 4, done: 1, watching: 1, todo: 2, percent: 25,
+    });
+  });
+
+  it("availableBooks / firstBook 过滤未上线与空教材", () => {
+    expect(availableBooks([g4, g3, g5]).map((b) => b.id)).toEqual(["yongle-g3"]);
+    expect(firstBook([g4, g5, g3])?.id).toBe("yongle-g3");
+    expect(firstBook([g4, g5])).toBeNull();
+  });
+
+  it("findBook 按 id 查找", () => {
+    expect(findBook([g3, g4], "yongle-g4")?.grade).toBe(4);
+    expect(findBook([g3], "nope")).toBeNull();
+  });
+
   it("下一课 = 第一节没学完的", () => {
-    expect(nextLesson(lessons, recOf)?.id).toBe("b");
-    const allDone = (id: string) => ({ idx: 1, seen: [DONE_FLAG] });
-    expect(nextLesson(lessons, allDone)).toBeNull();
+    expect(nextLesson(g3.lessons, recOf)?.id).toBe("b");
+    const allDone = () => ({ idx: 1, seen: [DONE_FLAG] });
+    expect(nextLesson(g3.lessons, allDone)).toBeNull();
   });
 
   it("按出现顺序分组，不重排", () => {

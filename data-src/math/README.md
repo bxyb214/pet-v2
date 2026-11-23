@@ -1,12 +1,19 @@
 # 数学课程数据源
 
-`yongle_grade3.json` 是「李永乐一课通关」三年级的课程清单（13 节，课号 40–50，含 43.1/43.2）。
+`yongle_grade3.json` 是「李永乐一课通关」课程清单（schema v2）：
 
-- 视频文件不在这里，也不进 git：它们位于 NAS 的
-  `/vol2/1000/media/felix/math/grade_3/`，由 nginx 以 `/media/math/` 只读直出。
+- `course`：课程信息（标题、简介）。
+- `books[]`：按年级分册的教材。现在三年级（`yongle-g3`）有 13 节视频；
+  四年级（`yongle-g4`）、五年级（`yongle-g5`）只有占位，`comingSoon: true`、`lessons: []`，
+  页面显示「即将上线」，上传视频后把课时补进来、去掉 `comingSoon` 即自动上线。
+
+视频文件不在这里，也不进 git：位于 NAS 的
+`/vol2/1000/media/felix/math/<mediaDir>/`（三年级是 `grade_3/`），由 nginx 以 `/media/math/` 只读直出。
+
 - `file` 必须与 NAS 上的真实文件名完全一致（保留中文、空格、半角括号）；页面会做 URL 编码。
+- 课时 `id` 跨年级必须唯一（进度键是 `math:v:<lessonId>`）。
 - 新增/调整课程：
-  1. 改本文件（`group` 决定页面分组顺序，`tag` 是难度/类型胶囊）；
+  1. 改本文件（`group` 决定分组顺序，`tag` 是难度/类型胶囊；新年级补一节 `books[]` 项）；
   2. `node tools/build_math.js` 生成 `frontend/public/data/math.json`；
   3. `cd frontend && npm run build` 后部署；
   4. 在 NAS 上补读权限：`sudo chmod -R a+rX /vol2/1000/media/felix/math`。

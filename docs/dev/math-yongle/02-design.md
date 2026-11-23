@@ -183,3 +183,53 @@ recordVideoProgress(key: string, seconds: number, done = false): void
 | 进度推送过频 | 15 秒节流 + 无变化不写；同步引擎本身 1.2s 防抖 |
 | 手机 390px 控制条溢出 | 控制条分组换行；`check_overflow` 加入新路由 |
 | 端口 8088 直连时无鉴权 | 与现有音频一致；媒体目录仅含课程视频，不含隐私数据 |
+
+## 7. step2 设计（2026-11-23）：课程 → 年级教材
+
+### 7.1 数据结构（schema v2）
+
+`data-src/math/yongle_grade3.json` → `frontend/public/data/math.json`：
+
+```json
+{
+  "version": 2,
+  "course": { "id": "yongle", "title": "李永乐一课通关", "desc": "..." },
+  "books": [
+    { "id": "yongle-g3", "grade": 3, "gradeName": "三年级", "mediaDir": "grade_3", "lessons": ["…13 节…"] },
+    { "id": "yongle-g4", "grade": 4, "gradeName": "四年级", "mediaDir": "grade_4", "lessons": [], "comingSoon": true },
+    { "id": "yongle-g5", "grade": 5, "gradeName": "五年级", "mediaDir": "grade_5", "lessons": [], "comingSoon": true }
+  ]
+}
+```
+
+- `comingSoon: true` 或 `lessons: []` → 首页/进度页显示「即将上线」，路由进入时提示未上线。
+- 课时 `id` 要求跨年级唯一（进度键仍为 `math:v:<lessonId>`，不随教材变化）。
+- `tools/build_math.js` 校验：课程字段、教材字段、未上线教材允许空课时，已上线教材不允许空。
+
+### 7.2 路由
+
+| 路径 | 页面 | 说明 |
+|---|---|---|
+| `/math` | `MathHome.vue` | 课程首页：三年级大卡 + 后续年级占位；页签「教材 / 学习进度」 |
+| `/math/books/:bookId` | `MathBook.vue` | 教材页：年级徽章 + 概览 + 分组课程 |
+| `/math/books/:bookId/:lessonId` | `MathLesson.vue` | 视频页（沉浸式，面包屑两级） |
+| `/math/progress` | `MathProgress.vue` | 学习进度：年级胶囊 + 统计/进度墙/正在学 |
+| `/math/lessons`、`/math/lessons/:id` | 重定向 | 兼容首版地址 |
+
+`RouteMeta.module`：数学用 `books` / `progress`；侧栏数学入口指向 `/math`。
+
+### 7.3 突出三年级的做法
+
+1. 课程首页把三年级做成**大卡**（不是列表行之一）：40px「三年级」+「已上线」标签 +
+   5 个主题胶囊 + 进度/继续学习；四、五年级用低对比虚线卡，视觉上明确「现在学三年级」。
+2. 教材页左上 62px 填充绿年级徽章，标题旁不再重复年级小字。
+3. 视频页在标题下放实心绿「三年级」胶囊，与难度标签、主题并列。
+4. 进度页年级胶囊默认选中三年级；未上线年级虚线禁用。
+5. 侧栏数学副标题改为「三年级已上线」。
+
+### 7.4 兼容与风险
+
+- 旧路径重定向放在数学路由块内，先于兜底路由；无后端/同步改动。
+- 未来上线四年级：在 `books[]` 增加课时并去掉 `comingSoon`，首页会自动从「即将上线」变为可进入卡片；
+  进度键由课时 id 决定，不与年级绑定。
+- 风险：课时 id 跨年级重复会导致进度串号——构建脚本已强制全局唯一。

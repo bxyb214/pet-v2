@@ -1,7 +1,8 @@
 # 数学 · 李永乐「一课通关」— 自省
 
-> 结论：**PASS-with-notes**（AirPlay 设备投屏与 iPad 真机播放需人工验证；见 §6）
-> 日期：2026-11-23。对应需求 `01-requirements.md`、设计 `02-design.md`。
+> 结论：**PASS-with-notes**（AirPlay 设备投屏与 iPad 真机播放需人工验证，用户已确认真机可用；见 §6）
+> 第二步「课程 → 年级教材」结构调整见 §8，结论同为 PASS-with-notes。
+> 日期：2026-11-23（§8 同日追加）。对应需求 `01-requirements.md`、设计 `02-design.md`。
 
 ## 1. 需求覆盖
 
@@ -69,3 +70,45 @@
 - 新增：`docs/dev/math-yongle/01-requirements.md`、`02-design.md`、本文件；`data-src/math/README.md`。
 - 更新：`docs/02`（架构/数据链/进度键）、`docs/04`（MT 段 + v1.30）、`docs/05`（数学组件模式 + v0.15）、
   `docs/06`（媒体卷、权限、nginx 重建）、`deploy/.env.example`、`tools/check_overflow.js`。
+
+## 8. 第二步：课程 → 年级教材（结构调整）
+
+### 8.1 需求覆盖（`01-requirements.md` §7）
+
+| 编号 | 实现 | 验证 |
+|---|---|---|
+| S2-AC1 | `李永乐一课通关` 成为课程（`/math`），下设按年级分册的教材 | 生产：首页 `h1=李永乐一课通关`；教材页 `/math/books/yongle-g3` |
+| S2-AC2 | 四年级、五年级占位，显示「即将上线」，不参与进度统计 | 生产：首页 `soon=2`；进度页年级选择 `三年级\|四年级 即将上线\|五年级 即将上线` |
+| S2-AC3 | 突出当前是三年级 | 首页 40px `三年级` 特色卡 + 「已上线」标；教材页 62px 绿色年级牌；课时页年级胶囊；进度页「三年级进度墙」 |
+| S2-AC4 | 旧链接兼容 | 生产：`/math/lessons/g3-40 → /math/books/yongle-g3/g3-40` |
+
+### 8.2 实现与数据
+
+- 数据 schema v2：`data-src/math/yongle_grade3.json` 顶层 `course` + `books[]`（每本含 `mediaDir`），
+  `tools/build_math.js` 校验 `comingSoon` 书可为空、在售书不可为空、课时 id 跨年级唯一。
+- 路由四层：`/math` → `/math/books/:bookId` → `/math/books/:bookId/:lessonId`，加 `/math/progress`；
+  旧 `/math/lessons*` 重定向到三年级。
+- 进度键仍是 `math:v:<lessonId>`，`progress` 表结构、同步合并语义（`seen` 并集 / `idx` 取大）零改动。
+- 课时 `src` 由 `book.mediaDir` + `lesson.file` 拼出，新增年级只改 `data-src` 与 NAS 目录。
+
+### 8.3 代码与测试
+
+| 项 | 结果 |
+|---|---|
+| `vue-tsc --noEmit` | 通过 |
+| 前端 vitest | **161 passed**（`core/math.test.ts` 扩到按书 / 按年级进度） |
+| `vite build` | 通过；`dist/data/math.json` schema v2 |
+| `tools/check_tokens.py` | 通过 |
+| `check_overflow.js`（含新路由 × 1440/820/390） | 无横向溢出 |
+| 生产 Playwright（打桩 API + 真实视频） | 首页 `三年级 / soon=2 / tabs=教材\|学习进度`；教材 `rows=13, groups=5`；视频 `duration=1731.3s, readyState=4`、`206`、`1.25x`；播完出现「这一节学完了」，本地与 push 均为 `{key:"math:v:g3-42",seen:["done"],idx:1731}`；进度页 `tiles=13, done=1, watching=1`、标题「三年级进度墙」；旧链接重定向正确 |
+
+- 单文件行数：MathHome ≈200、MathBook ≈240、MathLesson ≈190、MathProgress ≈330，均 ≤400。
+- 无新增依赖；无新增密钥；媒体仍只读挂载 `/vol2/1000/media/felix/math`。
+
+### 8.4 偏差与遗留
+
+1. 播放器从 `views` 移到 `components/MathPlayer.vue`（第一步遗留，仍按设计作为组件）。
+2. 课程首页页签仍叫「教材 / 学习进度」：选中「教材」即课程页（年级卡列表），与旧导航习惯衔接；
+   若后续年级增多，可考虑改名「年级」。
+3. 旧 `/math/lessons*` 重定向写死到 `yongle-g3`，因为历史链接只可能属于三年级。
+4. 媒体权限：新增年级目录上传后仍需 `chmod -R a+rX`（docs/06 已写）。

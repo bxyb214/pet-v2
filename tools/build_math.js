@@ -18,28 +18,31 @@ function fail(msg) {
 }
 
 const data = JSON.parse(fs.readFileSync(SRC, "utf8"));
-if (!Array.isArray(data.series) || data.series.length === 0) fail("series 不能为空");
+if (!data.course?.id || !data.course?.title) fail("course.id / course.title 不能为空");
+if (!Array.isArray(data.books) || data.books.length === 0) fail("books 不能为空");
 
 const seen = new Set();
 let total = 0;
-for (const s of data.series) {
-  for (const k of ["id", "title", "gradeName", "mediaDir"]) {
-    if (!s[k]) fail(`series 缺少 ${k}`);
+for (const b of data.books) {
+  for (const k of ["id", "gradeName", "mediaDir"]) {
+    if (!b[k]) fail(`教材缺少 ${k}`);
   }
-  if (!Array.isArray(s.lessons) || s.lessons.length === 0) fail(`${s.id} lessons 不能为空`);
-  for (const l of s.lessons) {
+  if (!Number.isInteger(b.grade) || b.grade < 1) fail(`${b.id} grade 必须是正整数`);
+  if (!Array.isArray(b.lessons)) fail(`${b.id} lessons 必须是数组`);
+  if (!b.comingSoon && b.lessons.length === 0) fail(`${b.id} 未上线教材不能没有课程`);
+  for (const l of b.lessons) {
     for (const k of ["id", "no", "title", "tag", "group", "file"]) {
-      if (!l[k]) fail(`${s.id}/${l.id ?? "?"} 缺少 ${k}`);
+      if (!l[k]) fail(`${b.id}/${l.id ?? "?"} 缺少 ${k}`);
     }
     if (!/\.mp4$/i.test(l.file)) fail(`${l.id} 只支持 mp4：${l.file}`);
-    if (seen.has(l.id)) fail(`课程 id 重复：${l.id}`);
+    if (seen.has(l.id)) fail(`课程 id 重复（跨年级也要唯一）：${l.id}`);
     seen.add(l.id);
     total += 1;
   }
   // 按课号数值排序（43 < 43.1 < 43.2 < 44）
-  s.lessons.sort((a, b) => Number(a.no) - Number(b.no) || String(a.no).localeCompare(String(b.no)));
+  b.lessons.sort((a, c) => Number(a.no) - Number(c.no) || String(a.no).localeCompare(String(c.no)));
 }
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, JSON.stringify(data, null, 2) + "\n", "utf8");
-console.log(`[✓] ${OUT}（${data.series.length} 个系列 / ${total} 节课）`);
+console.log(`[✓] ${OUT}（${data.course.title}：${data.books.length} 本教材 / ${total} 节课）`);

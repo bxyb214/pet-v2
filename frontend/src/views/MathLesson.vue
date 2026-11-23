@@ -1,11 +1,11 @@
 <template>
   <main class="page">
-    <BackButton to="/math/lessons" label="返回课程" />
+    <BackButton :to="backTo" :label="`返回${book?.gradeName ?? ''}教材`" />
 
     <div v-if="loading" class="card empty">加载中…</div>
-    <div v-else-if="!lesson || !series" class="card empty">
+    <div v-else-if="!lesson || !book" class="card empty">
       <p>没有找到这节课。</p>
-      <n-button type="primary" @click="router.push('/math/lessons')">返回课程</n-button>
+      <n-button type="primary" @click="router.push('/math')">返回课程</n-button>
     </div>
     <template v-else>
       <header class="head">
@@ -13,8 +13,9 @@
         <div class="htxt">
           <h1>{{ lesson.title }}</h1>
           <div class="meta">
+            <span class="grade">{{ book.gradeName }}</span>
             <span class="tag">{{ lesson.tag }}</span>
-            <span class="grp">{{ series.gradeName }} · {{ lesson.group }}</span>
+            <span class="grp">{{ lesson.group }}</span>
           </div>
         </div>
       </header>
@@ -37,7 +38,7 @@
         <n-icon :component="CheckmarkCircleOutline" size="22" class="d-ico" />
         <b>这一节学完了</b>
         <span v-if="next" class="d-sub">接着学下一节吧</span>
-        <span v-else class="d-sub">整套课都学完了，厉害！</span>
+        <span v-else class="d-sub">这个年级的课都学完了，厉害！</span>
         <n-button v-if="next" type="primary" class="d-go" @click="go(next.id)">下一节</n-button>
       </div>
 
@@ -63,8 +64,8 @@ import { CheckmarkCircleOutline, TvOutline } from "@vicons/ionicons5";
 import BackButton from "../components/BackButton.vue";
 import MathPlayer from "../components/MathPlayer.vue";
 import {
-  isDone, lessonKey, loadMath, videoUrl,
-  type MathData, type MathLesson,
+  findBook, isDone, lessonKey, loadMath, videoUrl,
+  type MathBook, type MathData, type MathLesson,
 } from "../core/math";
 import { useLearningStore } from "../stores/learning";
 
@@ -75,14 +76,18 @@ const data = ref<MathData | null>(null);
 const loading = ref(true);
 const player = ref<InstanceType<typeof MathPlayer> | null>(null);
 
-const series = computed(() => data.value?.series[0] ?? null);
-const lessons = computed<MathLesson[]>(() => series.value?.lessons ?? []);
+const bookId = computed(() => String(route.params.bookId ?? ""));
+const book = computed<MathBook | null>(() =>
+  data.value ? findBook(data.value.books, bookId.value) : null,
+);
+const lessons = computed<MathLesson[]>(() => book.value?.lessons ?? []);
 const index = computed(() =>
-  lessons.value.findIndex((l) => l.id === String(route.params.id)),
+  lessons.value.findIndex((l) => l.id === String(route.params.lessonId)),
 );
 const lesson = computed<MathLesson | null>(() => lessons.value[index.value] ?? null);
 const prev = computed<MathLesson | null>(() => lessons.value[index.value - 1] ?? null);
 const next = computed<MathLesson | null>(() => lessons.value[index.value + 1] ?? null);
+const backTo = computed(() => `/math/books/${encodeURIComponent(bookId.value)}`);
 
 const rec = computed(() => {
   const l = lesson.value;
@@ -92,14 +97,14 @@ const done = computed(() => isDone(rec.value));
 /** 学完从头放；没学完从上次位置续播 */
 const startAt = computed(() => (done.value ? 0 : rec.value?.idx ?? 0));
 const src = computed(() =>
-  lesson.value && series.value ? videoUrl(series.value.mediaDir, lesson.value.file) : "",
+  lesson.value && book.value ? videoUrl(book.value.mediaDir, lesson.value.file) : "",
 );
 
 function onSave(id: string, seconds: number, wasDone: boolean): void {
   learning.recordVideoProgress(lessonKey(id), seconds, wasDone);
 }
 function go(id: string): void {
-  void router.push(`/math/lessons/${encodeURIComponent(id)}`);
+  void router.push(`/math/books/${encodeURIComponent(bookId.value)}/${encodeURIComponent(id)}`);
 }
 function restart(): void {
   player.value?.restart();
@@ -130,6 +135,10 @@ onMounted(async () => {
 .htxt { min-width: 0; }
 h1 { color: var(--c-text); font-size: var(--fs-title); margin: 0 0 4px; line-height: 1.3; }
 .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.grade {
+  font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 999px;
+  background: var(--c-primary); color: #fff;
+}
 .tag {
   font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px;
   background: var(--c-primary-soft); color: var(--c-primary-strong);

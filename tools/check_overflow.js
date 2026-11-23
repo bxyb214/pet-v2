@@ -29,7 +29,7 @@ const ROUTES = onlyArg
       "/english/grammar", "/english/grammar/1",
       "/english/listening/home", "/english/listening/review", "/english/listening/1/1",
       "/english/speak", "/english/speak/shadow", "/english/speak/talk", "/english/speak/review", "/english/speak/make",
-      "/math/lessons", "/math/lessons/g3-40", "/math/progress",
+      "/math", "/math/books/yongle-g3", "/math/books/yongle-g3/g3-40", "/math/progress",
       "/settings", "/admin",
     ];
 // 路由表与 router/index.ts 同步维护；404 的路由跳过即可（Playwright 会等待 networkidle 失败也不影响溢出判断）
