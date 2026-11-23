@@ -49,3 +49,20 @@
 - 前端：`core/plan.ts`、`core/plan.test.ts`、`PlanPage.vue` 文案。
 - 后端/数据库：无 schema 变更；远程只做只读核对，必要时修正 `plans.length/days_done`。
 - 文档：04/05、本功能 01/02/99。
+
+## 追加需求（第 2 轮，2026-11-23）
+
+切分修正上线后 felix 仍为 50 词 / 56 题。线上核对：计划 `length=30`，
+但 `users.exam='ket'`（mastery 1285 个词全为 PET 前缀）——按 KET 词库切分，
+第 24 天 5 库合计 50 词、kword 28×2=56 题。
+
+| 编号 | 功能 | 优先级 |
+|---|---|---|
+| F-08 | 恢复 felix `exam='pet'`（先做 SQLite 一致备份） | P0 |
+| F-09 | 迁移脚本显式写 `exam="pet"`，不依赖列默认值 | P0 |
+| F-10 | 迁移单测断言旧用户级别为 PET | P0 |
+| F-11 | 设置页切换级别前提示「计划会按新词库重切」 | P1 |
+| F-12 | 级别审计工具（mastery 前缀推断，默认只读） | P1 |
+
+验收：felix 第 24 天为 57 词 / 必默 72 题；设置页切换 KET 出现确认弹窗；
+`pytest`、`vitest`、`vue-tsc`、`vite build` 全绿。

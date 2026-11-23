@@ -42,6 +42,8 @@ def test_map_users_filters_and_roles():
     assert [u["username"] for u in users] == ["admin", "kid"]
     assert users[0]["is_admin"] is True
     assert users[1]["perms"] == "speak"
+    # 旧站只有 PET 内容，迁移必须显式落到 pet（不能依赖列默认值）
+    assert all(u["exam"] == "pet" for u in users)
     assert any("locked" in w for w in warns)
 
 
@@ -192,6 +194,7 @@ def test_write_new_end_to_end_and_legacy_login():
     db = SessionLocal()
     kid = db.query(User).filter(User.username == "kid1").one()
     assert kid.password_hash.startswith("$2")
+    assert kid.exam == "pet"  # 旧站用户一律 PET
     m = db.query(Mastery).filter(Mastery.user_id == kid.id).one()
     assert m.mastered_dims == "spell,w2m"
     mi = db.query(Mistake).filter(Mistake.user_id == kid.id).one()

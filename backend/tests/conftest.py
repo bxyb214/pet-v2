@@ -10,7 +10,8 @@ os.environ["PET_JWT_SECRET"] = "x" * 40  # 避免 InsecureKeyLength 警告
 
 import pytest  # noqa: E402
 
-from app.db import Base, engine, SessionLocal  # noqa: E402
+import app.main  # noqa: E402,F401  收集全部模型，单文件运行也能建全表
+from app.db import Base, SessionLocal, engine  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)

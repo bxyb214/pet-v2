@@ -128,3 +128,17 @@ sqlite3 /path/to/pet.db \
 | 计划预览文案仍说「每天差 1」 | 改为「每种词库各自平均」 |
 | 已完成天的打卡以天为单位，切分变化后旧进度仍有效 | 只影响每天词表，不影响 days_done 并集语义 |
 | 远程写库风险 | 先备份 SQLite；只改 plans 字段；不碰其他表 |
+
+## 7. 第 2 轮（exam 与 plan 的关系）
+
+`splitPlan(banks, days)` 的 `banks` 由 `auth.exam` 决定：PET 用 bimo/gaopin/guding/tongyi，
+KET 用 kword/kcore/kphrase/kconfuse/ksyn。计划行只存 `length / days_done`，
+不存词表，因此**切换级别 = 按新级别重新切词**；打卡与掌握/错题不受影响。
+
+- 迁移：旧站只有 PET，`map_users` 输出显式 `exam="pet"`，`write_new` 写入；
+- 设置页：已有计划（`plan.length > 0`）时切换先弹确认，说明重切语义；
+- 审计：`tools/check_user_exam.py` 按 mastery 词 id 前缀（b/g/d/t= PET，k= KET）
+  以 90% 占比推断应属级别，默认只读，`--execute` 才更新。
+
+KET 30 天第 24 天的 50 词 = 28+7+3+5+7（kword/kcore/kphrase/kconfuse/ksyn），
+kword 题量 28×2=56；这是报障「50 词 / 56 题」的来源。

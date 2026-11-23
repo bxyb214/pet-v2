@@ -3,7 +3,7 @@
     <n-card size="small" class="card">
       <div class="sect-head">
         <h2>我在备考</h2>
-        <span class="sect-hint">选择后只显示这一级别的词库和教材，随时可换，记录不丢</span>
+        <span class="sect-hint">选择后只显示这一级别的词库和教材；已掌握/错题记录保留，进行中的计划会按新级别重新分词</span>
       </div>
 
       <div class="exams">
@@ -52,12 +52,15 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { NCard, useMessage } from "naive-ui";
+import { NCard, useDialog, useMessage } from "naive-ui";
 import { loadBanks, DEFAULT_EXAMS, type ExamMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
+import { useLearningStore } from "../stores/learning";
 
 const auth = useAuthStore();
+const learning = useLearningStore();
 const message = useMessage();
+const dialog = useDialog();
 const exams = ref<ExamMeta[]>(DEFAULT_EXAMS);
 const current = ref(auth.exam);
 const busy = ref(false);
@@ -74,8 +77,7 @@ onMounted(async () => {
   current.value = auth.exam;
 });
 
-async function choose(e: ExamMeta): Promise<void> {
-  if (e.soon || busy.value || e.id === current.value) return;
+async function doChoose(e: ExamMeta): Promise<void> {
   busy.value = true;
   try {
     await auth.setExam(e.id);
@@ -86,6 +88,25 @@ async function choose(e: ExamMeta): Promise<void> {
   } finally {
     busy.value = false;
   }
+}
+
+function choose(e: ExamMeta): void {
+  if (e.soon || busy.value || e.id === current.value) return;
+  const plan = learning.data.plan;
+  if (plan.length > 0) {
+    dialog.warning({
+      title: "切换级别会重新切分进行中的计划",
+      content:
+        `你有一个 ${plan.length} 天的词汇计划（已打卡 ${plan.days_done.length} 天）。` +
+        `切换到 ${e.name} 后，每天的学习词表会按 ${e.name} 词库重新计算；` +
+        "已打卡记录、掌握度和错题都不会删除。确定切换吗？",
+      positiveText: `切换到 ${e.name}`,
+      negativeText: "取消",
+      onPositiveClick: () => doChoose(e),
+    });
+    return;
+  }
+  void doChoose(e);
 }
 </script>
 

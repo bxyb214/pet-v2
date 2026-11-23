@@ -74,6 +74,8 @@ def map_users(rows: list[dict]) -> tuple[list[dict], list[str]]:
                 "is_admin": str(r.get("role")) == "admin",
                 "data_rev": max(int(r.get("data_rev") or 1), 1),
                 "created_at": _dt(r.get("created_at")),
+                # 旧站只有 PET 内容；显式写入，避免依赖列默认值/后续界面误切到 KET。
+                "exam": "pet",
             }
         )
     return out, warns
@@ -335,6 +337,7 @@ def write_new(mapped: dict) -> dict[str, int]:
             username=u["username"], password_hash=u["password_hash"],
             display_name=u.get("display_name") or u["username"],
             perms=u["perms"], is_admin=u["is_admin"], data_rev=u["data_rev"],
+            exam=u.get("exam") or "pet",
         )
         if u.get("created_at"):
             row.created_at = u["created_at"]
