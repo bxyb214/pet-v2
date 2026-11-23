@@ -3,6 +3,9 @@
  * 约束：先协商收发，session.updated 后再挂麦克风（push-to-talk 可设）。
  */
 import { api } from "./api";
+import { ensureDevMode } from "./devMode";
+import { createDevSpeakConn } from "./devSpeak";
+import { holdMic } from "./micPresence";
 
 export type SpeakMsg = Record<string, unknown> & { type: string };
 
@@ -19,6 +22,8 @@ export type SpeakConnOpts = {
   onHint?: (text: string) => void;
   /** talk：模型调用 praise 工具时，屏幕显示奖励 */
   onPraise?: (text: string) => void;
+  /** 用户点数字人下的「关闭麦克风」：先回调页面清理状态，再由 core 关闭连接 */
+  onMicClosed?: () => void;
 };
 
 export type SpeakConn = {
@@ -69,11 +74,16 @@ function parseSdpError(raw: string): string {
 }
 
 export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
+  // 开发/测试环境：不建立 WebRTC，用脚本化对话跑通页面
+  if (await ensureDevMode()) return createDevSpeakConn(opts);
+
   const pc = new RTCPeerConnection({ iceServers: [] });
   const startedAt = Date.now();
   let speechMs = 0;
   let meter: ReturnType<typeof setInterval> | null = null;
   let meterCtx: AudioContext | null = null;
+  /** 麦克风占用登记；关闭连接时释放，数字人随之消失 */
+  let releaseMic: (() => void) | null = null;
   const dc = pc.createDataChannel("oai-events");
   const conn: SpeakConn & { text: string; lastReply: string } = {
     ready: false,
@@ -96,6 +106,8 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
     },
     close() {
       conn.closed = true;
+      releaseMic?.();
+      releaseMic = null;
       if (meter) clearInterval(meter);
       meter = null;
       try { void meterCtx?.close(); } catch { /* noop */ }
@@ -204,6 +216,12 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       stream.getTracks().forEach((tr) => pc.addTrack(tr, stream));
+      // 麦克风真正拿到后才登记：数字人只在采集期间出现
+      releaseMic = holdMic(() => {
+        opts.onMicClosed?.();
+        conn.close();
+        if (!opts.onMicClosed) opts.onStatus("麦克风已关闭");
+      });
       // 本地能量检测：只累计孩子真正开口的时长（AI 声音被回声消除过滤）
       try {
         meterCtx = new AudioContext();
@@ -236,6 +254,8 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
       });
       opts.onStatus(opts.mode === "talk" ? "准备好就开口吧" : "点「开始朗读」");
     } catch {
+      releaseMic?.();
+      releaseMic = null;
       opts.onError("无法访问麦克风，请检查浏览器权限");
     }
   };

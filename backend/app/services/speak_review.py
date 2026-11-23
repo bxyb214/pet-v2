@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models.speak import SpeakLog, SpeakReview
-from app.services import ai_enrich, usage
+from app.services import ai_enrich, dev_mock, usage
 
 _CST = timezone(timedelta(hours=8))
 _INTERVALS = [1, 2, 4, 7, 15]
@@ -39,18 +39,20 @@ def generate_review(db: Session, user_id: int, log: SpeakLog) -> list[dict]:
     if not convo:
         return []
 
-    data, llm_usage = ai_enrich.chat(
-        db,
-        [
-            {"role": "system", "content": _REVIEW_PROMPT},
-            {"role": "user", "content": convo[:3000]},
-        ],
-        max_tokens=900,
-        temperature=0.3,
-    )
-    usage.record_llm(db, user_id, llm_usage)
-
-    items = data if isinstance(data, list) else data.get("items", [])
+    if dev_mock.is_dev():
+        items = dev_mock.review_items(child_lines)
+    else:
+        data, llm_usage = ai_enrich.chat(
+            db,
+            [
+                {"role": "system", "content": _REVIEW_PROMPT},
+                {"role": "user", "content": convo[:3000]},
+            ],
+            max_tokens=900,
+            temperature=0.3,
+        )
+        usage.record_llm(db, user_id, llm_usage)
+        items = data if isinstance(data, list) else data.get("items", [])
     # 幂等：清掉同会话旧句再写
     db.query(SpeakReview).filter(SpeakReview.user_id == user_id, SpeakReview.log_id == log.id).delete()
     out: list[dict] = []

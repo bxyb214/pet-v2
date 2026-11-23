@@ -6,7 +6,7 @@
 
     <div class="ctrl card">
       <div class="status">{{ status }}</div>
-      <div v-if="phase !== 'idle'" class="timer" :class="{ warn: overTalk || overReview }">
+      <div v-if="hasPlan && phase !== 'idle'" class="timer" :class="{ warn: overTalk || overReview }">
         <template v-if="phase === 'talk'">
           对话 {{ mmss(elapsed) }} / 10:00
           <span v-if="overTalk"> · 可以进入 5 分钟复盘啦</span>
@@ -17,13 +17,40 @@
         </template>
       </div>
       <div class="ctrlbtns">
-        <n-button v-if="phase === 'idle'" type="primary" size="large" @click="start">开始对话</n-button>
+        <template v-if="phase === 'idle'">
+          <n-button v-if="hasPlan || scene" type="primary" size="large" @click="start">开始对话</n-button>
+          <n-button v-if="!hasPlan && scene" size="large" quaternary @click="clearScene">换一个场景</n-button>
+        </template>
         <template v-else-if="phase === 'talk'">
           <n-button type="primary" size="large" secondary @click="endTalk">结束对话，进入复盘</n-button>
           <n-button size="large" quaternary @click="askHelp">怎么说？</n-button>
         </template>
       </div>
     </div>
+
+    <!-- 无计划：从题库选一个场景直接开始 -->
+    <section v-if="!hasPlan && !scene && phase === 'idle'" class="card picker">
+      <div class="picker-head">
+        <b>选择题库场景开始</b>
+        <span>没有计划 · 自由练习，不计时、不打卡</span>
+      </div>
+      <div class="pfilters">
+        <button
+          v-for="f in SCENE_PARTS" :key="f.id" type="button"
+          class="pfbtn" :class="{ on: scenePart === f.id }"
+          @click="scenePart = f.id"
+        >{{ f.name }}</button>
+        <input v-model="sceneQ" class="psearch" type="search" placeholder="搜索场景 / 中文" />
+      </div>
+      <div class="plist">
+        <button v-for="s in freeScenes" :key="s.id" type="button" class="pscene" @click="startScene(s)">
+          <b>{{ s.title }}</b>
+          <span>{{ s.cn }}</span>
+          <i>{{ s.focus }}</i>
+        </button>
+      </div>
+      <p v-if="!freeScenes.length" class="muted">没有匹配的场景</p>
+    </section>
 
     <n-alert v-if="hint" :type="hintKind === 'praise' ? 'success' : 'info'" class="hint" :bordered="false">
       <div class="hintrow">
@@ -57,7 +84,7 @@
     <section v-if="phase === 'review'" ref="reviewBox" class="review card">
       <div class="review-head">
         <b>5 分钟复盘</b>
-        <span class="review-time" :class="{ warn: overReview }">{{ mmss(reviewElapsed) }} / 5:00</span>
+        <span v-if="hasPlan" class="review-time" :class="{ warn: overReview }">{{ mmss(reviewElapsed) }} / 5:00</span>
       </div>
       <p class="review-sub">把刚才 AI 优化过的句子再读一遍，85 分过关。</p>
       <p v-if="!reviewItems.length" class="muted">本次没有可复盘的句子，明天继续聊。</p>
@@ -108,12 +135,33 @@ const data = ref<SpeakData | null>(null);
 const planLength = ref(0);
 const scene = ref<Scene | null>(null);
 const day = computed(() => Number(route.query.day ?? 1));
+const hasPlan = computed(() => planLength.value > 0);
 const planDays = computed<PlanDayView[]>(() =>
-  splitSpeakPlan(data.value, planLength.value || 90),
+  hasPlan.value ? splitSpeakPlan(data.value, planLength.value) : [],
 );
 const planDay = computed<PlanDayView | null>(() => {
+  if (!hasPlan.value || !planDays.value.length) return null;
   const idx = Math.min(Math.max(day.value, 1), planDays.value.length) - 1;
   return planDays.value[idx] ?? null;
+});
+
+// 无计划：场景题库自由选择
+const scenePart = ref(0);
+const sceneQ = ref("");
+const SCENE_PARTS = [
+  { id: 0, name: "全部" },
+  { id: 1, name: "Part 1" },
+  { id: 2, name: "Part 2" },
+  { id: 3, name: "Part 3" },
+  { id: 4, name: "Part 4" },
+];
+const freeScenes = computed<Scene[]>(() => {
+  const needle = sceneQ.value.trim().toLowerCase();
+  return (data.value?.scenes ?? []).filter((s) => {
+    if (scenePart.value !== 0 && s.part !== scenePart.value) return false;
+    if (!needle) return true;
+    return `${s.title} ${s.cn} ${s.focus}`.toLowerCase().includes(needle);
+  });
 });
 
 const conn = ref<SpeakConn | null>(null);
@@ -133,7 +181,7 @@ let lineSeq = 0;
 
 // 只累计孩子真正开口的秒数（服务端按天保存，刷新不丢）
 const speechBase = ref(0);
-const speechClock = useSpeakTime("talk", currentSpeech);
+const speechClock = useSpeakTime("talk", currentSpeech, () => hasPlan.value);
 const elapsed = speechClock.total;
 const overTalk = computed(() => elapsed.value >= 600);
 
@@ -144,12 +192,19 @@ function settleTalk(): void {
   if (conn.value) speechBase.value += conn.value.speechSec();
 }
 
-const title = computed(() => (scene.value ? `场景对话 · ${scene.value.title}` : "自由对话"));
-const subtitle = computed(() =>
-  scene.value
-    ? `${scene.value.cn} · ${scene.value.focus} · 10 分钟对话 + 5 分钟复盘`
-    : "15 分钟自由对话：10 分钟对话 + 5 分钟复盘；AI 会把你的回答改成更好的说法，边聊边跟读",
+const title = computed(() =>
+  scene.value ? `场景对话 · ${scene.value.title}` : hasPlan.value ? "自由对话" : "对话自由练习",
 );
+const subtitle = computed(() => {
+  if (scene.value) {
+    return hasPlan.value
+      ? `${scene.value.cn} · ${scene.value.focus} · 10 分钟对话 + 5 分钟复盘`
+      : `${scene.value.cn} · ${scene.value.focus} · 自由练习，不计时、不打卡`;
+  }
+  return hasPlan.value
+    ? "15 分钟自由对话：10 分钟对话 + 5 分钟复盘；AI 会把你的回答改成更好的说法，边聊边跟读"
+    : "没有计划：从题库选一个场景开始，AI 会把你的回答改成更好的说法；不计时、不打卡";
+});
 
 onMounted(async () => {
   data.value = await loadSpeak();
@@ -159,6 +214,7 @@ onMounted(async () => {
   } catch { /* 离线按默认 90 天 */ }
   const sid = String(route.query.scene ?? "");
   if (sid) scene.value = (data.value.scenes ?? []).find((c) => c.id === sid) ?? null;
+  if (!hasPlan.value && !scene.value) status.value = "从下面题库选一个场景开始";
 });
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
@@ -200,6 +256,14 @@ async function start(): Promise<void> {
         hintKind.value = "praise";
         hint.value = t;
       },
+      onMicClosed: () => {
+        if (timer) clearInterval(timer);
+        timer = 0;
+        settleTalk();
+        conn.value = null;
+        phase.value = "idle";
+        status.value = "麦克风已关闭，可以重新开始对话";
+      },
     });
     lines.value = [];
     sessionImprovements.value = [];
@@ -208,10 +272,20 @@ async function start(): Promise<void> {
     status.value = "连接中…";
     phase.value = "talk";
     reviewElapsed.value = 0;
-    startTimer();
+    if (hasPlan.value) startTimer(); // 自由练习不计时
   } catch (e) {
     status.value = (e as Error).message;
   }
+}
+
+function startScene(s: Scene): void {
+  scene.value = s;
+  void start();
+}
+
+function clearScene(): void {
+  scene.value = null;
+  status.value = "";
 }
 
 function startTimer(): void {
@@ -383,7 +457,19 @@ async function askHelp(): Promise<void> {
 
 function finishSession(): void {
   conn.value?.close();
-  void router.push("/english/speak");
+  conn.value = null;
+  if (hasPlan.value) {
+    void router.push("/english/speak");
+    return;
+  }
+  // 自由练习：留在本页，回到场景选择
+  phase.value = "idle";
+  scene.value = null;
+  lines.value = [];
+  reviewItems.value = [];
+  sessionImprovements.value = [];
+  hint.value = "";
+  status.value = "";
 }
 
 async function scroll(): Promise<void> {
@@ -410,6 +496,36 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .ctrl { padding: 16px; margin-bottom: 12px; text-align: center; }
 .ctrlbtns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .status { color: var(--c-text-2); margin-bottom: 10px; min-height: 20px; }
+.picker { padding: 14px; margin-bottom: 12px; }
+.picker-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.picker-head b { color: var(--c-text); font-size: 15px; }
+.picker-head span { color: var(--c-text-2); font-size: 12.5px; }
+.pfilters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.pfbtn {
+  border: 1px solid var(--c-line); background: var(--c-surface); color: var(--c-text);
+  border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.pfbtn.on { background: var(--c-primary-strong); border-color: var(--c-primary-strong); color: #fff; }
+.psearch {
+  flex: 1; min-width: 160px; max-width: 300px; border: 1px solid var(--c-line);
+  border-radius: 999px; padding: 7px 13px; font: inherit; font-size: 13px;
+  color: var(--c-text); background: var(--c-surface);
+}
+.plist {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px; max-height: 340px; overflow: auto; padding-right: 4px;
+}
+.pscene {
+  text-align: left; border: 1px solid var(--c-line); background: var(--c-surface);
+  border-radius: var(--r-btn); padding: 10px 12px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px; font: inherit; color: var(--c-text);
+  transition: border-color var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out);
+}
+.pscene:hover { border-color: var(--c-primary); transform: translateY(-1px); }
+.pscene:focus-visible { outline: 3px solid var(--c-accent); outline-offset: 2px; }
+.pscene b { font-size: 14px; }
+.pscene span { color: var(--c-text-2); font-size: 12.5px; }
+.pscene i { color: var(--c-text-3); font-size: 12px; font-style: normal; line-height: 1.4; }
 .timer { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--c-primary); margin-bottom: 10px; }
 .timer.warn { color: var(--c-accent); }
 .hint { display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 12px; background: var(--c-primary-soft); border-left: 4px solid var(--c-primary); }

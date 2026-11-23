@@ -43,11 +43,14 @@ def _read_data(db: Session, user_id: int) -> dict:
                 "reading_length": plan.reading_length,
                 "reading_days_done": json.loads(plan.reading_days_done or "[]"),
                 "reading_books": json.loads(plan.reading_books or "[]"),
+                "plan_updated_at": plan.plan_updated_at or 0,
+                "reading_updated_at": plan.reading_updated_at or 0,
             }
             if plan
             else {
                 "length": 0, "days_done": [], "reading_length": 0,
                 "reading_days_done": [], "reading_books": [],
+                "plan_updated_at": 0, "reading_updated_at": 0,
             }
         ),
         "custom_words": [
@@ -104,6 +107,8 @@ def _write_data(db: Session, user_id: int, data: SyncData) -> None:
     plan.reading_length = data.plan.reading_length
     plan.reading_days_done = json.dumps(sorted(set(data.plan.reading_days_done), key=int))
     plan.reading_books = json.dumps(sorted(set(data.plan.reading_books)))
+    plan.plan_updated_at = data.plan.plan_updated_at
+    plan.reading_updated_at = data.plan.reading_updated_at
 
     for item in data.custom_words:
         db.add(CustomWord(user_id=user_id, word=item.word, pos=item.pos,

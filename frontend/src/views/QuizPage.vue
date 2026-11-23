@@ -1,10 +1,40 @@
 <template>
   <div class="page quiz">
-    <!-- ========== 开局设置 ========== -->
-    <n-card v-if="!round.length && !finished" size="small">
+    <!-- 计划模式：题目在创建计划时已按天生成，进来按词库分别测试 -->
+    <div v-if="roundMode === 'plan' && planDay" class="planbar">
+      <b>第 {{ planDayNo }} 天 · 测试</b>
+      <span>{{ planBreakdown }}</span>
+      <span class="planbar-total">共 {{ planTestTotal }} 题</span>
+    </div>
+
+    <!-- 测试中也能切换四个部分：每库独立进度，完成打勾 -->
+    <nav v-if="roundMode === 'plan' && planBankNav.length > 1" class="banknav" aria-label="选择词库">
+      <button
+        v-for="b in planBankNav"
+        :key="b.key"
+        type="button"
+        class="bankchip"
+        :class="{ on: b.key === activeBank, done: b.finished }"
+        @click="switchBank(b.key)"
+      >
+        <span class="bn">{{ b.label }}</span>
+        <span class="bc tnum">{{ b.done }}/{{ b.total }}</span>
+        <span v-if="b.finished" class="bdone" aria-label="已完成">✓</span>
+      </button>
+    </nav>
+
+    <n-card v-if="planMode && !round.length && !finished && planTestTotal > 0" size="small">
+      <div class="planloading">正在生成第 {{ planDayNo }} 天的题目…</div>
+    </n-card>
+    <n-card v-if="planMode && !round.length && !finished && planTestTotal === 0" size="small">
+      <div class="planloading">今天没有可测试的单词</div>
+    </n-card>
+
+    <!-- ========== 开局设置（随机学习） ========== -->
+    <n-card v-if="!planMode && !round.length && !finished" size="small">
       <template #header>
         <div class="chead">
-          <h2>开始一轮</h2>
+          <h2>随机学习</h2>
           <n-tag v-if="dueInBank.length" type="warning" size="small" round :bordered="false">
             {{ dueInBank.length }} 个错题到期
           </n-tag>
@@ -18,6 +48,16 @@
         </n-radio-group>
       </div>
       <div class="setrow">
+        <span class="lbl">考核方式</span>
+        <n-checkbox
+          v-for="d in dimOptions"
+          :key="d"
+          :checked="selectedDims.includes(d)"
+          @update:checked="toggleDim(d, $event)"
+        >{{ DIM_LABEL[d] }}</n-checkbox>
+        <span v-if="!selectedDims.length" class="hint">至少选一种</span>
+      </div>
+      <div class="setrow">
         <span class="lbl">题量</span>
         <n-radio-group v-model:value="count">
           <n-radio-button :value="10">10 题</n-radio-button>
@@ -27,7 +67,9 @@
       </div>
 
       <div class="startrow">
-        <n-button type="primary" size="large" @click="start">开始测验</n-button>
+        <n-button type="primary" size="large" :disabled="!selectedDims.length" @click="start">
+          开始学习
+        </n-button>
         <span class="hint">答错的词自动进错题本，按 1 / 2 / 4 / 7 / 15 天复习</span>
       </div>
     </n-card>
@@ -36,7 +78,7 @@
     <template v-else-if="q && !finished">
       <!-- 进度：可数的分段，已答的分段会变成绿/橙，能看出这一轮走到哪、对了几题 -->
       <header class="qhead">
-        <div class="segs" aria-hidden="true">
+        <div v-if="round.length <= 80" class="segs" :class="{ dense: round.length > 40 }" aria-hidden="true">
           <i
             v-for="(s, i) in segStates"
             :key="i"
@@ -150,11 +192,15 @@
 
     <!-- ========== 结算 ========== -->
     <section v-else class="result">
-      <p class="reye">本轮完成</p>
-      <p class="rbig tnum">{{ correctCount }}<i>/ {{ round.length }}</i></p>
+      <p class="reye">
+        <template v-if="allBanksDone">今日测试完成</template>
+        <template v-else-if="roundMode === 'plan'">{{ activeBankLabel }} · 本库完成</template>
+        <template v-else>本轮完成</template>
+      </p>
+      <p class="rbig tnum">{{ resultCorrect }}<i>/ {{ resultTotal }}</i></p>
 
-      <!-- 这一轮的答题结果，一段一题：与答题时的进度条同构 -->
-      <div class="segs rsegs" aria-hidden="true">
+      <!-- 单库结算：一段一题；四库总结算改由顶部词库导航呈现 -->
+      <div v-if="!allBanksDone && round.length <= 80" class="segs rsegs" :class="{ dense: round.length > 40 }" aria-hidden="true">
         <i v-for="(s, i) in segStates" :key="i" class="seg" :class="s"></i>
       </div>
 
@@ -164,10 +210,10 @@
         {{ rateCopy }}
       </p>
 
-      <div v-if="wrongWords.length" class="rwrong">
-        <p class="rtitle">要再看的 {{ wrongWords.length }} 个词</p>
+      <div v-if="resultWrongWords.length" class="rwrong">
+        <p class="rtitle">要再看的 {{ resultWrongWords.length }} 个词</p>
         <ul>
-          <li v-for="w in wrongWords" :key="w.id" :title="`${w.en} ${w.cn}`">
+          <li v-for="w in resultWrongWords" :key="w.id" :title="`${w.en} ${w.cn}`">
             <b>{{ w.en }}</b>
             <span>{{ w.cn }}</span>
           </li>
@@ -175,15 +221,31 @@
       </div>
 
       <div class="ractions">
-        <n-button type="primary" size="large" @click="restart">再来一轮</n-button>
-        <router-link v-if="wrongWords.length" to="/english/words/mistakes" class="linkbtn">去错题本</router-link>
+        <template v-if="roundMode === 'plan'">
+          <n-button v-if="allBanksDone" type="primary" size="large" @click="restart">
+            再测一遍今天
+          </n-button>
+          <template v-else>
+            <n-button v-if="hasNextBank" type="primary" size="large" @click="nextUnfinishedBank">
+              下一个词库
+            </n-button>
+            <n-button secondary size="large" @click="restart">重做本库</n-button>
+          </template>
+          <router-link to="/english/words/plan" class="linkbtn">返回计划</router-link>
+        </template>
+        <template v-else>
+          <n-button type="primary" size="large" @click="restart">再来一轮</n-button>
+          <router-link v-if="resultWrongWords.length" to="/english/words/mistakes" class="linkbtn">
+            去错题本
+          </router-link>
+        </template>
       </div>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   NButton, NCard, NCheckbox, NInput, NRadioButton,
   NRadioGroup, NTag,
@@ -192,11 +254,20 @@ import { useRoute } from "vue-router";
 import { useLearningStore } from "../stores/learning";
 import { availableBankKeys, loadBanks, type BankMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
-import { makeRound, checkAnswer, DIM_LABEL, type QuizDim, type QuizQuestion } from "../core/quiz";
-import type { WordBanks, BankKey, PlanWord } from "../core/plan";
+import {
+  makeRound, makeTestRound, seedFrom, testDimsForBank,
+  checkAnswer, DIM_LABEL, type QuizDim, type QuizQuestion,
+} from "../core/quiz";
+import { splitPlan, type WordBanks, type BankKey, type PlanWord } from "../core/plan";
+import {
+  clearQuizSession, freeScope, loadQuizSession, planScope, pruneQuizSessions,
+  resumePosition, saveQuizSession, sessionMatches,
+} from "../core/quizSession";
 
 const learning = useLearningStore();
 const auth = useAuthStore();
+/** 续做键跟随当前登录用户，与学习快照 pet_sync_v2::<用户名> 同构 */
+const ownerName = computed(() => learning.owner || auth.username);
 const banks = ref<WordBanks>({});
 const bankMeta = ref<Record<string, BankMeta>>({});
 /** 当前级别下的词库标签（PET 四库 / KET 五库） */
@@ -213,16 +284,89 @@ const route = useRoute();
 const qBank = String(route.query.bank ?? "");
 if (qBank) bank.value = qBank as BankKey;
 
+const activeKeys = computed(() => availableBankKeys(banks.value, bankMeta.value, auth.exam));
+const banksReady = ref(false);
+
+/** 带 ?day= 才是计划测试；「学习」页签本身是随机学习（可选题库/考核方式） */
+const planLength = computed(() => learning.data.plan.length);
+const planMode = computed(() => planLength.value > 0 && route.query.day != null);
+const planUpdatedAt = computed(() => learning.data.plan.plan_updated_at ?? 0);
+const activePlanDay = ref(0);
+const planDays = computed(() =>
+  planLength.value > 0 ? splitPlan(banks.value, planLength.value, activeKeys.value) : [],
+);
+const planDayNo = computed(() => activePlanDay.value || resolvePlanDay());
+const planDay = computed(() => planDays.value[planDayNo.value - 1] ?? null);
+/** 计划测试的每题题型（必默三型，其他 PET 库两型） */
+function planBankDims(key: string): QuizDim[] {
+  return testDimsForBank(key, bankMeta.value[key]?.dims);
+}
+/** 当天有词的词库 */
+const planKeys = computed(() => {
+  const pd = planDay.value;
+  if (!pd) return [];
+  return activeKeys.value.filter((k) => (pd.banks[k]?.length ?? 0) > 0);
+});
+/** 当天测试总题数：各库词数 × 该库每题题型数 */
+const planTestTotal = computed(() => {
+  const pd = planDay.value;
+  if (!pd) return 0;
+  return activeKeys.value.reduce(
+    (s, k) => s + (pd.banks[k]?.length ?? 0) * planBankDims(k).length,
+    0,
+  );
+});
+const planBreakdown = computed(() => {
+  const pd = planDay.value;
+  if (!pd) return "";
+  return activeKeys.value
+    .map((k) => ({ label: bankMeta.value[k]?.short || k, n: pd.banks[k]?.length ?? 0 }))
+    .filter((x) => x.n > 0)
+    .map((x) => `${x.label} ${x.n}`)
+    .join(" · ");
+});
+
+function resolvePlanDay(): number {
+  const n = planLength.value;
+  if (!n) return 1;
+  const q = Number(route.query.day ?? 0);
+  if (Number.isInteger(q) && q >= 1 && q <= n) return q;
+  const done = new Set(learning.data.plan.days_done);
+  for (let d = 1; d <= n; d++) {
+    if (!done.has(String(d))) return d;
+  }
+  return n;
+}
+
 void loadBanks().then((r) => {
   banks.value = r.banks;
   bankMeta.value = r.bankMeta;
   const keys = availableBankKeys(r.banks, r.bankMeta, auth.exam);
   if (!bank.value || !keys.includes(bank.value)) bank.value = (keys[0] as BankKey) ?? "";
+  banksReady.value = true;
+  // 计划测试按库恢复/生成；自由测验恢复单轮
+  if (planMode.value) startPlanTest();
+  else void tryRestoreFreeSession();
 });
 const count = ref(10);
 const mistakeFirst = ref(true);
+/** 随机学习：用户勾选的考核方式 */
+const selectedDims = ref<QuizDim[]>([]);
+
+interface BankTestState {
+  round: QuizQuestion[];
+  results: Array<boolean | null>;
+  correctCount: number;
+  wrongWords: PlanWord[];
+  finished: boolean;
+}
 
 const round = ref<QuizQuestion[]>([]);
+/** 本轮所属模式：与当前 URL/计划状态解耦，避免同步中途改计划污染已保存轮次 */
+const roundMode = ref<"plan" | "free">("free");
+/** 计划测试：每个词库一份独立题组/进度 */
+const planStates = ref<Record<string, BankTestState>>({});
+const activeBank = ref<BankKey>("");
 const qIndex = ref(0);
 const answered = ref(false);
 const lastCorrect = ref(false);
@@ -233,12 +377,58 @@ const correctCount = ref(0);
 /** 每题结果：true 对 / false 错 / null 未答——驱动顶部分段进度 */
 const results = ref<Array<boolean | null>>([]);
 const wrongWords = ref<PlanWord[]>([]);
+let planStarted = false;
+let startedDay = 0;
+let startedAt = -1;
+let freeRestoreTried = false;
 
 const q = computed(() => round.value[qIndex.value] ?? null);
 const isLast = computed(() => qIndex.value >= round.value.length - 1);
-const rate = computed(() =>
-  round.value.length ? Math.round((correctCount.value / round.value.length) * 100) : 0,
+
+/** 当天所有有词的词库都完成测试 */
+const allBanksDone = computed(
+  () =>
+    roundMode.value === "plan" &&
+    planKeys.value.length > 0 &&
+    planKeys.value.every((k) => Boolean(planStates.value[k]?.finished)),
 );
+
+/** 测试页顶部四库导航：每库已答/总数与完成状态 */
+const planBankNav = computed(() =>
+  planKeys.value.map((k) => {
+    const st = planStates.value[k];
+    const total = st?.round.length ?? (planDay.value?.banks[k]?.length ?? 0) * planBankDims(k).length;
+    const done = st ? st.results.filter((r) => r !== null).length : 0;
+    return { key: k, label: bankMeta.value[k]?.short || k, done, total, finished: Boolean(st?.finished) };
+  }),
+);
+
+/** 是否还有未完成的词库（决定是否显示「下一个词库」） */
+const hasNextBank = computed(() => planKeys.value.some((k) => !planStates.value[k]?.finished));
+const activeBankLabel = computed(() => bankMeta.value[activeBank.value]?.short || activeBank.value);
+
+/** 四库全完成时的总结果 */
+const overallResult = computed(() => {
+  let total = 0;
+  let correct = 0;
+  const wrong = new Map<string, PlanWord>();
+  for (const k of planKeys.value) {
+    const st = planStates.value[k];
+    if (!st) continue;
+    total += st.round.length;
+    correct += st.correctCount;
+    for (const w of st.wrongWords) wrong.set(w.id, w);
+  }
+  return { total, correct, wrong: [...wrong.values()] };
+});
+
+const resultTotal = computed(() => (allBanksDone.value ? overallResult.value.total : round.value.length));
+const resultCorrect = computed(() => (allBanksDone.value ? overallResult.value.correct : correctCount.value));
+const resultWrongWords = computed(() => (allBanksDone.value ? overallResult.value.wrong : wrongWords.value));
+const resultRate = computed(() =>
+  resultTotal.value ? Math.round((resultCorrect.value / resultTotal.value) * 100) : 0,
+);
+const rate = computed(() => resultRate.value);
 const rateCopy = computed(() =>
   rate.value === 100 ? "全对，很稳" : rate.value >= 80 ? "不错，再巩固一轮" : "错的几个再来一次就好",
 );
@@ -260,7 +450,7 @@ const segStates = computed(() =>
 /** 维度提示：告诉孩子这一步要做什么，不用猜 */
 const tip = computed(() => {
   if (!q.value) return "";
-  if (q.value.dim === "spell") return "听发音后拼出来";
+  if (q.value.dim === "spell") return "根据中文拼出单词";
   if (q.value.dim === "w2m") return "选它的意思";
   return "选对应的英文";
 });
@@ -287,13 +477,221 @@ function optClass(opt: string): Record<string, boolean> {
   };
 }
 
+function currentDay(): number {
+  return activePlanDay.value || resolvePlanDay();
+}
+
+function currentScope(): string {
+  const user = ownerName.value;
+  if (!user) return "";
+  if (roundMode.value === "plan") {
+    return planScope(user, planUpdatedAt.value, currentDay(), activeBank.value);
+  }
+  return freeScope(user);
+}
+
+/** 当前轮次快照：每题答完即落盘，刷新后可回到第一道未答题 */
+function saveSession(): void {
+  const scope = currentScope();
+  if (!scope || !round.value.length) return;
+  saveQuizSession(scope, {
+    mode: roundMode.value,
+    plan_day: roundMode.value === "plan" ? currentDay() : 0,
+    plan_length: planLength.value,
+    plan_updated_at: planUpdatedAt.value,
+    bank: roundMode.value === "plan" ? activeBank.value : bank.value,
+    count: count.value,
+    mistake_first: mistakeFirst.value,
+    round: round.value,
+    results: results.value,
+    correct_count: correctCount.value,
+    wrong_words: wrongWords.value,
+  });
+}
+
+function clearCurrentSession(): void {
+  const scope = currentScope();
+  if (scope) clearQuizSession(scope);
+}
+
+function clearAllPlanSessions(): void {
+  const user = ownerName.value;
+  if (!user) return;
+  for (const key of planKeys.value) {
+    clearQuizSession(planScope(user, planUpdatedAt.value, currentDay(), key));
+  }
+}
+
+function buildBankState(key: string): BankTestState {
+  const words = planDay.value?.banks[key] ?? [];
+  const round = words.length
+    ? makeTestRound(
+      banks.value[key] ?? words,
+      words,
+      planBankDims(key),
+      seedFrom(planUpdatedAt.value, currentDay(), key),
+    )
+    : [];
+  return {
+    round,
+    results: new Array(round.length).fill(null),
+    correctCount: 0,
+    wrongWords: [],
+    finished: round.length === 0,
+  };
+}
+
+function restoreBankState(key: string): BankTestState | null {
+  const user = ownerName.value;
+  if (!user) return null;
+  const scope = planScope(user, planUpdatedAt.value, currentDay(), key);
+  const saved = loadQuizSession(scope);
+  if (!saved) return null;
+  const matched = sessionMatches(saved, {
+    mode: "plan",
+    planLength: planLength.value,
+    planUpdatedAt: planUpdatedAt.value,
+    planDay: currentDay(),
+    bank: key,
+  });
+  if (!matched) {
+    clearQuizSession(scope);
+    return null;
+  }
+  return {
+    round: saved.round,
+    results: saved.results,
+    correctCount: saved.correct_count,
+    wrongWords: saved.wrong_words,
+    finished: resumePosition(saved).finished,
+  };
+}
+
+/** 把当前词库视图写回 planStates（切库/落盘前调用） */
+function saveActiveBankState(): void {
+  if (roundMode.value !== "plan" || !activeBank.value) return;
+  const st = planStates.value[activeBank.value];
+  if (!st) return;
+  st.round = round.value;
+  st.results = results.value;
+  st.correctCount = correctCount.value;
+  st.wrongWords = wrongWords.value;
+  // 最后一题已答但还没点「看结果」也算本库完成，避免切库后卡住当天打勾
+  st.finished = finished.value || (results.value.length > 0 && results.value.every((r) => r !== null));
+}
+
+function applyBankState(key: string): void {
+  const st = planStates.value[key];
+  if (!st) return;
+  activeBank.value = key;
+  bank.value = key;
+  round.value = st.round;
+  results.value = st.results;
+  correctCount.value = st.correctCount;
+  wrongWords.value = st.wrongWords;
+  answered.value = false;
+  picked.value = "";
+  typed.value = "";
+  const pos = resumePosition(st);
+  qIndex.value = pos.index;
+  finished.value = st.finished || pos.finished;
+  st.finished = finished.value;
+  if (!finished.value) playIfW2M();
+}
+
+function switchBank(key: string): void {
+  if (!planStates.value[key] || key === activeBank.value) return;
+  saveActiveBankState();
+  saveSession();
+  if (allBanksDone.value) markPlanAllDone();
+  applyBankState(key);
+}
+
+/**
+ * 计划测试：按词库恢复/生成独立题组，默认选中 URL 指定库或第一个未完成库。
+ * 题目由 plan_updated_at + 天 + 词库 作种子确定性生成。
+ */
+function startPlanTest(dayArg?: number): void {
+  const day = dayArg ?? resolvePlanDay();
+  activePlanDay.value = day;
+  const pd = planDays.value[day - 1];
+  if (!pd) return;
+  roundMode.value = "plan";
+  planStarted = true;
+  startedDay = day;
+  startedAt = planUpdatedAt.value;
+  if (ownerName.value) pruneQuizSessions(ownerName.value, planUpdatedAt.value);
+  const keys = activeKeys.value.filter((k) => (pd.banks[k]?.length ?? 0) > 0);
+  if (!keys.length) return;
+  const states: Record<string, BankTestState> = {};
+  for (const key of keys) states[key] = restoreBankState(key) ?? buildBankState(key);
+  planStates.value = states;
+  const requested = String(route.query.bank ?? "");
+  const firstOpen = keys.find((k) => !states[k].finished) ?? keys[0];
+  applyBankState(keys.includes(requested) ? requested : firstOpen);
+  if (keys.every((k) => states[k].finished)) markPlanAllDone();
+}
+
+/** 四库测试全部完成：打勾一次并清掉当天会话 */
+function markPlanAllDone(): void {
+  if (activePlanDay.value) learning.markPlanDayDone(activePlanDay.value);
+  clearAllPlanSessions();
+}
+
+/** 自由测验（从词库页进入）：恢复单轮会话 */
+function tryRestoreFreeSession(): void {
+  if (planMode.value || freeRestoreTried || round.value.length || finished.value) return;
+  const user = ownerName.value;
+  if (!user) return; // 登录态未就绪：watch owner 再试
+  freeRestoreTried = true;
+  pruneQuizSessions(user, planUpdatedAt.value);
+  const scope = freeScope(user);
+  const saved = loadQuizSession(scope);
+  if (!saved) return;
+  if (!activeKeys.value.includes(saved.bank)) {
+    clearQuizSession(scope);
+    return;
+  }
+  const matched = sessionMatches(saved, {
+    mode: "free",
+    planLength: planLength.value,
+    planUpdatedAt: planUpdatedAt.value,
+    planDay: null,
+    bank: String(route.query.bank ?? ""),
+  });
+  if (!matched) {
+    clearQuizSession(scope);
+    return;
+  }
+  roundMode.value = "free";
+  bank.value = saved.bank as BankKey;
+  round.value = saved.round;
+  results.value = saved.results;
+  correctCount.value = saved.correct_count;
+  wrongWords.value = saved.wrong_words;
+  count.value = saved.count || count.value;
+  mistakeFirst.value = saved.mistake_first;
+  answered.value = false;
+  picked.value = "";
+  typed.value = "";
+  const pos = resumePosition(saved);
+  qIndex.value = pos.index;
+  finished.value = pos.finished;
+  if (pos.finished) clearQuizSession(scope);
+  else playIfW2M();
+}
+
 function start(): void {
+  roundMode.value = "free";
+  clearCurrentSession();
+  freeRestoreTried = true;
   const list = banks.value[bank.value] ?? [];
+  if (list.length < 4 || !selectedDims.value.length) return;
   let pickedList: PlanWord[] | undefined;
   if (mistakeFirst.value && dueInBank.value.length) {
     pickedList = [...dueInBank.value, ...list.filter((w) => !idsOf(dueInBank.value).has(w.id))];
   }
-  round.value = makeRound(list, count.value, [...ALL_DIMS.value], pickedList);
+  round.value = makeRound(list, count.value, [...selectedDims.value], pickedList);
   results.value = new Array(round.value.length).fill(null);
   wrongWords.value = [];
   qIndex.value = 0;
@@ -303,10 +701,19 @@ function start(): void {
   finished.value = false;
   typed.value = "";
   playIfW2M();
+  saveSession();
 }
 
 function idsOf(ws: PlanWord[]): Set<string> {
   return new Set(ws.map((w) => w.id));
+}
+
+function toggleDim(dim: QuizDim, checked: boolean): void {
+  if (checked) {
+    if (!selectedDims.value.includes(dim)) selectedDims.value = [...selectedDims.value, dim];
+  } else {
+    selectedDims.value = selectedDims.value.filter((d) => d !== dim);
+  }
 }
 
 function submit(ans: string): void {
@@ -320,10 +727,15 @@ function submit(ans: string): void {
     learning.recordRight(wordId, q.value.dim); // 错题本划维度（不在错题本时无副作用）
     learning.recordMastery(wordId, [q.value.dim]);
   } else {
-    learning.recordWrong(wordId, [...ALL_DIMS.value]); // 答错全维度重欠 + 回 1 天间隔
+    // 计划测试按该库实际考的维度重欠（必默 3 维，其他库 2 维），
+    // 避免非必默库永远欠一个不会考的「拼写」维度。
+    const dims = roundMode.value === "plan" ? planBankDims(activeBank.value) : ALL_DIMS.value;
+    learning.recordWrong(wordId, [...dims]); // 答错全维度重欠 + 回 1 天间隔
     if (!wrongWords.value.some((w) => w.id === wordId)) wrongWords.value.push(q.value.word);
   }
   results.value[qIndex.value] = lastCorrect.value;
+  saveActiveBankState();
+  saveSession(); // 每题保存：刷新后从下一道未答题继续
 }
 
 /** 防连点：答完 300ms 内不响应下一题，避免一下跳过两题 */
@@ -334,21 +746,94 @@ function next(): void {
   lastNext = now;
   if (isLast.value) {
     finished.value = true;
+    if (roundMode.value === "plan") {
+      saveActiveBankState();
+      saveSession();
+      if (allBanksDone.value) markPlanAllDone(); // 四库全部完成才打勾
+    } else {
+      clearCurrentSession();
+    }
     return;
   }
   qIndex.value += 1;
   answered.value = false;
   picked.value = "";
   typed.value = "";
+  saveActiveBankState();
+  saveSession();
   playIfW2M();
 }
 
+function restartBank(): void {
+  if (!activeBank.value) return;
+  clearCurrentSession();
+  planStates.value[activeBank.value] = buildBankState(activeBank.value);
+  applyBankState(activeBank.value);
+}
+
+function restartDay(): void {
+  clearAllPlanSessions();
+  startPlanTest(activePlanDay.value || undefined);
+}
+
+function nextUnfinishedBank(): void {
+  saveActiveBankState();
+  saveSession();
+  const key = planKeys.value.find((k) => !planStates.value[k]?.finished);
+  if (key) applyBankState(key);
+  else markPlanAllDone();
+}
+
 function restart(): void {
+  if (roundMode.value === "plan") {
+    if (allBanksDone.value) restartDay();
+    else restartBank();
+    return;
+  }
+  clearCurrentSession();
+  freeRestoreTried = true;
   round.value = [];
   results.value = [];
   wrongWords.value = [];
+  qIndex.value = 0;
+  correctCount.value = 0;
+  answered.value = false;
+  picked.value = "";
+  typed.value = "";
   finished.value = false;
 }
+
+// 登录/同步晚于页面挂载、或计划/词库到位后再开始；计划按库恢复，自由测验恢复单轮
+watch([planLength, banksReady, planUpdatedAt, () => route.query.day, () => route.query.bank], () => {
+  if (!banksReady.value) return;
+  if (planMode.value) {
+    // 换天 / 计划重建时重建题组；同一天同一计划不重复生成
+    const day = resolvePlanDay();
+    if (!planStarted || startedDay !== day || startedAt !== planUpdatedAt.value) startPlanTest();
+  } else {
+    // 从计划测试切到自由测验（同组件 query 变化）：清掉计划轮次，避免显示旧题组
+    if (roundMode.value === "plan") {
+      planStates.value = {};
+      round.value = [];
+      results.value = [];
+      wrongWords.value = [];
+      qIndex.value = 0;
+      correctCount.value = 0;
+      answered.value = false;
+      picked.value = "";
+      typed.value = "";
+      finished.value = false;
+      roundMode.value = "free";
+      planStarted = false;
+    }
+    tryRestoreFreeSession();
+  }
+});
+watch(() => ownerName.value, () => {
+  if (!banksReady.value) return;
+  if (planMode.value && !planStarted) startPlanTest();
+  else tryRestoreFreeSession();
+});
 
 function playIfW2M(): void {
   // 朗读规则红线：仅看词选义（w2m）答题前自动播放发音
@@ -385,10 +870,67 @@ const ALL_DIMS = computed<QuizDim[]>(() => {
   const dims = bankMeta.value[bank.value]?.dims;
   return (dims && dims.length ? dims : FULL_DIMS) as QuizDim[];
 });
+
+/** 随机学习可选的考核方式：按该词库允许的维度展示（顺序固定） */
+const DIM_ORDER: QuizDim[] = ["spell", "w2m", "m2w"];
+const dimOptions = computed<QuizDim[]>(() => {
+  const allowed = new Set(ALL_DIMS.value);
+  return DIM_ORDER.filter((d) => allowed.has(d));
+});
+watch(
+  dimOptions,
+  (opts) => {
+    const kept = selectedDims.value.filter((d) => opts.includes(d));
+    selectedDims.value = kept.length ? kept : [...opts];
+  },
+  { immediate: true },
+);
 </script>
 
 <style scoped>
 .page { width: 100%; }
+
+/* ---------- 计划模式 ---------- */
+.planbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px; margin-bottom: 12px;
+  background: var(--c-primary-soft); border: 1px solid #cfeadd;
+  border-radius: var(--r-btn); color: var(--c-text-2); font-size: 13px;
+}
+.planbar b { color: var(--c-primary-strong); font-size: 14px; }
+.planbar-total { margin-left: auto; color: var(--c-primary-strong); font-weight: 700; }
+.planloading { padding: 18px; text-align: center; color: var(--c-text-2); }
+
+/* 四库测试导航 */
+.banknav {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.bankchip {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 38px; padding: 0 13px;
+  border: 1.5px solid var(--c-line); border-radius: var(--r-pill);
+  background: #fff; color: var(--c-text-2);
+  font: inherit; cursor: pointer;
+  transition: border-color var(--dur-2) var(--ease-out),
+    background var(--dur-2) var(--ease-out), color var(--dur-2) var(--ease-out);
+}
+.bankchip:hover { border-color: #a9dcc0; background: #fbfefc; }
+.bankchip .bn { font-size: 13px; font-weight: 700; }
+.bankchip .bc { font-size: 12px; color: var(--c-text-3); }
+.bankchip.on {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+  color: var(--c-primary-strong);
+}
+.bankchip.on .bc { color: var(--c-primary-strong); }
+.bankchip.done .bdone {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--c-primary); color: #fff;
+  font-size: 11px; font-weight: 800;
+}
+.bankchip:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 
 /* ---------- 开局 ---------- */
 .chead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -404,6 +946,7 @@ const ALL_DIMS = computed<QuizDim[]>(() => {
 /* ---------- 顶部分段进度 ---------- */
 .qhead { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .segs { display: flex; gap: 4px; flex: 1; min-width: 0; }
+.segs.dense { gap: 2px; }
 .seg {
   flex: 1 1 0;
   height: 6px;

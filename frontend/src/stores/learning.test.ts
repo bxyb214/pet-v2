@@ -31,9 +31,26 @@ describe("learning store（无网络，纯本地逻辑）", () => {
     s.setPlan(40);
     s.markPlanDayDone(3);
     s.markPlanDayDone(1);
-    expect(s.data.plan).toEqual({ length: 40, days_done: ["1", "3"], reading_length: 0, reading_days_done: [], reading_books: [] });
+    expect(s.data.plan).toMatchObject({
+      length: 40, days_done: ["1", "3"], reading_length: 0, reading_days_done: [], reading_books: [],
+    });
+    expect(s.data.plan.plan_updated_at).toBeGreaterThan(0);
     s.deletePlan();
-    expect(s.data.plan).toEqual({ length: 0, days_done: [], reading_length: 0, reading_days_done: [], reading_books: [] });
+    expect(s.data.plan).toMatchObject({
+      length: 0, days_done: [], reading_length: 0, reading_days_done: [], reading_books: [],
+    });
+    expect(s.data.plan.plan_updated_at).toBeGreaterThan(0);
+  });
+
+  it("deletePlan 只删词汇计划，阅读计划保留", () => {
+    const s = useLearningStore();
+    s.setReadingPlan(20, ["t1"]);
+    s.setPlan(40);
+    s.deletePlan();
+    expect(s.data.plan.length).toBe(0);
+    expect(s.data.plan.reading_length).toBe(20);
+    expect(s.data.plan.reading_books).toEqual(["t1"]);
+    expect(s.data.plan.reading_updated_at).toBeGreaterThan(0);
   });
 
   it("本地持久化：同一用户刷新后数据仍在", () => {

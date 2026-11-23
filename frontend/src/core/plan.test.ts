@@ -15,32 +15,63 @@ const banks: WordBanks = {
   tongyi: makeBank("t", 10),
 };
 
-describe("splitPlan", () => {
-  it("30 天切分：第 1 天 23+16+8+10 → 4 天后必默空", () => {
-    const plan = splitPlan(banks, 30);
+/** 与线上 PET 词库同量级，用于验证「每种类型平均分到各天」 */
+const petBanks: WordBanks = {
+  bimo: makeBank("b", 712),
+  gaopin: makeBank("g", 414),
+  guding: makeBank("f", 254),
+  tongyi: makeBank("t", 300),
+};
+
+describe("splitPlan（每种词库各自平均分到各天）", () => {
+  it("30 天：每天四库都有词；第 24 天 24+14+9+10=57", () => {
+    const plan = splitPlan(petBanks, 30);
     expect(plan.length).toBe(30);
-    expect(plan[0].banks.bimo.length).toBe(1); // ceil(23/30)=1
-    expect(plan[0].banks.gaopin.length).toBe(1);
-    expect(plan[0].banks.guding.length).toBe(1);
-    expect(plan[0].banks.tongyi.length).toBe(1);
-    expect(plan[0].total).toBe(4);
-    // 必默 23 词每天 1 个覆盖前 23 天，第 24 天起为空
-    expect(plan[22].banks.bimo.length).toBe(1);
-    expect(plan[23].banks.bimo.length).toBe(0);
+    expect(
+      plan.every((d) => ["bimo", "gaopin", "guding", "tongyi"].every((k) => d.banks[k].length > 0)),
+    ).toBe(true);
+    const d24 = plan[23];
+    expect(d24.banks.bimo).toHaveLength(24);
+    expect(d24.banks.gaopin).toHaveLength(14);
+    expect(d24.banks.guding).toHaveLength(9);
+    expect(d24.banks.tongyi).toHaveLength(10);
+    expect(d24.total).toBe(57);
   });
 
-  it("10 天切分：末天吸收余量", () => {
-    const plan = splitPlan(banks, 10);
-    // 必默 ceil(23/10)=3 → 7 天×3 + 末块 2 → 第 8 天 2 个，第 9 天起 0
-    const flat = plan.flatMap((d) => d.banks.bimo).map((w) => w.id);
-    expect(flat.length).toBe(23);
-    expect(plan[7].banks.bimo.length).toBe(2);
-    expect(plan[8].banks.bimo.length).toBe(0);
+  it("每库每天条数差 ≤1；库内顺序不变、不重不漏", () => {
+    const plan = splitPlan(petBanks, 30);
+    for (const key of Object.keys(petBanks)) {
+      const counts = plan.map((d) => d.banks[key].length);
+      expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+      const flat = plan.flatMap((d) => d.banks[key]).map((w) => w.id);
+      expect(flat).toEqual(petBanks[key].map((w) => w.id));
+    }
+    expect(validatePlan(petBanks, plan)).toBe(true);
   });
 
-  it("任意天数（45）不抛错且总天数正确", () => {
-    const plan = splitPlan(banks, 45);
-    expect(plan.length).toBe(45);
+  it("180 天：每个词库每天仍有词（PET 最小库 254 > 180）", () => {
+    const plan = splitPlan(petBanks, 180);
+    expect(plan).toHaveLength(180);
+    expect(plan.every((d) => Object.values(d.banks).every((ws) => ws.length > 0))).toBe(true);
+    expect(validatePlan(petBanks, plan)).toBe(true);
+  });
+
+  it("小库/天数更多时允许某些天为 0，但仍均匀且不重不漏", () => {
+    const small: WordBanks = { bimo: makeBank("b", 5), tongyi: makeBank("t", 3) };
+    const plan = splitPlan(small, 10);
+    expect(plan).toHaveLength(10);
+    expect(plan.reduce((s, d) => s + d.total, 0)).toBe(8);
+    expect(validatePlan(small, plan)).toBe(true);
+    for (const key of Object.keys(small)) {
+      const counts = plan.map((d) => d.banks[key].length);
+      expect(Math.max(...counts) - Math.min(...counts)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("库间都参与：第 1 天包含所有有词的词库", () => {
+    const plan = splitPlan(banks, 3);
+    expect(Object.keys(plan[0].banks).length).toBe(4);
+    expect(plan[0].total).toBeGreaterThan(0);
   });
 
   it("非法天数抛错", () => {
@@ -50,7 +81,7 @@ describe("splitPlan", () => {
   });
 });
 
-describe("validatePlan 不变量（不重不漏、顺序不变）", () => {
+describe("validatePlan 不变量（不重不漏、顺序不变、每库均匀）", () => {
   it("30/45 天均通过", () => {
     expect(validatePlan(banks, splitPlan(banks, 30))).toBe(true);
     expect(validatePlan(banks, splitPlan(banks, 45))).toBe(true);
@@ -61,6 +92,23 @@ describe("validatePlan 不变量（不重不漏、顺序不变）", () => {
     const plan = splitPlan(banks, 3);
     plan[0].banks.bimo.pop();
     expect(validatePlan(banks, plan)).toBe(false);
+  });
+
+  it("只校验参与切分的库：别的级别词库非空也不影响（回归）", () => {
+    const mixed = { ...banks, kword: makeBank("k", 100) };
+    const keys = ["bimo", "gaopin", "guding", "tongyi"];
+    const plan = splitPlan(mixed, 30, keys);
+    expect(validatePlan(mixed, plan, keys)).toBe(true);
+    // 不传 keys 会把 kword 也当成本计划的一部分，旧实现正是这样误报
+    expect(validatePlan(mixed, plan)).toBe(false);
+  });
+
+  it("每库每天条数差 >1 时校验失败（防止退回全局平分）", () => {
+    const plan = splitPlan(petBanks, 30);
+    const extra = petBanks.bimo[0];
+    plan[0].banks.bimo.push(extra);
+    plan[29].banks.bimo.pop();
+    expect(validatePlan(petBanks, plan)).toBe(false);
   });
 });
 

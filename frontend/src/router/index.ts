@@ -70,6 +70,11 @@ export const router = createRouter({
           meta: { subject: "english", module: "words", crumbs: ["英语", "单词", "学习"], tabs: WORD_TABS },
         },
         {
+          path: "english/words/study/day",
+          component: () => import("../views/PlanStudyPage.vue"),
+          meta: { subject: "english", module: "words", crumbs: ["英语", "单词", "学习"], tabs: WORD_TABS },
+        },
+        {
           path: "english/words/plan",
           component: () => import("../views/PlanPage.vue"),
           meta: { subject: "english", module: "words", crumbs: ["英语", "单词", "计划"], tabs: WORD_TABS },
@@ -196,25 +201,29 @@ export const router = createRouter({
   ],
 });
 
-// 路由守卫：未登录跳转登录页（本地模式除外）；非管理员禁止进管理页；
-// 未开通口语的用户进入口语子页 → 回口语首页并弹权限提示（AI 调用有费用）
+// 路由守卫：除登录/注册外，所有页面都必须有有效会话；
+// 会话缺失/过期/被服务端拒绝 → 统一回登录页，不再渲染任何业务页面。
 router.beforeEach(async (to) => {
-  const localOnly = localStorage.getItem("pet_local_only") === "true";
   const PUBLIC = new Set(["/login", "/register"]);
-  if (!localOnly && !PUBLIC.has(to.path) && !getToken()) return "/login";
-  if (to.path === "/admin") {
-    const { useAuthStore } = await import("../stores/auth");
-    const auth = useAuthStore();
-    await auth.restore();
-    if (!auth.isAdmin) return "/english/words/browse";
-  }
-  if (to.path.startsWith("/english/speak") && to.path !== "/english/speak") {
-    const { useAuthStore } = await import("../stores/auth");
-    const auth = useAuthStore();
-    if (!localOnly) {
-      await auth.restore();
-      if (auth.username && !auth.perms.includes("speak")) return "/english/speak?locked=1";
-    }
+  if (PUBLIC.has(to.path)) return true;
+
+  if (!getToken()) return { path: "/login", replace: true };
+
+  const { useAuthStore } = await import("../stores/auth");
+  const auth = useAuthStore();
+  await auth.restore();
+  if (!auth.username) return { path: "/login", replace: true };
+
+  // 非管理员禁止进管理页
+  if (to.path === "/admin" && !auth.isAdmin) return "/english/words/browse";
+
+  // 未开通口语的用户进入口语子页 → 回口语首页并弹权限提示
+  if (
+    to.path.startsWith("/english/speak") &&
+    to.path !== "/english/speak" &&
+    !auth.perms.includes("speak")
+  ) {
+    return "/english/speak?locked=1";
   }
   return true;
 });

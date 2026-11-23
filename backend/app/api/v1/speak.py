@@ -10,7 +10,7 @@ from app.core.deps import require_speak
 from app.db import get_db
 from app.models.speak import SpeakDay, SpeakLog, SpeakPlan, SpeakTime
 from app.models.user import User
-from app.services import ai_enrich, qwen_speak, speak_profile, speak_review, tencent_soe, usage
+from app.services import ai_enrich, dev_mock, qwen_speak, speak_profile, speak_review, tencent_soe, usage
 
 router = APIRouter(prefix="/speak", tags=["speak"])
 
@@ -59,6 +59,8 @@ class SdpIn(BaseModel):
 
 @router.post("/sdp")
 def sdp(body: SdpIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+    if dev_mock.is_dev():
+        raise HTTPException(503, "开发环境不连接语音服务（前端使用模拟对话）")
     try:
         return qwen_speak.proxy_sdp(db, body.sdp, body.mode)
     except PermissionError as e:
@@ -76,6 +78,8 @@ class SessionEndIn(BaseModel):
 @router.post("/session_end")
 def session_end(body: SessionEndIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
     """会话关闭记账（不限流，只记录）：服务端按官方换算率折算音频 token。"""
+    if dev_mock.is_dev():
+        return {"est_cost_milli": 0, "dev": True}
     row = usage.record_session(db, user.id, body.seconds, body.ai_seconds)
     return {"est_cost_milli": row.est_cost_milli}
 
@@ -89,6 +93,8 @@ class SoeUrlIn(BaseModel):
 @router.post("/soe_url")
 def soe_url(body: SoeUrlIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
     """生成一次腾讯 SOE（口语评测新版）带签名的 WSS 地址。SecretKey 不回传。签发即记账。"""
+    if dev_mock.is_dev():
+        raise HTTPException(503, "开发环境不调用 SOE（前端使用模拟评分）")
     try:
         cfg = tencent_soe.soe_cfg(db)
         usage.record_soe(db, user.id, body.ref_text)
@@ -269,6 +275,8 @@ def improve(
     body: ImproveIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
 ) -> dict:
     """自由对话中：把孩子刚说的一句改写成 PET B1 版本（穿插显示并跟读）。"""
+    if dev_mock.is_dev():
+        return dev_mock.improve(body.text)
     prompt = _IMPROVE_PROMPT.format(text=body.text[:400], last_ai=body.last_ai_text[:200])
     try:
         data, llm_usage = ai_enrich.chat(
@@ -370,6 +378,9 @@ def help_(body: HelpIn, user: User = Depends(require_speak), db: Session = Depen
     """「怎么说？」：中文解释 + 简单英文示范句（气泡展示，不打断语音流）。"""
     from app.services import ai_enrich
 
+    if dev_mock.is_dev():
+        return dev_mock.help_payload(body.scene_title)
+
     prompt = (
         "A Chinese primary-school student is in a PET-level English conversation and is stuck. "
         f"Topic: {body.scene_title or 'daily chat'}. The coach just said: \"{body.last_ai_text[:200]}\". "
@@ -404,6 +415,9 @@ def check(body: CheckIn, user: User = Depends(require_speak), db: Session = Depe
     """造句判定：孩子按句型造句，LLM 判对错并给 PET 级优化。"""
     from app.services import ai_enrich
 
+    if dev_mock.is_dev():
+        return dev_mock.check(body.sentence)
+
     prompt = (
         "A Chinese primary-school student practised this English pattern: "
         f'"{body.pattern[:200]}". The student wrote/said: "{body.sentence[:200]}". '
@@ -434,6 +448,8 @@ class TtsIn(BaseModel):
 
 @router.post("/tts")
 def tts(body: TtsIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+    if dev_mock.is_dev():
+        return dev_mock.tts_payload()
     # 缓存目录与 sqlite 同级（./data/tts），生产 compose 挂卷即可持久化
     settings = get_settings()
     db_path = settings.database_url.replace("sqlite:///", "", 1)

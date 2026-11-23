@@ -36,7 +36,10 @@ const EMPTY: SyncData = {
   mastery: [],
   mistakes: [],
   progress: [],
-  plan: { length: 0, days_done: [], reading_length: 0, reading_days_done: [], reading_books: [] },
+  plan: {
+    length: 0, days_done: [], reading_length: 0, reading_days_done: [], reading_books: [],
+    plan_updated_at: 0, reading_updated_at: 0,
+  },
   custom_words: [],
   custom_sentences: [],
 };
@@ -63,6 +66,14 @@ export function createSyncEngine(deps: SyncDeps) {
     if (pushing) {
       pending = true;
       return;
+    }
+    // 首次连接尚未拿到 rev 时先拉一次，避免用 rev=0 推送被服务端拒绝
+    if (rev < 1) {
+      await pullAndMerge();
+      if (rev < 1) {
+        deps.onStatus?.("offline");
+        return;
+      }
     }
     pushing = true;
     try {

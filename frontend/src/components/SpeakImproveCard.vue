@@ -77,7 +77,7 @@ async function startEval(): Promise<void> {
   result.value = null;
   plan.value = null;
   status.value = "";
-  soe = new SoeEval({
+  const ev = new SoeEval({
     refText: props.improvedEn,
     onStatus: (s) => (status.value = s),
     onResult: (r) => onScored(r),
@@ -85,11 +85,18 @@ async function startEval(): Promise<void> {
       status.value = m;
       evaluating.value = false;
     },
+    onMicClosed: () => {
+      soe = null;
+      evaluating.value = false;
+      status.value = "麦克风已关闭，需要时再点「跟读这句」";
+    },
   });
+  soe = ev;
   try {
-    await soe.start();
-    evaluating.value = true;
+    await ev.start();
+    if (soe === ev) evaluating.value = true;
   } catch {
+    ev.stop();
     evaluating.value = false;
   }
 }

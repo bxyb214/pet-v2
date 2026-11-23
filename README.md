@@ -44,6 +44,9 @@ docker compose up -d --build                  # api 启动时自动迁移
 
 空库首次用邀请码 `claim` 注册，第一个账号自动成为管理员；AI Key 部署后在 `/admin` 填写。
 
+> 测试环境没有 AI Key：在 `deploy/.env` 设 `PET_DEV_MODE=1` 后重建 api。顶栏显示 **DEV**，
+> 口语/造句/加词返回模拟结果，不调用外部服务；正式环境保持 `0`。
+
 ### 本地开发
 
 ```bash

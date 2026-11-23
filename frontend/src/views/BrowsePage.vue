@@ -19,6 +19,28 @@
       >{{ c.label }}<span class="cnt">{{ countOf(c.key) }}</span></button>
     </div>
 
+    <!-- 当前词库掌握度：已掌握 / 学习中 / 未学习 -->
+    <div v-if="!isCustom && bankStats.total" class="mastery">
+      <div class="mhead">
+        <span class="mtitle">本词库掌握度</span>
+        <span class="msub">{{ bankStats.total }} 词</span>
+      </div>
+      <div
+        class="mbar"
+        role="img"
+        :aria-label="`已掌握 ${bankStats.masteredPct}%，学习中 ${bankStats.learningPct}%，未学习 ${bankStats.unlearnedPct}%`"
+      >
+        <i class="m-mastered" :style="{ width: bankStats.masteredPct + '%' }"></i>
+        <i class="m-learning" :style="{ width: bankStats.learningPct + '%' }"></i>
+        <i class="m-unlearned" :style="{ width: bankStats.unlearnedPct + '%' }"></i>
+      </div>
+      <div class="mlegend">
+        <span><i class="dot mastered"></i>已掌握 <b>{{ bankStats.masteredPct }}%</b><em>{{ bankStats.mastered }}</em></span>
+        <span><i class="dot learning"></i>学习中 <b>{{ bankStats.learningPct }}%</b><em>{{ bankStats.learning }}</em></span>
+        <span><i class="dot unlearned"></i>未学习 <b>{{ bankStats.unlearnedPct }}%</b><em>{{ bankStats.unlearned }}</em></span>
+      </div>
+    </div>
+
     <!-- 其他单词（手动上传） -->
     <template v-if="current === 'custom'">
       <n-card title="添加单词" size="small" class="mb">
@@ -143,6 +165,7 @@ import { availableBankKeys, loadBanks, type BankMeta, type ExamMeta } from "../c
 import { useAuthStore } from "../stores/auth";
 import type { WordBanks, BankKey, PlanWord } from "../core/plan";
 import type { CustomWordItem } from "../core/merge";
+import { bucketOf, masteryPct, masteryStats, requiredDimsForBank } from "../core/mastery";
 import { useLearningStore } from "../stores/learning";
 
 type CatKey = BankKey | "custom";
@@ -197,9 +220,9 @@ function countOf(k: CatKey): number {
 }
 
 // 掌握度查询
-const masteryMap = computed(() => {
-  const m = new Map<string, number>();
-  for (const it of learning.data.mastery) m.set(it.word_id, it.mastered_dims.length);
+const masteryDimsMap = computed(() => {
+  const m = new Map<string, string[]>();
+  for (const it of learning.data.mastery) m.set(it.word_id, it.mastered_dims);
   return m;
 });
 const mistakeMap = computed(() => {
@@ -207,15 +230,59 @@ const mistakeMap = computed(() => {
   for (const it of learning.data.mistakes) m.set(it.word_id, it.dims);
   return m;
 });
+/** 当前词库的必考维度（KET 两型、PET 三型） */
+const currentBankKey = computed<BankKey | "">(() =>
+  current.value === "custom" ? "" : (current.value as BankKey),
+);
+const requiredDims = computed(() =>
+  requiredDimsForBank(currentBankKey.value, bankMeta.value[currentBankKey.value]?.dims),
+);
+const bankStats = computed(() =>
+  masteryStats(
+    currentBankKey.value ? (banks.value[currentBankKey.value] ?? []) : [],
+    learning.data.mastery,
+    learning.data.mistakes,
+    requiredDims.value,
+  ),
+);
+/** 全部教材词库合计（顶部统计卡用） */
+const allStats = computed(() => {
+  let total = 0;
+  let mastered = 0;
+  let learningCount = 0;
+  let unlearned = 0;
+  for (const k of availableBankKeys(banks.value, bankMeta.value, auth.exam)) {
+    const s = masteryStats(
+      banks.value[k] ?? [],
+      learning.data.mastery,
+      learning.data.mistakes,
+      requiredDimsForBank(k, bankMeta.value[k]?.dims),
+    );
+    total += s.total;
+    mastered += s.mastered;
+    learningCount += s.learning;
+    unlearned += s.unlearned;
+  }
+  // 与 core/mastery 一致：百分比保留一位小数，避免 1/712 显示成 0%
+  const pct = (n: number): number => (total ? Math.round((n / total) * 1000) / 10 : 0);
+  const masteredPct = pct(mastered);
+  const learningPct = Math.min(pct(learningCount), Math.round((100 - masteredPct) * 10) / 10);
+  return {
+    total, mastered, learning: learningCount, unlearned,
+    masteredPct, learningPct, unlearnedPct: total ? Math.round((100 - masteredPct - learningPct) * 10) / 10 : 0,
+  };
+});
 function statusOf(id: string): { label: string; type: "success" | "warning" | "default" } {
-  const mastered = masteryMap.value.get(id) ?? 0;
-  if (mastered >= 3) return { label: "✓ 已掌握", type: "success" };
-  if ((mistakeMap.value.get(id) ?? []).length) return { label: "复习中", type: "warning" };
-  if (mastered > 0) return { label: "学习中", type: "warning" };
+  const bucket = bucketOf(masteryDimsMap.value.get(id), mistakeMap.value.get(id), requiredDims.value);
+  if (bucket === "mastered") return { label: "✓ 已掌握", type: "success" };
+  if (bucket === "learning") {
+    const owed = (mistakeMap.value.get(id) ?? []).length;
+    return { label: owed ? "复习中" : "学习中", type: "warning" };
+  }
   return { label: "未学", type: "default" };
 }
 function pctOf(id: string): number {
-  return Math.round(((masteryMap.value.get(id) ?? 0) / 3) * 100);
+  return masteryPct(masteryDimsMap.value.get(id), requiredDims.value);
 }
 function exOf(w: PlanWord): { en: string; cn: string } {
   return splitExample(String(w.example ?? ""), String(w.example_cn ?? ""));
@@ -251,13 +318,11 @@ function next(): void {
 
 // 统计卡
 const statCards = computed(() => {
-  const total = CATS.value.filter((c) => c.key !== "custom").reduce((s, c) => s + (banks.value[c.key as BankKey]?.length ?? 0), 0);
-  const masteredAll = [...masteryMap.value.values()].filter((n) => n >= 3).length;
   const due = learning.dueMistakes.length;
   const custom = myWords.value.length;
   return [
-    { icon: LibraryOutline, tone: "green", label: "教材词库总数", value: total },
-    { icon: CheckmarkCircleOutline, tone: "green", label: "已掌握", value: masteredAll },
+    { icon: LibraryOutline, tone: "green", label: "教材词库总数", value: allStats.value.total },
+    { icon: CheckmarkCircleOutline, tone: "green", label: `已掌握 ${allStats.value.masteredPct}%`, value: allStats.value.mastered },
     { icon: AlertCircleOutline, tone: "amber", label: "错题到期", value: due },
     { icon: CreateOutline, tone: "green", label: "我的生词", value: custom },
   ];
@@ -389,6 +454,35 @@ async function remove(id: number): Promise<void> {
 .cat.active { background: var(--c-primary-strong, #15803d); border-color: var(--c-primary-strong, #15803d); color: #fff; }
 .cat .cnt { font-size: 12px; opacity: 0.8; margin-left: 4px; }
 
+/* 掌握度比例：已掌握 / 学习中 / 未学习 */
+.mastery {
+  background: var(--c-surface, #fff);
+  border: 1px solid var(--c-line, #e5efe9);
+  border-radius: var(--r-card, 16px);
+  box-shadow: var(--shadow-1);
+  padding: 14px 16px 12px;
+  margin-bottom: 14px;
+}
+.mhead { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.mtitle { font-size: 13.5px; font-weight: 800; color: var(--c-text, #1f2d26); }
+.msub { margin-left: auto; font-size: 12.5px; color: var(--c-text-2, #6b7f74); }
+.mbar {
+  display: flex; height: 10px; border-radius: 999px; overflow: hidden;
+  background: #eef3ef;
+}
+.mbar i { display: block; height: 100%; transition: width var(--dur-2, 200ms) ease; }
+.mbar .m-mastered { background: #16a34a; }
+.mbar .m-learning { background: #e5a13c; }
+.mbar .m-unlearned { background: #dce8e0; }
+.mlegend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 9px; font-size: 12.5px; color: var(--c-text-2, #6b7f74); }
+.mlegend span { display: inline-flex; align-items: center; gap: 5px; }
+.mlegend b { color: var(--c-text, #1f2d26); font-weight: 800; }
+.mlegend em { font-style: normal; color: var(--c-text-3, #8aa094); font-variant-numeric: tabular-nums; }
+.dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.dot.mastered { background: #16a34a; }
+.dot.learning { background: #e5a13c; }
+.dot.unlearned { background: #dce8e0; }
+
 .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
 .spacer { flex: 1; }
 .mt { margin-top: 14px; }
@@ -419,7 +513,7 @@ async function remove(id: number): Promise<void> {
 :deep(.ex-cn2) { font-size: 12px; color: #8aa094; line-height: 1.4; }
 :deep(.pct) { display: flex; align-items: center; gap: 6px; }
 :deep(.pct .n-progress) { flex: 1; }
-:deep(.pct-t) { font-size: 12px; color: var(--c-text-2, #6b7f74); font-variant-numeric: tabular-nums; width: 30px; text-align: right; }
+:deep(.pct-t) { font-size: 12px; color: var(--c-text-2, #6b7f74); font-variant-numeric: tabular-nums; width: 40px; text-align: right; }
 .fc-act { margin-top: 12px; display: flex; justify-content: center; }
 .ex-cn { color: var(--c-text-2, #6b7f74); font-size: 13px; }
 </style>

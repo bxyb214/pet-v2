@@ -54,7 +54,41 @@ def test_plan_union():
         "reading_length": 20,
         "reading_days_done": ["1"],
         "reading_books": [],
+        "plan_updated_at": 0,
+        "reading_updated_at": 0,
     }
+
+
+def test_plan_delete_wins_with_new_timestamp():
+    """删除计划：时间戳更新的一方覆盖旧计划，不能再次并回来。"""
+    srv = {"length": 30, "days_done": ["1", "2"], "plan_updated_at": 100}
+    cli = {"length": 0, "days_done": [], "plan_updated_at": 200}
+    out = merge_plan(srv, cli)
+    assert out["length"] == 0
+    assert out["days_done"] == []
+    assert out["plan_updated_at"] == 200
+
+
+def test_plan_create_resets_old_days():
+    srv = {"length": 30, "days_done": ["1", "2"], "plan_updated_at": 100}
+    cli = {"length": 45, "days_done": [], "plan_updated_at": 300}
+    out = merge_plan(srv, cli)
+    assert out["length"] == 45
+    assert out["days_done"] == []
+
+
+def test_plan_delete_keeps_reading_plan():
+    srv = {
+        "length": 30, "days_done": ["1"], "reading_length": 20,
+        "reading_days_done": ["1"], "reading_books": ["t1"],
+        "plan_updated_at": 100, "reading_updated_at": 100,
+    }
+    cli = {"length": 0, "days_done": [], "plan_updated_at": 200}
+    out = merge_plan(srv, cli)
+    assert out["length"] == 0
+    assert out["reading_length"] == 20
+    assert out["reading_days_done"] == ["1"]
+    assert out["reading_books"] == ["t1"]
 
 
 def test_plan_reading_books_client_wins():

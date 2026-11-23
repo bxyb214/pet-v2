@@ -216,14 +216,17 @@ export const useLearningStore = defineStore("learning", {
     /** 阅读计划（R9）：独立于词汇计划 */
     setReadingPlan(length: number, books: string[] = []): void {
       this.data.plan.reading_length = length;
+      this.data.plan.reading_days_done = []; // 新建/改计划重置打卡
       // 空数组 = 全部教材（兼容老数据），有值则按选择切分
       this.data.plan.reading_books = [...new Set(books)].sort();
+      this.data.plan.reading_updated_at = Date.now();
       this.markDirty();
     },
     deleteReadingPlan(): void {
       this.data.plan.reading_length = 0;
       this.data.plan.reading_days_done = [];
       this.data.plan.reading_books = [];
+      this.data.plan.reading_updated_at = Date.now();
       this.markDirty();
     },
     markReadingDayDone(day: number): void {
@@ -246,22 +249,26 @@ export const useLearningStore = defineStore("learning", {
       this.markDirty();
     },
     /** 计划完成标记（P3 并集） */
-    markPlanDayDone(day: number): void {      const key = String(day);
+    markPlanDayDone(day: number): void {
+      const key = String(day);
       if (!this.data.plan.days_done.includes(key)) {
         this.data.plan.days_done.push(key);
         this.data.plan.days_done.sort((a, b) => Number(a) - Number(b));
         this.markDirty();
       }
     },
-    /** 计划生成/删除（P1：可删除重新生成） */
+    /** 计划生成（P1：新建/改天数重置打卡；时间戳让新计划覆盖服务端旧计划） */
     setPlan(length: number): void {
       this.data.plan.length = length;
+      this.data.plan.days_done = [];
+      this.data.plan.plan_updated_at = Date.now();
       this.markDirty();
     },
+    /** 只删词汇计划，保留阅读计划 */
     deletePlan(): void {
-      this.data.plan = {
-        length: 0, days_done: [], reading_length: 0, reading_days_done: [], reading_books: [],
-      };
+      this.data.plan.length = 0;
+      this.data.plan.days_done = [];
+      this.data.plan.plan_updated_at = Date.now();
       this.markDirty();
     },
   },

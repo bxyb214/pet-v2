@@ -1,5 +1,5 @@
 """学习数据模型：mastery / mistakes(SRS) / progress / plan。"""
-from sqlalchemy import Integer, String
+from sqlalchemy import BigInteger, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -47,3 +47,6 @@ class Plan(Base):
     reading_length: Mapped[int] = mapped_column(Integer, default=0)  # 阅读计划天数，0=未生成
     reading_days_done: Mapped[str] = mapped_column(String(4096), default="[]")  # JSON 数组
     reading_books: Mapped[str] = mapped_column(String(256), default="[]")  # 覆盖的教材 id 数组，空=全部
+    # 计划结构变更时间（epoch ms）：创建/删除/改天数时更新，让删除能覆盖服务端旧计划
+    plan_updated_at: Mapped[int] = mapped_column(BigInteger, default=0)
+    reading_updated_at: Mapped[int] = mapped_column(BigInteger, default=0)

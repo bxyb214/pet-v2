@@ -92,24 +92,64 @@ def merge_progress(server: list[dict], client: list[dict]) -> list[dict]:
     ]
 
 
+def _plan_at(plan: dict, key: str) -> int:
+    try:
+        return int(plan.get(key) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def merge_plan(server: dict | None, client: dict | None) -> dict:
-    """days_done 并集；length 取非 0 的（词汇与阅读计划各自独立）。"""
+    """计划合并。
+
+    - 创建/删除/改天数属于“结构性变更”，用 plan_updated_at / reading_updated_at
+      取较新的一方；否则删除后会被服务端旧计划并回来。
+    - 同一代际（时间戳相同，含老数据）仍保持红线语义：days_done 并集、length 取非 0。
+    - 词汇与阅读计划各自独立。
+    """
     srv = server or {}
     cli = client or {}
     srv_days = set(_seen_list(srv.get("days_done")))
     cli_days = set(_seen_list(cli.get("days_done")))
     srv_rdays = set(_seen_list(srv.get("reading_days_done")))
     cli_rdays = set(_seen_list(cli.get("reading_days_done")))
-    length = cli.get("length") or srv.get("length") or 0
-    rlength = cli.get("reading_length") or srv.get("reading_length") or 0
-    # 教材选择是「同一份计划的属性」，不做并集：客户端非空即以客户端为准
-    rbooks = _seen_list(cli.get("reading_books")) or _seen_list(srv.get("reading_books"))
+
+    srv_at = _plan_at(srv, "plan_updated_at")
+    cli_at = _plan_at(cli, "plan_updated_at")
+    if cli_at > srv_at:
+        length = cli.get("length") or 0
+        days = cli_days
+    elif srv_at > cli_at:
+        length = srv.get("length") or 0
+        days = srv_days
+    else:
+        length = cli.get("length") or srv.get("length") or 0
+        days = srv_days | cli_days
+
+    srv_rat = _plan_at(srv, "reading_updated_at")
+    cli_rat = _plan_at(cli, "reading_updated_at")
+    if cli_rat > srv_rat:
+        rlength = cli.get("reading_length") or 0
+        rdays = cli_rdays
+        rbooks = _seen_list(cli.get("reading_books"))
+    elif srv_rat > cli_rat:
+        rlength = srv.get("reading_length") or 0
+        rdays = srv_rdays
+        rbooks = _seen_list(srv.get("reading_books"))
+    else:
+        rlength = cli.get("reading_length") or srv.get("reading_length") or 0
+        rdays = srv_rdays | cli_rdays
+        # 教材选择是「同一份计划的属性」，不做并集：客户端非空即以客户端为准
+        rbooks = _seen_list(cli.get("reading_books")) or _seen_list(srv.get("reading_books"))
+
     return {
         "length": length,
-        "days_done": sorted(srv_days | cli_days, key=lambda x: int(x)),
+        "days_done": sorted(days, key=lambda x: int(x)),
         "reading_length": rlength,
-        "reading_days_done": sorted(srv_rdays | cli_rdays, key=lambda x: int(x)),
+        "reading_days_done": sorted(rdays, key=lambda x: int(x)),
         "reading_books": sorted(set(rbooks)),
+        "plan_updated_at": max(srv_at, cli_at),
+        "reading_updated_at": max(srv_rat, cli_rat),
     }
 
 

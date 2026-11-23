@@ -32,6 +32,28 @@ export const DEFAULT_EXAMS: ExamMeta[] = [
   { id: "ket", name: "KET" },
 ];
 
+/**
+ * 同义替换库的旧数据把中英混在一个字段（如「a DVD you can keep 你可以拥有的 DVD」），
+ * 且 cn 为 null。这里在加载时拆成英文 / 中文，保证看词选义、看义选词都能出题。
+ */
+export function splitTermMeaning(term: string): { en: string; cn: string } {
+  const s = String(term ?? "").trim();
+  if (!s) return { en: "", cn: "" };
+  const m = s.match(/^([\s\S]*?)([㐀-鿿][\s\S]*)$/);
+  if (!m) return { en: s, cn: "" };
+  return { en: m[1].trim(), cn: m[2].trim() };
+}
+
+function normalizeWord(w: PlanWord): PlanWord {
+  if (typeof w.cn === "string" && w.cn.trim()) return w;
+  const { en, cn } = splitTermMeaning(String(w.en ?? ""));
+  return {
+    ...w,
+    en: en || String(w.en ?? ""),
+    cn: cn || String(w.en ?? ""),
+  };
+}
+
 export interface LoadedBanks {
   banks: WordBanks;
   groups: WordGroups;
@@ -59,6 +81,9 @@ export async function loadBanks(): Promise<LoadedBanks> {
     if (!res.ok) return { banks: EMPTY_BANKS, groups: {}, bankMeta: {}, exams: DEFAULT_EXAMS };
     const json = await res.json();
     const banks: WordBanks = { ...EMPTY_BANKS, ...(json.banks ?? {}) };
+    for (const key of Object.keys(banks)) {
+      banks[key] = (banks[key] ?? []).map(normalizeWord);
+    }
     const bankMeta: Record<string, BankMeta> = json.bankMeta ?? {};
     // 老数据没有 bankMeta 时兜底：全部当 PET
     if (!Object.keys(bankMeta).length) {

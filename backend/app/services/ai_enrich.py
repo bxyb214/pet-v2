@@ -4,7 +4,9 @@ import json
 import httpx
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.extra import AppCfg
+from app.services import dev_mock
 
 _TIMEOUT = 15.0
 
@@ -32,6 +34,8 @@ def set_cfg(db: Session, key: str, value: str) -> None:
 
 def enrich_word(db: Session, word: str) -> dict:
     """调用 LLM 生成词性/释义/例句。未配 Key 抛 LookupError，调用方转 503。"""
+    if dev_mock.is_dev():
+        return dev_mock.enrich_word(word)
     data = chat(db, [{"role": "user", "content": _PROMPT.format(word=word)}], max_tokens=200)
     return {
         "pos": str(data.get("pos", "")),
@@ -44,6 +48,9 @@ def enrich_word(db: Session, word: str) -> dict:
 def chat(db: Session, messages: list[dict], max_tokens: int = 300, temperature: float = 0.2) -> tuple[dict, dict | None]:
     """通用 OpenAI 兼容 chat。返回 (JSON解析结果或{"text":...}, usage)。
     未配 Key 抛 LookupError；HTTP/解析错误抛 RuntimeError（调用方决定降级）。"""
+    if get_settings().dev_mode:
+        # 兜底闸门：任何遗漏的 AI 调用在开发环境直接失败，绝不访问外部服务
+        raise RuntimeError("开发环境已关闭外部 AI 调用")
     api_key = get_cfg(db, "llm.api_key")
     if not api_key:
         raise LookupError("未配置 AI Key")

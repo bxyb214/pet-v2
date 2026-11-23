@@ -4,6 +4,8 @@
  * 建议每 40ms 发 1280 字节（1:1 实时率），结束发 {"type":"end"} 文本帧。
  */
 import { api } from "./api";
+import { ensureDevMode } from "./devMode";
+import { holdMic } from "./micPresence";
 
 export type SoeWord = { w: string; ok: boolean };
 export type SoeResult = { score: number; words: SoeWord[] };
@@ -15,6 +17,8 @@ export type SoeOpts = {
   onError: (msg: string) => void;
   /** 结果字符串解析器（测试可注入）；默认 parseSoeResult */
   parser?: (raw: string) => SoeResult;
+  /** 用户点数字人下的「关闭麦克风」：先回调页面清理状态，再由 SoeEval 停止采集 */
+  onMicClosed?: () => void;
 };
 
 const WORKLET_SRC = `
@@ -74,13 +78,34 @@ export class SoeEval {
   private parser: (raw: string) => SoeResult;
   private lastResult: SoeResult | null = null;
   private speechMs = 0;
+  private dev = false;
+  private devStartedAt = 0;
+  private releaseMic: (() => void) | null = null;
 
   constructor(private opts: SoeOpts) {
     this.parser = opts.parser ?? parseSoeResult;
   }
 
+  /** 采集开始后登记麦克风占用：数字人出现，按钮关闭时停止采集 */
+  private attachMicHold(): void {
+    this.releaseMic?.();
+    this.releaseMic = holdMic(() => {
+      this.opts.onMicClosed?.();
+      this.stop();
+      if (!this.opts.onMicClosed) this.opts.onStatus("麦克风已关闭");
+    });
+  }
+
   /** 请求签名 URL 并建立 WebSocket + 麦克风采集。 */
   async start(): Promise<void> {
+    // 开发/测试环境：不请求签名 URL、不连腾讯 SOE，提交时直接给满分
+    this.dev = await ensureDevMode();
+    if (this.dev) {
+      this.devStartedAt = Date.now();
+      this.attachMicHold();
+      this.opts.onStatus("开发环境：模拟评测就绪，读完点「提交」");
+      return;
+    }
     this.opts.onStatus("连接评测服务…");
     let url: string;
     try {
@@ -126,6 +151,7 @@ export class SoeEval {
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
+    this.attachMicHold();
     this.ctx = new AudioContext({ sampleRate: 16000 });
     const src = this.ctx.createMediaStreamSource(this.stream);
     try {
@@ -165,8 +191,9 @@ export class SoeEval {
     this.pending = merged;
   }
 
-  /** 孩子真正开口的累计秒数（本地能量检测） */
+  /** 孩子真正开口的累计秒数（本地能量检测；开发环境按练习时长计） */
   speechSec(): number {
+    if (this.dev) return Math.max(0, Math.round((Date.now() - this.devStartedAt) / 1000));
     return Math.round(this.speechMs / 1000);
   }
 
@@ -185,6 +212,24 @@ export class SoeEval {
 
   /** 提交：刷完剩余音频 + 发 end，等待 final 结果。 */
   submit(): void {
+    if (this.dev) {
+      const words = this.opts.refText
+        .split(/\s+/)
+        .map((w) => w.replace(/[^\w'-]/g, ""))
+        .filter(Boolean)
+        .map((w) => ({ w, ok: true }));
+      this.opts.onStatus("开发环境：模拟评分中…");
+      setTimeout(() => {
+        if (this.closed) return;
+        this.final = true;
+        const result = { score: 100, words: words.length ? words : [{ w: "Great", ok: true }] };
+        this.lastResult = result;
+        this.opts.onStatus("评测完成");
+        this.opts.onResult(result);
+        this.stop();
+      }, 500);
+      return;
+    }
     const ws = this.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     while (this.pending.length > 0) {
@@ -205,6 +250,8 @@ export class SoeEval {
 
   stop(): void {
     this.closed = true;
+    this.releaseMic?.();
+    this.releaseMic = null;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     try { this.ws?.close(); } catch { /* noop */ }

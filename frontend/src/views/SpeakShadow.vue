@@ -5,10 +5,14 @@
       跟读纠音
       <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天 · {{ sourceRangeText(planDay) }}</span>
     </h1>
-    <p class="sub">跟读 → 提交 → AI 打分与建议（读完点「提交」）· 今天目标 5 分钟</p>
+    <p class="sub">
+      {{ hasPlan
+        ? "跟读 → 提交 → AI 打分与建议（读完点「提交」）· 今天目标 5 分钟"
+        : "没有计划：从题库选一组句子自由练习，不计时、不打卡。" }}
+    </p>
 
-    <!-- 5 分钟目标：只提示，不强制 -->
-    <div class="card targetbar" :class="{ over: overGoal }">
+    <!-- 5 分钟目标：只提示，不强制；有计划才计时 -->
+    <div v-if="hasPlan" class="card targetbar" :class="{ over: overGoal }">
       <span class="target-label">今日跟读</span>
       <b class="target-time">{{ mmss(elapsed) }}</b>
       <span class="target-goal">/ 5:00</span>
@@ -17,9 +21,24 @@
       </span>
     </div>
 
+    <!-- 无计划：选择题库句子组开始 -->
+    <div v-if="!hasPlan && freePacks.length" class="card freebar">
+      <div class="free-head">
+        <b>选择题库</b>
+        <span>自由练习 · 不计时、不打卡</span>
+      </div>
+      <div class="packs">
+        <button
+          v-for="p in freePacks" :key="p.id" type="button"
+          class="packchip" :class="{ on: p.id === activePackId }"
+          @click="pickPack(p.id)"
+        >{{ p.name }} <i>{{ p.count }}</i></button>
+      </div>
+    </div>
+
     <div v-if="!loaded" class="empty card">加载中…</div>
     <div v-else-if="!item" class="empty card">
-      今天的跟读内容为空
+      {{ hasPlan ? "今天的跟读内容为空" : "题库内容为空" }}
       <div class="mt"><n-button @click="router.push('/english/speak')">返回口语</n-button></div>
     </div>
     <template v-else>
@@ -67,7 +86,7 @@
         </ul>
         <div class="res-actions">
           <n-button type="primary" @click="next">下一句 →</n-button>
-          <n-button quaternary @click="stop">结束练习（保存记录）</n-button>
+          <n-button quaternary @click="stop">{{ hasPlan ? "结束练习（保存记录）" : "结束练习" }}</n-button>
         </div>
       </div>
     </template>
@@ -96,16 +115,37 @@ const data = ref<SpeakData | null>(null);
 const planLength = ref(0);
 const loaded = ref(false);
 const itemIdx = ref(0);
+const packId = ref("");
 const day = computed(() => Number(route.query.day ?? 1));
 
+const hasPlan = computed(() => planLength.value > 0);
 const planDays = computed<PlanDayView[]>(() =>
-  splitSpeakPlan(data.value, planLength.value || 90),
+  hasPlan.value ? splitSpeakPlan(data.value, planLength.value) : [],
 );
 const planDay = computed<PlanDayView | null>(() => {
+  if (!hasPlan.value || !planDays.value.length) return null;
   const idx = Math.min(Math.max(day.value, 1), planDays.value.length) - 1;
   return planDays.value[idx] ?? null;
 });
+
+/** 无计划：按句子库（pack）自由选择，库内顺序不变 */
+const freePacks = computed(() => {
+  const d = data.value;
+  if (!d) return [];
+  const counts = new Map<string, number>();
+  for (const s of d.shadow) counts.set(s.pack, (counts.get(s.pack) ?? 0) + 1);
+  return [...d.packs]
+    .sort((a, b) => a.order - b.order)
+    .map((p) => ({ id: p.id, name: p.name, count: counts.get(p.id) ?? 0 }))
+    .filter((p) => p.count > 0);
+});
+const activePackId = computed(() => packId.value || freePacks.value[0]?.id || "");
+const freeItems = computed<ShadowItem[]>(() => {
+  if (!data.value || !activePackId.value) return [];
+  return data.value.shadow.filter((s) => s.pack === activePackId.value);
+});
 const orderedItems = computed<ShadowItem[]>(() => {
+  if (!hasPlan.value) return freeItems.value;
   if (!data.value || !planDay.value) return [];
   const byId = new Map(data.value.shadow.map((s) => [s.id, s]));
   return planDay.value.shadowIds.map((id) => byId.get(id)).filter((s): s is ShadowItem => !!s);
@@ -127,7 +167,7 @@ const ttsEl = ref<HTMLAudioElement | null>(null);
 // 只累计“真正开口”的秒数，并由服务端按天保存，刷新不丢
 const speechBase = ref(0);
 const activeKind = ref<"ai" | "soe" | null>(null);
-const clock = useSpeakTime("shadow", currentSpeech);
+const clock = useSpeakTime("shadow", currentSpeech, () => hasPlan.value);
 const elapsed = clock.total;
 const overGoal = computed(() => elapsed.value >= 300);
 
@@ -148,7 +188,8 @@ onMounted(async () => {
     try {
       const r = await api<{ length: number }>("/speak/plan");
       planLength.value = r.length ?? 0;
-    } catch { /* 离线按默认 90 天 */ }
+    } catch { /* 离线按无计划处理 */ }
+    if (!hasPlan.value) packId.value = freePacks.value[0]?.id ?? "";
   } finally {
     loaded.value = true;
   }
@@ -187,6 +228,12 @@ async function run(): Promise<void> {
         }
       },
       onError: (m) => (status.value = "出错：" + m),
+      onMicClosed: () => {
+        settleSpeech();
+        conn.value = null;
+        engine.value = "ai";
+        status.value = "麦克风已关闭，可重新开始跟读";
+      },
     });
     activeKind.value = "ai";
   } catch (e) {
@@ -221,12 +268,20 @@ async function startSoe(): Promise<void> {
       scores.value.push(r.score);
     },
     onError: (m) => (status.value = "出错：" + m),
+    onMicClosed: () => {
+      settleSpeech();
+      soe.value = null;
+      engine.value = "ai";
+      status.value = "麦克风已关闭，可重新开始跟读";
+    },
   });
   soe.value = ev;
   try {
     await ev.start();
-    activeKind.value = "soe";
+    // 启动期间用户点了「关闭麦克风」：不要再把已停止的实例标记为进行中
+    if (soe.value === ev) activeKind.value = "soe";
   } catch {
+    ev.stop();
     soe.value = null;
     engine.value = "ai";
   }
@@ -239,6 +294,10 @@ function stopSoe(): void {
   void finish();
   soe.value?.stop();
   soe.value = null;
+  if (!hasPlan.value) {
+    status.value = "已结束本次练习，可换一组重新开始";
+    return;
+  }
   void router.push("/english/speak");
 }
 
@@ -247,7 +306,28 @@ function stop(): void {
   void finish();
   conn.value?.close();
   conn.value = null;
+  if (!hasPlan.value) {
+    status.value = "已结束本次练习，可换一组重新开始";
+    return;
+  }
   void router.push("/english/speak");
+}
+
+/** 无计划时切换句子库：结束当前采集并从新库第一句开始 */
+function pickPack(id: string): void {
+  if (id === activePackId.value) return;
+  settleSpeech();
+  conn.value?.close();
+  conn.value = null;
+  soe.value?.stop();
+  soe.value = null;
+  activeKind.value = null;
+  packId.value = id;
+  itemIdx.value = 0;
+  result.value = null;
+  scores.value = [];
+  lastReply.value = "";
+  status.value = "";
 }
 async function finish(): Promise<void> {
   if (!scores.value.length || !planDay.value) return;
@@ -317,6 +397,20 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .target-hint { margin-left: auto; color: var(--c-text-2); }
 .targetbar.over { background: var(--c-accent-soft, #fffbeb); border-color: var(--c-accent, #f59e0b); }
 .targetbar.over .target-hint { color: var(--c-accent, #b45309); font-weight: 600; }
+.freebar { padding: 12px 14px; margin-bottom: 12px; }
+.free-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 9px; }
+.free-head b { color: var(--c-text); font-size: 14.5px; }
+.free-head span { color: var(--c-text-2); font-size: 12.5px; }
+.packs { display: flex; gap: 8px; flex-wrap: wrap; }
+.packchip {
+  border: 1px solid var(--c-line); background: var(--c-surface); color: var(--c-text-2);
+  border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+}
+.packchip i { font-style: normal; font-size: 12px; opacity: 0.65; }
+.packchip.on { background: var(--c-primary-strong); border-color: var(--c-primary-strong); color: #fff; }
+.packchip.on i { opacity: 0.85; }
+.packchip:focus-visible { outline: 3px solid var(--c-accent); outline-offset: 2px; }
 .sent { padding: 18px; margin-bottom: 12px; }
 .en { font-size: var(--fs-title); color: var(--c-text); font-weight: 600; }
 .cn { color: var(--c-text-2); margin-top: 6px; }

@@ -2,9 +2,13 @@
   <main class="page">
     <BackButton />
     <h1>造句练习</h1>
-    <p class="sub">挑一个 PET 常用句型，用你自己的话造一句。AI 会告诉你怎么说得更好。今天目标 10 分钟。</p>
+    <p class="sub">
+      {{ hasPlan
+        ? "挑一个 PET 常用句型，用你自己的话造一句。AI 会告诉你怎么说得更好。今天目标 10 分钟。"
+        : "没有计划：从题库任选一个句型自由练习，AI 点评，不计时、不打卡。" }}
+    </p>
 
-    <div class="card targetbar" :class="{ over: overGoal }">
+    <div v-if="hasPlan" class="card targetbar" :class="{ over: overGoal }">
       <span class="target-label">今日造句</span>
       <b class="target-time">{{ mmss(elapsed) }}</b>
       <span class="target-goal">/ 10:00</span>
@@ -89,7 +93,9 @@ const checking = ref(false);
 const fb = ref<{ ok: boolean; comment: string; improved: string } | null>(null);
 // 造句没有麦克风输入：按页面可见的练习时间累计，服务端保存
 const activeSec = ref(0);
-const clock = useSpeakTime("make", () => activeSec.value);
+const planLength = ref(0);
+const hasPlan = computed(() => planLength.value > 0);
+const clock = useSpeakTime("make", () => activeSec.value, () => hasPlan.value);
 const elapsed = clock.total;
 const overGoal = computed(() => elapsed.value >= 600);
 const planDay = ref<PlanDayView | null>(null);
@@ -108,16 +114,21 @@ onMounted(async () => {
       api<{ length: number }>("/speak/plan"),
       api<{ days: DayCheck[] }>("/speak/days"),
     ]);
-    const planDays = splitSpeakPlan(data.value, p.length || 90);
-    const checks: Record<number, DayCheck> = {};
-    for (const c of d.days ?? []) checks[c.day] = c;
-    const qDay = Number(route.query.day ?? 0);
-    planDay.value = qDay
-      ? planDays[qDay - 1] ?? null
-      : planDays.find((x) => !planDayDone(x, checks)) ?? planDays[0] ?? null;
+    planLength.value = p.length ?? 0;
+    if (hasPlan.value) {
+      const planDays = splitSpeakPlan(data.value, planLength.value);
+      const checks: Record<number, DayCheck> = {};
+      for (const c of d.days ?? []) checks[c.day] = c;
+      const qDay = Number(route.query.day ?? 0);
+      planDay.value = qDay
+        ? planDays[qDay - 1] ?? null
+        : planDays.find((x) => !planDayDone(x, checks)) ?? planDays[0] ?? null;
+    } else {
+      planDay.value = null; // 无计划：不计时、不打卡
+    }
   } catch { /* 离线时不影响造句 */ }
   timer = window.setInterval(() => {
-    if (document.visibilityState === "visible") activeSec.value += 1;
+    if (hasPlan.value && document.visibilityState === "visible") activeSec.value += 1;
   }, 1000);
 });
 onBeforeUnmount(() => { if (timer) clearInterval(timer); });

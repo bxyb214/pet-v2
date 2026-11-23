@@ -10,15 +10,23 @@ import { api } from "./api";
 export type SpeakMode = "shadow" | "make" | "talk";
 type Totals = Record<SpeakMode, number>;
 
-export function useSpeakTime(mode: SpeakMode, getSeconds: () => number) {
+export function useSpeakTime(
+  mode: SpeakMode,
+  getSeconds: () => number,
+  /** 无计划自由练习时传 () => false：不读取、不上报、不计时 */
+  enabled: () => boolean = () => true,
+) {
   const serverBase = ref(0);
   const local = ref(0);
   const total = computed(() => serverBase.value + local.value);
   let sent = 0;
   let ticker = 0;
   let flushing = false;
+  let loaded = false;
 
   async function load(): Promise<void> {
+    if (loaded || !enabled()) return;
+    loaded = true;
     try {
       const r = await api<{ totals: Totals }>("/speak/time/today");
       serverBase.value = r.totals?.[mode] ?? 0;
@@ -26,7 +34,7 @@ export function useSpeakTime(mode: SpeakMode, getSeconds: () => number) {
   }
 
   async function flush(): Promise<void> {
-    if (flushing) return;
+    if (!enabled() || flushing) return;
     const current = Math.floor(getSeconds());
     const delta = Math.min(current - sent, 600);
     if (delta <= 0) return;
@@ -46,10 +54,13 @@ export function useSpeakTime(mode: SpeakMode, getSeconds: () => number) {
   }
 
   function tick(): void {
+    if (!enabled()) return;
+    if (!loaded) void load();
     local.value = Math.max(0, Math.floor(getSeconds()) - sent);
   }
 
   function onVisibility(): void {
+    if (!enabled()) return;
     if (document.visibilityState === "hidden") {
       tick();
       void flush();
