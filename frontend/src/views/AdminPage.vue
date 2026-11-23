@@ -38,6 +38,15 @@
         <h2>AI 加词补全</h2>
         <p>手动加生词时，用这套模型补词性、释义与例句</p>
       </div>
+
+      <div class="notice">
+        <span class="ni">i</span>
+        <p>
+          需在
+          <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key" target="_blank" rel="noopener">阿里云百炼 · API-KEY</a>
+          创建 Key，并开通通义千问文本模型；Key 只存在服务端配置表里，保存后仅回显尾 4 位。
+        </p>
+      </div>
       <div class="grid2">
         <label class="field span2">
           <span class="flabel">API Key</span>
@@ -60,6 +69,16 @@
       <div class="panel-h">
         <h2>口语对话 · Qwen Realtime</h2>
         <p>浏览器直连，服务端只负责签发临时凭证，Key 不下发到前端</p>
+      </div>
+
+      <div class="notice">
+        <span class="ni">i</span>
+        <p>
+          需在
+          <a href="https://bailian.console.aliyun.com/cn-beijing/model/settings/api-key" target="_blank" rel="noopener">阿里云百炼 · API-KEY</a>
+          创建 Key（可与「AI 加词」共用），并在控制台开通实时语音模型；
+          Key 只存在服务端配置表里，保存后仅回显尾 4 位。
+        </p>
       </div>
 
       <h3 class="grp">连接</h3>
