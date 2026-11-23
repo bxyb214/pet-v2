@@ -59,6 +59,17 @@ api: Settings.dev_mode ──► GET /api/v1/healthz { dev_mode: true }
 - 隐藏用户名与头像（头像首字来自用户名）；
 - 设置 / 管理 / 退出保持可用。
 
+### 3.4 登录 / 注册页（AuthShell）
+
+登录、注册等未登录页面不走 `AppLayout`，由 `AuthShell.vue` 在 `onMounted` 自行 `ensureDevMode()`：
+
+- `devMode` 为真时页面右上角显示「开发环境 · DEV」药丸（`--c-accent-soft` / `--c-accent`，与顶栏同款）；
+- 桌面 `top:14px; right:18px`，手机（≤899px）`top:10px; right:12px`，位于卡片留白区不遮挡表单；
+- 登录、注册共用 `AuthShell`，后续新增认证页自动继承；
+- `dev_mode=false`（正式环境）不渲染任何节点。
+
+实测（Playwright）：8089 的 `/login`、`/register` 均出现该标识；8088 两页均无。
+
 ## 4. 备选方案与取舍
 
 | 方案 | 结论 |

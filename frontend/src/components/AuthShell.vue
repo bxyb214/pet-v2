@@ -1,5 +1,11 @@
 <template>
   <main class="auth">
+    <!-- 登录/注册页没有顶栏，这里单独标出开发环境 -->
+    <span
+      v-if="devMode"
+      class="dev-flag"
+      title="开发环境：AI 接口返回模拟结果"
+    >开发环境 · DEV</span>
     <div class="card">
       <!-- 左：品牌面板（桌面）。手机下图保留标题，其余收起来 -->
       <aside class="side">
@@ -40,12 +46,20 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from "vue";
+import { devMode, ensureDevMode } from "../core/devMode";
+
 defineProps<{
   eyebrow: string;
   title: string;
   points: string[];
   foot?: string;
 }>();
+
+// 登录/注册页不走 AppLayout，需自己触发一次 healthz 探测
+onMounted(() => {
+  void ensureDevMode();
+});
 </script>
 
 <style scoped>
@@ -55,11 +69,40 @@ defineProps<{
   align-items: center;
   justify-content: center;
   padding: 28px 20px;
+  position: relative;
   /* 极淡的双层径向光，营造纵深但不抢内容 */
   background:
     radial-gradient(900px 520px at 12% -8%, #e5f5eb 0%, transparent 62%),
     radial-gradient(720px 460px at 92% 108%, #eef7f1 0%, transparent 60%),
     var(--c-bg);
+}
+
+/* 开发环境标记：与顶栏 DEV 同款，未登录也能识别当前环境 */
+.dev-flag {
+  position: absolute;
+  top: 14px;
+  right: 18px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--c-accent-soft, #fff7ed);
+  border: 1px solid var(--c-accent, #d97706);
+  color: var(--c-text, #1f2d26);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  box-shadow: var(--shadow-1);
+}
+.dev-flag::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-accent, #d97706);
 }
 
 .card {
@@ -171,6 +214,7 @@ defineProps<{
 /* ---------- 平板：收窄左栏 ---------- */
 @media (max-width: 899px) {
   .card { grid-template-columns: 1fr; max-width: 460px; }
+  .dev-flag { top: 10px; right: 12px; padding: 4px 9px; font-size: 11px; }
   .side {
     gap: 16px;
     padding: 22px 24px 20px;

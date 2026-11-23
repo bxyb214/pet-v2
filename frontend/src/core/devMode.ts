@@ -3,6 +3,7 @@
  *
  * 开启后：
  * - 顶栏把用户名替换为 DEV 标签；
+ * - 登录/注册页（AuthShell）右上角显示「开发环境 · DEV」；
  * - Realtime / SOE 使用本地模拟连接，不请求语音服务；
  * - 其余 AI 接口由后端返回确定性结果（见 backend/app/services/dev_mock.py）。
  */
