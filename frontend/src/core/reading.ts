@@ -32,7 +32,7 @@ let loading: Promise<ReadingData> | null = null;
 export function loadReading(): Promise<ReadingData> {
   if (cache) return Promise.resolve(cache);
   if (!loading) {
-    loading = fetch("/data/reading.json")
+    loading = fetch("/data/reading.json", { cache: "no-cache" })
       .then((r) => {
         if (!r.ok) throw new Error("阅读数据加载失败");
         return r.json() as Promise<ReadingData>;

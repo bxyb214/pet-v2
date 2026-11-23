@@ -147,7 +147,7 @@ let cache: MathData | null = null;
 
 export async function loadMath(): Promise<MathData> {
   if (cache) return cache;
-  const res = await fetch("/data/math.json");
+  const res = await fetch("/data/math.json", { cache: "no-cache" });
   if (!res.ok) throw new Error("数学课程数据加载失败");
   cache = (await res.json()) as MathData;
   return cache;

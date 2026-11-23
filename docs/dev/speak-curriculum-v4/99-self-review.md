@@ -121,3 +121,18 @@
 | 麦克风权限 + SOE 真实出分 | 需在真机点一次确认（自动化无法弹权限窗）；开发模式走模拟满分 |
 
 结论：**PASS-with-notes**（麦克风授权与 SOE 真实出分待人工点一次；对话/造句的 Qwen Realtime 仍受同一 403 影响）。
+
+## 10. 生产 8088 题库显示 161 的排查（2026-11-23）
+
+现象：用户在同一浏览器上，8088 题库仍是 161 个，8089 已是 45 个。
+
+排查：服务端两边完全一致——
+`/data/speak.json` 均 `Content-Length: 250542`、`sha1 d3b75ab9c4ff`、`scenes=45`；
+Playwright 打开两边的 `/english/speak/scenes` 都渲染 45 张卡、筛选 `45/14/16/15`。
+结论：**不是代码没发布、不是数据库**（题库是静态 JSON，不入库），是 8088 这个 origin
+在浏览器里留着部署前的旧副本（两个端口是不同 origin，缓存互不影响）。
+
+防复发：
+- nginx：`/data/*.json` 与 `index.html` 加 `Cache-Control: no-cache`（ETag 协商，304 很轻）；
+- 前端：5 处静态 JSON `fetch` 加 `cache: "no-cache"`（speak/math/banks/listening/reading）。
+js/css 仍按哈希长缓存。已有的旧缓存条目需用户硬刷新一次才会丢弃。

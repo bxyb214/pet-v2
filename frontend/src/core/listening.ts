@@ -44,7 +44,7 @@ let cache: ListeningData | null = null;
 
 export async function loadListening(): Promise<ListeningData> {
   if (cache) return cache;
-  const res = await fetch("/data/listening.json");
+  const res = await fetch("/data/listening.json", { cache: "no-cache" });
   if (!res.ok) throw new Error("听力数据加载失败");
   cache = (await res.json()) as ListeningData;
   return cache;

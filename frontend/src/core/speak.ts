@@ -49,7 +49,7 @@ let cache: SpeakData | null = null;
 
 export async function loadSpeak(): Promise<SpeakData> {
   if (cache) return cache;
-  const res = await fetch("/data/speak.json");
+  const res = await fetch("/data/speak.json", { cache: "no-cache" });
   if (!res.ok) throw new Error("口语数据加载失败");
   cache = (await res.json()) as SpeakData;
   return cache;

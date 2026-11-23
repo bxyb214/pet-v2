@@ -77,7 +77,7 @@ export function availableBankKeys(
 
 export async function loadBanks(): Promise<LoadedBanks> {
   try {
-    const res = await fetch("/data/banks.json");
+    const res = await fetch("/data/banks.json", { cache: "no-cache" });
     if (!res.ok) return { banks: EMPTY_BANKS, groups: {}, bankMeta: {}, exams: DEFAULT_EXAMS };
     const json = await res.json();
     const banks: WordBanks = { ...EMPTY_BANKS, ...(json.banks ?? {}) };
