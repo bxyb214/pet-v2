@@ -6,10 +6,13 @@ const { chromium } = require("playwright");
 const BASE = process.argv[2] || "http://localhost:5178";
 const onlyArg = process.argv[3];
 
+// 路由守卫会解析 JWT 的 exp：假 token 也必须是三段式 JWT 形状，否则被判过期回登录页
+const FAKE_JWT = ["e30", Buffer.from(JSON.stringify({ exp: 4102444800 })).toString("base64url"), "x"].join(".");
+
 const USER = {
   user_id: 1, username: "admin", display_name: "admin",
   perms: "speak", is_admin: true, exam: "pet",
-  access_token: "t", refresh_token: "r", id: 1,
+  access_token: FAKE_JWT, refresh_token: "r", id: 1,
 };
 const EMPTY_SYNC = {
   mastery: [], mistakes: [], progress: [],
@@ -26,6 +29,7 @@ const ROUTES = onlyArg
       "/english/grammar", "/english/grammar/1",
       "/english/listening/home", "/english/listening/review", "/english/listening/1/1",
       "/english/speak", "/english/speak/shadow", "/english/speak/talk", "/english/speak/review", "/english/speak/make",
+      "/math/lessons", "/math/lessons/g3-40", "/math/progress",
       "/settings", "/admin",
     ];
 // 路由表与 router/index.ts 同步维护；404 的路由跳过即可（Playwright 会等待 networkidle 失败也不影响溢出判断）

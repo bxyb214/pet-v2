@@ -213,6 +213,25 @@ export const useLearningStore = defineStore("learning", {
       const found = this.data.progress.find((p) => p.key === key);
       return found ? { idx: found.idx, seen: found.seen } : null;
     },
+    /**
+     * 数学视频进度（MT5）：idx=已看秒数取大，seen 含 "done"=学完。
+     * 学完只增不减；与 sync 既有语义一致（seen 并集 + idx 取大），无需改合并规则。
+     */
+    recordVideoProgress(key: string, seconds: number, done = false): void {
+      const idx = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
+      const found = this.data.progress.find((p) => p.key === key);
+      if (found) {
+        const nextIdx = Math.max(found.idx, idx);
+        const wasDone = found.seen.includes("done");
+        if (nextIdx === found.idx && (!done || wasDone)) return; // 无变化不写，少推送
+        found.idx = nextIdx;
+        if (done && !wasDone) found.seen.push("done");
+      } else {
+        if (idx === 0 && !done) return;
+        this.data.progress.push({ key, seen: done ? ["done"] : [], idx });
+      }
+      this.markDirty();
+    },
     /** 阅读计划（R9）：独立于词汇计划 */
     setReadingPlan(length: number, books: string[] = []): void {
       this.data.plan.reading_length = length;

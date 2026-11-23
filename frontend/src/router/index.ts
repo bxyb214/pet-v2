@@ -6,7 +6,7 @@ declare module "vue-router" {
     /** 所属学科（布局侧边栏高亮） */
     subject?: "english" | "chinese" | "math";
     /** 所属二级板块 */
-    module?: "words" | "reading" | "grammar" | "listening" | "speak";
+    module?: "words" | "reading" | "grammar" | "listening" | "speak" | "lessons" | "progress";
     /** 面包屑 */
     crumbs?: string[];
     /** 三级页签条（内容区顶部） */
@@ -40,6 +40,10 @@ const SPEAK_TABS = [
   { label: "造句", to: "/english/speak/make" },
   { label: "对话", to: "/english/speak/talk" },
   { label: "题库", to: "/english/speak/scenes" },
+];
+const MATH_TABS = [
+  { label: "课程", to: "/math/lessons" },
+  { label: "学习进度", to: "/math/progress" },
 ];
 
 export const router = createRouter({
@@ -170,8 +174,22 @@ export const router = createRouter({
         },
         {
           path: "math",
-          component: () => import("../views/ComingSoon.vue"),
-          meta: { subject: "math", title: "数学", icon: "🧮", tags: ["计算能力", "思维训练", "应用题", "图形几何"] },
+          redirect: "/math/lessons",
+        },
+        {
+          path: "math/lessons",
+          component: () => import("../views/MathHome.vue"),
+          meta: { subject: "math", module: "lessons", crumbs: ["数学", "一课通关", "课程"], tabs: MATH_TABS },
+        },
+        {
+          path: "math/lessons/:id",
+          component: () => import("../views/MathLesson.vue"),
+          meta: { subject: "math", module: "lessons", crumbs: ["数学", "一课通关"] },
+        },
+        {
+          path: "math/progress",
+          component: () => import("../views/MathProgress.vue"),
+          meta: { subject: "math", module: "progress", crumbs: ["数学", "一课通关", "学习进度"], tabs: MATH_TABS },
         },
         { path: "admin", component: () => import("../views/AdminPage.vue") },
       ],

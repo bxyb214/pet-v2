@@ -5,7 +5,7 @@
       v-for="s in subjects"
       :key="s.key"
       class="subj"
-      :class="[s.key, { active: subject === s.key }]"
+      :class="[s.cls, { active: subject === s.key }]"
       :title="s.name"
       @click="pick(s)"
     >
@@ -32,6 +32,22 @@
       </button>
     </template>
 
+    <template v-if="subject === 'math'">
+      <div class="divider"></div>
+      <div class="sider-title">数学 · 板块</div>
+      <button
+        v-for="m in MATH_MODULES"
+        :key="m.key"
+        class="nav-item"
+        :class="{ active: module === m.key }"
+        :title="m.name"
+        @click="goModule(m)"
+      >
+        <span class="n-ico"><n-icon :component="m.icon" size="19" /></span>
+        <span class="n-name">{{ m.name }}</span>
+      </button>
+    </template>
+
     <div class="sider-foot">火焰学习 · 每天进步一点点</div>
   </nav>
 </template>
@@ -43,17 +59,21 @@ import { NIcon } from "naive-ui";
 import {
   LanguageOutline, BookOutline, CalculatorOutline,
   ReaderOutline, LibraryOutline, HeadsetOutline, MicOutline, CreateOutline,
+  PlayCircleOutline, StatsChartOutline,
 } from "@vicons/ionicons5";
 import type { Component } from "vue";
 import { useAuthStore } from "../stores/auth";
 
 type Module = { key: string; name: string; icon: Component; first: string };
-type Subject = { key: "english" | "chinese" | "math"; name: string; icon: Component; desc: string; first: string };
+type Subject = {
+  key: "english" | "chinese" | "math"; name: string; icon: Component;
+  desc: string; first: string; /** 侧栏配色的短类名（CSS 用 .en/.cn/.ma） */ cls: string;
+};
 
 const SUBJECTS: Subject[] = [
-  { key: "english", name: "英语", icon: LanguageOutline, desc: "", first: "/english/words/browse" },
-  { key: "chinese", name: "语文", icon: BookOutline, desc: "筹备中", first: "/chinese" },
-  { key: "math", name: "数学", icon: CalculatorOutline, desc: "筹备中", first: "/math" },
+  { key: "english", name: "英语", icon: LanguageOutline, desc: "", first: "/english/words/browse", cls: "en" },
+  { key: "chinese", name: "语文", icon: BookOutline, desc: "筹备中", first: "/chinese", cls: "cn" },
+  { key: "math", name: "数学", icon: CalculatorOutline, desc: "三年级 · 一课通关", first: "/math/lessons", cls: "ma" },
 ];
 
 const EN_MODULES: Module[] = [
@@ -62,6 +82,11 @@ const EN_MODULES: Module[] = [
   { key: "grammar", name: "语法", icon: CreateOutline, first: "/english/grammar" },
   { key: "listening", name: "听力", icon: HeadsetOutline, first: "/english/listening/home" },
   { key: "speak", name: "口语", icon: MicOutline, first: "/english/speak" },
+];
+
+const MATH_MODULES: Module[] = [
+  { key: "lessons", name: "一课通关", icon: PlayCircleOutline, first: "/math/lessons" },
+  { key: "progress", name: "学习进度", icon: StatsChartOutline, first: "/math/progress" },
 ];
 
 const emit = defineEmits<{ (e: "go"): void }>();

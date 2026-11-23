@@ -16,6 +16,8 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ../frontend/dist:/usr/share/nginx/html:ro
+      # 数学课程视频（与生产同一目录，只读）
+      - ${PET_MATH_MEDIA:-/vol2/1000/media/felix/math}:/media/math:ro
     depends_on:
       - api
 

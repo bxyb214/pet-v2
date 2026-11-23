@@ -8,6 +8,8 @@ services:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       # dist 内含前端静态 + data/*.json + audio(85MB) + img，全部由 vite 拷贝
       - ../frontend/dist:/usr/share/nginx/html:ro
+      # 数学课程视频：NAS 宿主目录只读挂载（可用 deploy/.env 的 PET_MATH_MEDIA 覆盖）
+      - ${PET_MATH_MEDIA:-/vol2/1000/media/felix/math}:/media/math:ro
     depends_on:
       - api
 

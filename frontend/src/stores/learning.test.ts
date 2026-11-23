@@ -85,6 +85,18 @@ describe("learning store（无网络，纯本地逻辑）", () => {
     expect(s.data.plan.days_done).toEqual(["1"]);
   });
 
+  it("recordVideoProgress：idx 取大、seen 并集且学完不可撤销", () => {
+    const s = useLearningStore();
+    s.recordVideoProgress("math:v:g3-40", 30);
+    expect(s.progressOf("math:v:g3-40")).toEqual({ idx: 30, seen: [] });
+    s.recordVideoProgress("math:v:g3-40", 20); // 回看不倒退
+    expect(s.progressOf("math:v:g3-40")?.idx).toBe(30);
+    s.recordVideoProgress("math:v:g3-40", 31, true);
+    expect(s.progressOf("math:v:g3-40")).toEqual({ idx: 31, seen: ["done"] });
+    s.recordVideoProgress("math:v:g3-40", 5); // 学完后重看不会清除 done
+    expect(s.progressOf("math:v:g3-40")).toEqual({ idx: 31, seen: ["done"] });
+  });
+
   it("dueMistakes：到期错题筛选", () => {
     const s = useLearningStore();
     s.data.mistakes.push(
