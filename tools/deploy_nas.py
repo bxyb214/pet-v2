@@ -3,11 +3,16 @@
 
 用法（在 pet-v2 根目录执行）：
 
+    # 生产（默认 profile=prod，8088，/vol1/1000/docker/pet-v2）
     python tools/deploy_nas.py check   --host <NAS-IP>
     python tools/deploy_nas.py deploy  --host <NAS-IP>
     python tools/deploy_nas.py ps      --host <NAS-IP>
     python tools/deploy_nas.py restart --host <NAS-IP>
     python tools/deploy_nas.py logs    --host <NAS-IP> -n 200
+
+    # 开发/预发布（8089，/vol1/1000/docker/pet-v2-dev，PET_DEV_MODE=1）
+    python tools/deploy_nas.py deploy  --host <NAS-IP> --profile dev
+    python tools/deploy_nas.py ps      --host <NAS-IP> --profile dev
 
 密码来源优先级：--password > 环境变量 NAS_PASS > 交互输入（不回显）。
 凭据绝不写进本文件、也不进 git；本机存在 ../nas-credentials.md（仓库外）。
@@ -30,13 +35,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent  # pet-v2/
 DEFAULT_REMOTE = "/vol1/1000/docker/pet-v2"
+DEFAULT_REMOTE_DEV = "/vol1/1000/docker/pet-v2-dev"
+DEFAULT_PORT = 8088
+DEFAULT_PORT_DEV = 8089
 
 EXCLUDE_DIRS = {
     ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache",
     ".ruff_cache", "node_modules", ".git", "htmlcov", ".idea", ".vscode",
 }
 EXCLUDE_SUFFIX = {".pyc", ".pyo", ".db", ".db-shm", ".db-wal", ".log"}
-EXCLUDE_NAMES = {".DS_Store", "Thumbs.db", ".coverage", "smoke.db"}
+# .env 含 JWT secret，绝不随包上传（远端已有 .env 时保留原文件）
+EXCLUDE_NAMES = {".DS_Store", "Thumbs.db", ".coverage", "smoke.db", ".env"}
 
 PACK_INCLUDE = ["backend", "frontend/dist", "deploy"]
 
@@ -77,6 +86,8 @@ class Runner:
     def __init__(self, cli, password: str):
         self.cli = cli
         self.password = password
+        self.remote = DEFAULT_REMOTE
+        self.compose_file = "docker-compose.yml"
         self.docker_as_sudo = False
         self._docker_checked = False
 
@@ -174,7 +185,7 @@ class Runner:
     def compose(self, sub: str, timeout: int = 1800, stream: bool = True) -> tuple[int, str]:
         self.detect_docker()
         remote = shlex.quote(getattr(self, "remote", DEFAULT_REMOTE))
-        inner = f"cd {remote}/deploy && docker compose {sub}"
+        inner = f"cd {remote}/deploy && docker compose -f {self.compose_file} {sub}"
         # sudo() 内部已用 sh -c 包了一层，cd 这类内建命令可以直接用
         if self.docker_as_sudo:
             return self.sudo(inner, timeout, stream)
@@ -262,7 +273,7 @@ def cmd_check(args, R: Runner) -> None:
         print(f"{'✓' if good else '×'} {name:<12} {detail}")
     print("=" * 72)
     if all(g for _, g, _ in checks):
-        print(f"全部就绪 → python tools/deploy_nas.py deploy --host {args.host}")
+        print(f"全部就绪 → python tools/deploy_nas.py deploy --host {args.host} --profile {args.profile}")
     else:
         print("有未通过项，先补齐再 deploy。")
 
@@ -321,17 +332,21 @@ def cmd_deploy(args, R: Runner, cli) -> None:
         info(f"{args.remote} 需 sudo 写入")
 
     # 1. 打包 + 上传 + 解包（--skip-upload 时跳过，用于只重启/重建镜像）
+    profile_tag = "" if args.profile == "prod" else f"-{args.profile}"
     if args.skip_upload:
         info("--skip-upload：跳过打包上传，直接用 NAS 上已有代码")
     else:
-        tar_local = ROOT / "_work" / "pet-v2-deploy.tar.gz"
+        tar_local = ROOT / "_work" / f"pet-v2-deploy{profile_tag}.tar.gz"
         tar_local.parent.mkdir(parents=True, exist_ok=True)
         pack(tar_local)
-        remote_tar = "/tmp/pet-v2-deploy.tar.gz"
+        remote_tar = f"/tmp/pet-v2-deploy{profile_tag}.tar.gz"
         upload(cli, tar_local, remote_tar)
 
         info("远端解包 …")
-        extract = f"tar xzf {remote_tar} -C {remote_q} && rm -f {remote_tar} && mkdir -p {remote_q}/data"
+        # Windows 打包的条目 mode 常为 000，nginx(worker) 需要 r/x：统一 a+rX（目录加 x）
+        extract = (f"tar xzf {remote_tar} -C {remote_q} && rm -f {remote_tar}"
+                   f" && mkdir -p {remote_q}/data"
+                   f" && chmod -R a+rX {remote_q}/frontend/dist")
         code, out = R.sudo(extract) if dir_sudo else R.sh(extract)
         if code != 0:
             die(f"解包失败：{out[:400]}")
@@ -343,7 +358,14 @@ def cmd_deploy(args, R: Runner, cli) -> None:
     _, out = R.sh(f"test -f {shlex.quote(env_path)} && echo EXISTS")
     if "EXISTS" not in out:
         secret = secrets.token_urlsafe(48)
-        content = f"PET_JWT_SECRET={secret}\n"
+        if args.profile == "dev":
+            content = (f"PET_JWT_SECRET={secret}\n"
+                       "PET_DEV_MODE=1\n"
+                       f"PET_DEV_PORT={args.http_port}\n")
+            backup = ROOT / "_work" / "nas-dev-jwt-secret.txt"
+        else:
+            content = f"PET_JWT_SECRET={secret}\n"
+            backup = ROOT / "_work" / "nas-jwt-secret.txt"
         py = ("import pathlib,sys;"
               f"p=pathlib.Path({env_path!r});"
               "p.write_text(sys.argv[1]);p.chmod(0o600)")
@@ -351,24 +373,23 @@ def cmd_deploy(args, R: Runner, cli) -> None:
         code, out = writer(f"python3 -c {shlex.quote(py)} {shlex.quote(content)}")
         if code != 0:
             die(f"写 deploy/.env 失败：{out[:300]}")
-        backup = ROOT / "_work" / "nas-jwt-secret.txt"
         backup.write_text(content, encoding="utf-8")
-        ok("已生成 deploy/.env（chmod 600），secret 备份于 _work/nas-jwt-secret.txt")
+        ok(f"已生成 deploy/.env（chmod 600），secret 备份于 _work/{backup.name}")
     else:
         ok("deploy/.env 已存在，保持不变")
 
     # 4. 构建 + 启动
-    info("docker compose up -d --build（首次 3~8 分钟）…")
+    info(f"docker compose -f {args.compose_file} up -d --build（首次 3~8 分钟）…")
     code, _ = R.compose("up -d --build", timeout=2400, stream=True)
     if code != 0:
         die("compose 构建/启动失败，看上面日志")
     ok("容器已启动")
 
     # 5. 健康检查
-    info("等待健康检查 …")
+    info(f"等待健康检查（:{args.http_port}）…")
     healthy = False
     for _ in range(40):
-        _, out = R.sh("curl -fsS http://127.0.0.1:8088/api/v1/healthz 2>/dev/null || true")
+        _, out = R.sh(f"curl -fsS http://127.0.0.1:{args.http_port}/api/v1/healthz 2>/dev/null || true")
         if "ok" in out.lower():
             ok(f"健康检查通过：{out.strip()}")
             healthy = True
@@ -381,15 +402,16 @@ def cmd_deploy(args, R: Runner, cli) -> None:
 
     _, out = R.compose("ps", timeout=60, stream=False)
     print("\n容器状态：\n" + out)
-    print(f"\n局域网访问：http://{args.host}:8088")
-    print(f"管理页：    http://{args.host}:8088/admin")
+    env_label = "开发环境" if args.profile == "dev" else "生产环境"
+    print(f"\n{env_label}（{args.profile}）局域网访问：http://{args.host}:{args.http_port}")
+    print(f"管理页：    http://{args.host}:{args.http_port}/admin")
 
 
 def cmd_ps(args, R: Runner) -> None:
     R.remote = args.remote
     _, out = R.compose("ps", timeout=60, stream=False)
     print(out)
-    _, out = R.sh("curl -fsS http://127.0.0.1:8088/api/v1/healthz || echo 'healthz FAIL'")
+    _, out = R.sh(f"curl -fsS http://127.0.0.1:{args.http_port}/api/v1/healthz || echo 'healthz FAIL'")
     print("healthz:", out)
 
 
@@ -412,19 +434,34 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="飞牛 NAS 部署工具")
     ap.add_argument("action", choices=["check", "deploy", "ps", "restart", "logs"])
     ap.add_argument("--host", required=True, help="NAS 内网 IP")
-    ap.add_argument("--port", type=int, default=22)
+    ap.add_argument("--port", type=int, default=22, help="SSH 端口")
     ap.add_argument("--user", default="admin")
     ap.add_argument("--password", help="不推荐明文；优先 NAS_PASS 环境变量或交互输入")
     ap.add_argument("--key", help="改用私钥登录")
-    ap.add_argument("--remote", default=DEFAULT_REMOTE)
+    ap.add_argument("--profile", choices=["prod", "dev"], default="prod",
+                    help="prod=生产（8088，目录 pet-v2）；dev=开发（8089，目录 pet-v2-dev）")
+    ap.add_argument("--remote", default=None, help="远端项目目录（默认按 profile 推断）")
+    ap.add_argument("--http-port", type=int, default=None,
+                    help="宿主机 HTTP 端口（默认 prod=8088 / dev=8089）")
     ap.add_argument("--skip-upload", action="store_true",
                     help="跳过打包上传解包（NAS 上代码已就位，只重建/重启容器）")
     ap.add_argument("-n", type=int, default=200, help="logs 行数")
     args = ap.parse_args()
 
+    # profile 决定目录、compose 文件、端口；显式参数优先
+    if args.profile == "dev":
+        args.remote = args.remote or DEFAULT_REMOTE_DEV
+        args.compose_file = "docker-compose.dev.yml"
+        args.http_port = args.http_port or DEFAULT_PORT_DEV
+    else:
+        args.remote = args.remote or DEFAULT_REMOTE
+        args.compose_file = "docker-compose.yml"
+        args.http_port = args.http_port or DEFAULT_PORT
+
     cli, password = connect(args)
     R = Runner(cli, password)
     R.remote = args.remote
+    R.compose_file = args.compose_file
     try:
         {"check": lambda: cmd_check(args, R),
          "deploy": lambda: cmd_deploy(args, R, cli),
