@@ -3,7 +3,15 @@
 export type ShadowItem = { id: string; pack: string; packName: string; en: string; cn: string; tip: string };
 export type SpeakPack = { id: string; name: string; part: number; ids: string[]; order: number };
 export type FreeItem = { id: string; pack: string; en: string; cn: string };
-export type Scene = { id: string; part: number; title: string; cn: string; level: string; focus: string; openers: string[] };
+/** 造句题：中文提示 → 用户说英文 → 标准答案 + AI 点评 */
+export type MakePrompt = { id: string; prompt_cn: string; answer: string; pattern: string };
+export type Scene = {
+  id: string; part: number; title: string; cn: string; level: string;
+  focus: string; openers: string[];
+  sourceRefs?: string[]; source?: string;
+  shadowIds?: string[];
+  make?: MakePrompt[];
+};
 /** 教材里的 90 天原始任务 */
 export type SpeakSourceDay = {
   d: number; phase: number; pack: string; title: string; goal: string;

@@ -13,28 +13,35 @@
 | `toc_zhen2.json` | 24-26真题-Part2 目录 | 89 个真题图片描述场景标题 | 目录页视觉转录 |
 | `toc_zhen34.json` | 24-26真题-Part3-4 目录 | 55 个真题讨论话题标题 | 目录页视觉转录 |
 | `demos.json` | 新版PET口语模板 p9-10/p14-15 | Part2 描述示范 2 篇（18 句）+ Part3 讨论对话 11 轮 | 文本层转录；中文为对照翻译（非原书） |
+| `curriculum_v4.json` | 上述教辅 + 真题目录的二次编排 | **45 个统一场景**：每场 3 条 B1+ 跟读句 + 2 道造句题（中文提示/标准答案） | 按主题整合 17 分类 + 89 图 + 55 话题；人工改写与校对 |
 
 ## 构建链
 
 ```
-data-src/speak/*.json ──→ node tools/build_speak_v3.js [--dry] ──→ frontend/public/data/speak.json (schema v3)
+data-src/speak/*.json ──→ node tools/build_speak_v4.js [--dry] ──→ frontend/public/data/speak.json (schema v4)
 ```
 
-speak.json v3 在旧字段（shadow/packs/free/scenes/plan）基础上新增：
-`part1bank`(85) / `essays`(131) / `patterns`(78句) / `rubric` / `categories`(17) / `zhen2`(89) / `zhen34`(55) / `meta.sources`。
+speak.json v4：
+
+- `scenes`(45) / `packs`(45) / `shadow`(135) 全部来自 `curriculum_v4.json`；
+- `scenes[].make`(90) 提供中文提示、标准答案与句型标签；
+- 旧字段 `free`(300) / `plan` 保留；
+- 原始数据 `part1bank`(85) / `essays`(131) / `patterns`(78句) / `rubric` /
+  `categories`(17) / `zhen2`(89) / `zhen34`(55) 保留，供追溯与扩充。
 
 ## 模块对应
 
 | 前端模块 | 数据 |
 |---|---|
-| 跟读 | shadow/packs：Part1 85 题问答（按 17 分类分 17 包）+ Part2 示范 18 句 + Part3 示范 11 轮 |
-| 造句 | patterns：11 组 78 句 |
-| 实时对话 / 题库 | scenes：Part1 17 分类场景 + Part2 89 真题图场景 + Part3(+4) 55 真题话题（共 161） |
+| 跟读 | 45 个场景包，每包 3 条 B1+ 完整句（共 135 句） |
+| 造句 | 45 场景 × 2 题（共 90 题）：中文提示 + 标准答案 + AI 点评 |
+| 实时对话 / 题库 | 同一份 45 场景（Part1 14 / Part2 16 / Part3–4 15） |
 
 ## 红线与备注
 
-- 全部内容来自原书，解析/转录跳过的条目都在脚本输出里报告，**不臆造**
+- 原始解析/转录内容来自原书，跳过的条目在脚本输出里报告，**不臆造**；
+  45 场景的跟读句与造句答案是在原书语料基础上的教学改写，已逐条校对完整性与 B1 水平。
 - 真题册参考答案（zhen2/zhen34 每题详解）尚未逐页补录——目录标题先入数据，答案按页核对后增量追加
 - Part2 图片裁切（`frontend/public/img/speak/`）待做，工具可参考旧站 `tools/crop_pics.py`
-- 页面已接入：跟读、造句、161 场景题库与每日计划见 [docs/07](../../docs/07-口语实时对话方案.md)
+- 页面已接入：跟读、造句、45 场景题库与每日计划见 [docs/07](../../docs/07-口语实时对话方案.md)
 - 满分宝典/模板书用 2020 官方 Part 编号；215话题书未分 Part（全部按 Part1 访谈处理）

@@ -407,27 +407,31 @@ def help_(body: HelpIn, user: User = Depends(require_speak), db: Session = Depen
 
 class CheckIn(BaseModel):
     pattern: str = Field(max_length=300)
+    prompt_cn: str = Field(default="", max_length=300)
     sentence: str = Field(min_length=1, max_length=300)
 
 
 @router.post("/check")
 def check(body: CheckIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
-    """造句判定：孩子按句型造句，LLM 判对错并给 PET 级优化。"""
+    """造句判定：孩子按中文提示说英文，LLM 判意 + 给 PET 级优化。"""
     from app.services import ai_enrich
 
     if dev_mock.is_dev():
         return dev_mock.check(body.sentence)
 
     prompt = (
-        "A Chinese primary-school student practised this English pattern: "
-        f'"{body.pattern[:200]}". The student wrote/said: "{body.sentence[:200]}". '
-        'Reply with ONE compact JSON object: {"ok": true/false, '
-        '"comment": "中文点评（一句话，说清哪里好/哪里要改）", '
-        '"improved": "PET B1 水平的优化句（若已经很好则原样返回）"}. JSON only.'
+        "A Chinese primary-school student is practising PET speaking. "
+        + (f'The Chinese idea to express is: "{body.prompt_cn[:200]}". ' if body.prompt_cn else "")
+        + f'The reference English answer is: "{body.pattern[:200]}". '
+        + f'The student said: "{body.sentence[:200]}". '
+        + "First decide whether the student expressed the same idea, then comment on grammar and word choice. "
+        + 'Reply with ONE compact JSON object: {"ok": true/false, '
+        + '"comment": "中文点评（一两句，先说意思有没有说到，再说哪里要改）", '
+        + '"improved": "PET B1 水平的优化句（保留学生原意；若已经很好则原样返回）"}. JSON only.'
     )
     try:
         data, llm_usage = ai_enrich.chat(
-            db, [{"role": "user", "content": prompt}], max_tokens=160, temperature=0.2
+            db, [{"role": "user", "content": prompt}], max_tokens=220, temperature=0.2
         )
         usage.record_llm(db, user.id, llm_usage)
     except LookupError as e:

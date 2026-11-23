@@ -47,15 +47,13 @@ const q = ref("");
 const PART_TITLES: Record<number, string> = {
   1: "个人信息与日常问答",
   2: "图片描述",
-  3: "讨论协商",
-  4: "扩展讨论",
+  3: "讨论协商（Part 3–4）",
 };
 const filters = [
   { id: 0, name: "全部" },
   { id: 1, name: "Part 1" },
   { id: 2, name: "Part 2" },
-  { id: 3, name: "Part 3" },
-  { id: 4, name: "Part 4" },
+  { id: 3, name: "Part 3–4" },
 ];
 
 const scenes = computed<Scene[]>(() => data.value?.scenes ?? []);

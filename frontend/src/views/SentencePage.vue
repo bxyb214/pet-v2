@@ -3,9 +3,8 @@
     <BackButton />
     <h1>造句练习</h1>
     <p class="sub">
-      {{ hasPlan
-        ? "挑一个 PET 常用句型，用你自己的话造一句。AI 会告诉你怎么说得更好。今天目标 10 分钟。"
-        : "没有计划：从题库任选一个句型自由练习，AI 点评，不计时、不打卡。" }}
+      看中文，用英文说出来。说完可以看标准答案，AI 会告诉你怎么说得更好。
+      <template v-if="hasPlan">今天目标 10 分钟。</template>
     </p>
 
     <div v-if="hasPlan" class="card targetbar" :class="{ over: overGoal }">
@@ -19,45 +18,74 @@
 
     <div v-if="loading" class="card empty">加载中…</div>
     <template v-else>
-      <div class="groups">
+      <div class="filters">
         <button
-          v-for="g in groups"
-          :key="g.id"
-          class="gbtn"
-          :class="{ on: g.id === group?.id }"
-          @click="pick(g.id)"
-        >
-          {{ g.name }}
-        </button>
+          v-for="f in partFilters" :key="f.id" type="button"
+          class="gbtn" :class="{ on: part === f.id }" @click="pickPart(f.id)"
+        >{{ f.name }}</button>
+        <n-select
+          v-model:value="sceneId" class="scene-select" :options="sceneOptions"
+          placeholder="选择场景" filterable @update:value="pickScene"
+        />
       </div>
 
-      <div v-if="group" class="card panel">
-        <div class="gname">{{ group.name }} <span class="gcn">{{ group.cn }}</span></div>
+      <div v-if="scene" class="card panel">
+        <div class="gname">{{ scene.title }} <span class="gcn">{{ scene.cn }}</span></div>
 
-        <div class="sents">
+        <div class="prompts">
           <button
-            v-for="(s, i) in group.items"
-            :key="s.id"
-            class="sent"
-            :class="{ on: i === si }"
-            @click="pickSentence(i)"
+            v-for="(m, i) in prompts" :key="m.id" type="button"
+            class="prompt-card" :class="{ on: i === pi }" @click="pickPrompt(i)"
           >
-            <span class="en">{{ s.en }}</span>
-            <span class="cn">{{ s.cn }}</span>
+            <span class="pno">第 {{ i + 1 }} 题</span>
+            <span class="pcn">{{ m.prompt_cn }}</span>
           </button>
         </div>
 
-        <div class="practice">
-          <div class="prompt">用这个句型，说一句你自己的话：</div>
-          <textarea v-model="mine" rows="2" placeholder="例如：The reason is I want to play football."></textarea>
-          <div class="actions">
-            <n-button type="primary" :disabled="!mine.trim() || checking" :loading="checking" @click="check">
-              {{ checking ? "AI 正在看…" : "让 AI 看看" }}
-            </n-button>
-            <n-button secondary :disabled="!mine.trim()" @click="speakMine">听我这句话</n-button>
+        <div v-if="prompt" class="practice">
+          <div class="prompt-big">{{ prompt.prompt_cn }}</div>
+          <div class="hint">先自己说一句完整的英文，再提交。</div>
+
+          <div class="saybar">
+            <template v-if="!conn">
+              <n-button type="primary" size="large" :disabled="checking" @click="startSpeak">
+                🎤 开始说
+              </n-button>
+              <span class="sayhint">也可以直接在下面用键盘输入</span>
+            </template>
+            <template v-else>
+              <n-button type="primary" size="large" :loading="listening" @click="finishSpeak">
+                {{ listening ? "AI 正在听…" : "说完了，提交" }}
+              </n-button>
+              <n-button size="large" quaternary @click="stopSpeak">取消</n-button>
+            </template>
+            <span class="status">{{ status }}</span>
           </div>
+
+          <textarea
+            v-model="mine" rows="2"
+            placeholder="或在这里输入你说的英文，例如：I think a book is the best prize..."
+          ></textarea>
+
+          <div class="actions">
+            <n-button
+              type="primary" :disabled="!mine.trim() || checking" :loading="checking" @click="check"
+            >{{ checking ? "AI 正在看…" : "让 AI 看看" }}</n-button>
+            <n-button secondary :disabled="!mine.trim()" @click="play(mine.trim())">听我这句话</n-button>
+            <n-button quaternary @click="answerShown = !answerShown">
+              {{ answerShown ? "收起标准答案" : "看标准答案" }}
+            </n-button>
+          </div>
+
+          <div v-if="answerShown" class="answer">
+            <n-tag size="small" type="info" :bordered="false">标准答案</n-tag>
+            <span class="ans">{{ prompt.answer }}</span>
+            <n-button size="tiny" secondary @click="play(prompt.answer)">听示范</n-button>
+          </div>
+
           <div v-if="fb" class="fb" :class="{ good: fb.ok }">
-            <div class="fb-title">{{ fb.ok ? "说得不错！" : "再改一点就更好了" }}</div>
+            <div class="fb-title">{{ fb.ok ? "意思说到了！" : "再改一点就更好了" }}</div>
+            <div v-if="heard" class="heard">AI 听到的是：{{ heard }}</div>
             <div class="fb-comment">{{ fb.comment }}</div>
             <div v-if="fb.improved" class="fb-better">
               <n-tag size="small" type="success" :bordered="false">更好的说法</n-tag>
@@ -74,24 +102,33 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { NButton, NTag } from "naive-ui";
+import { NButton, NSelect, NTag } from "naive-ui";
 import { api } from "../core/api";
 import {
-  loadSpeak, planDayDone, splitSpeakPlan,
-  type DayCheck, type PatternGroup, type PlanDayView, type SpeakData,
+  loadSpeak, parseShadowReply, planDayDone, splitSpeakPlan,
+  type DayCheck, type PlanDayView, type Scene, type SpeakData,
 } from "../core/speak";
+import { createSpeakConn, type SpeakConn } from "../core/speakRTC";
 import { useSpeakTime } from "../core/speakTime";
 import BackButton from "../components/BackButton.vue";
 
 const route = useRoute();
 const data = ref<SpeakData | null>(null);
 const loading = ref(true);
-const groupId = ref("");
-const si = ref(0);
+const part = ref(0);
+const sceneId = ref("");
+const pi = ref(0);
 const mine = ref("");
+const heard = ref("");
 const checking = ref(false);
+const answerShown = ref(false);
 const fb = ref<{ ok: boolean; comment: string; improved: string } | null>(null);
-// 造句没有麦克风输入：按页面可见的练习时间累计，服务端保存
+const status = ref("");
+const listening = ref(false);
+const conn = ref<SpeakConn | null>(null);
+let connLocal: SpeakConn | null = null;
+let finished = false;
+
 const activeSec = ref(0);
 const planLength = ref(0);
 const hasPlan = computed(() => planLength.value > 0);
@@ -102,12 +139,24 @@ const planDay = ref<PlanDayView | null>(null);
 let timer = 0;
 let makeLogged = false;
 
-const groups = computed<PatternGroup[]>(() => data.value?.patterns ?? []);
-const group = computed(() => groups.value.find((g) => g.id === groupId.value) ?? null);
+const scenes = computed<Scene[]>(() => data.value?.scenes ?? []);
+const scene = computed(() => scenes.value.find((s) => s.id === sceneId.value) ?? null);
+const prompts = computed(() => scene.value?.make ?? []);
+const prompt = computed(() => prompts.value[pi.value] ?? null);
+const partFilters = [
+  { id: 0, name: "全部" },
+  { id: 1, name: "Part 1" },
+  { id: 2, name: "Part 2" },
+  { id: 3, name: "Part 3–4" },
+];
+const sceneOptions = computed(() =>
+  scenes.value
+    .filter((s) => part.value === 0 || s.part === part.value)
+    .map((s) => ({ label: `${s.cn} · ${s.title}`, value: s.id }))
+);
 
 onMounted(async () => {
   data.value = await loadSpeak();
-  if (groups.value.length) groupId.value = groups.value[0].id;
   loading.value = false;
   try {
     const [p, d] = await Promise.all([
@@ -123,37 +172,143 @@ onMounted(async () => {
       planDay.value = qDay
         ? planDays[qDay - 1] ?? null
         : planDays.find((x) => !planDayDone(x, checks)) ?? planDays[0] ?? null;
-    } else {
-      planDay.value = null; // 无计划：不计时、不打卡
+      const sid = planDay.value?.sceneIds[0];
+      if (sid && scenes.value.some((s) => s.id === sid)) {
+        sceneId.value = sid;
+        part.value = scenes.value.find((s) => s.id === sid)?.part ?? 0;
+      }
     }
   } catch { /* 离线时不影响造句 */ }
+  if (!sceneId.value && scenes.value.length) {
+    sceneId.value = scenes.value[0].id;
+    part.value = scenes.value[0].part;
+  }
   timer = window.setInterval(() => {
     if (hasPlan.value && document.visibilityState === "visible") activeSec.value += 1;
   }, 1000);
 });
-onBeforeUnmount(() => { if (timer) clearInterval(timer); });
+onBeforeUnmount(() => {
+  if (timer) clearInterval(timer);
+  stopSpeak();
+});
 
-function pick(id: string): void {
-  groupId.value = id;
-  si.value = 0;
-  mine.value = "";
-  fb.value = null;
+function pickPart(id: number): void {
+  part.value = id;
+  const first = scenes.value.find((s) => id === 0 || s.part === id);
+  if (first) pickScene(first.id);
 }
-function pickSentence(i: number): void {
-  si.value = i;
+function pickScene(id: string): void {
+  sceneId.value = id;
+  pi.value = 0;
+  resetAttempt();
+}
+function pickPrompt(i: number): void {
+  pi.value = i;
+  resetAttempt();
+}
+function resetAttempt(): void {
+  mine.value = "";
+  heard.value = "";
+  answerShown.value = false;
   fb.value = null;
+  status.value = "";
+  stopSpeak();
+}
+
+function voiceInstructions(p: { prompt_cn: string }): string {
+  return [
+    "You are an English transcription assistant for a PET speaking app.",
+    "The student will say ONE English sentence to express this Chinese idea:",
+    `「${p.prompt_cn}」`,
+    "Do not chat and never ask questions. Transcribe exactly what the student says, even if it is wrong.",
+    'Reply with ONE compact JSON object: {"transcript":"what you heard","score":0-100,',
+    '"words":[],"tips":["中文建议，最多 2 条"],"say":"one short encouragement"}.',
+    "If you hear no speech, use transcript \"\" and ask the student to try again in Chinese.",
+    "Output JSON only.",
+  ].join("\n");
+}
+
+async function startSpeak(): Promise<void> {
+  if (!prompt.value || conn.value) return;
+  finished = false;
+  heard.value = "";
+  status.value = "连接语音服务…";
+  try {
+    const c = await createSpeakConn({
+      mode: "shadow",
+      turnDetection: "manual",
+      instructions: voiceInstructions(prompt.value),
+      onStatus: (s) => { status.value = s; },
+      onUserTranscript: (t) => { if (t) heard.value = t; },
+      onReply: (t) => {
+        const r = parseShadowReply(t);
+        if (r?.transcript) heard.value = r.transcript;
+        if (!finished) void finishWithTranscript();
+      },
+      onError: (msg) => {
+        status.value = msg;
+        closeConn();
+      },
+    });
+    connLocal = c;
+    conn.value = c;
+  } catch (e) {
+    status.value = "语音不可用：" + (e as Error).message + "（可以用键盘输入）";
+    closeConn();
+  }
+}
+
+function finishSpeak(): void {
+  if (!connLocal) return;
+  listening.value = true;
+  status.value = "AI 正在听…";
+  mine.value = heard.value.trim();
+  connLocal.commitAndRespond();
+  window.setTimeout(() => { if (listening.value) listening.value = false; }, 8000);
+}
+
+async function finishWithTranscript(): Promise<void> {
+  finished = true;
+  listening.value = false;
+  const said = heard.value.trim();
+  closeConn();
+  if (!said) {
+    status.value = "没有听清，请再说一遍，或在下面输入。";
+    return;
+  }
+  mine.value = said;
+  status.value = "已转写，正在请 AI 点评…";
+  await check();
+}
+
+function closeConn(): void {
+  const c = connLocal;
+  connLocal = null;
+  conn.value = null;
+  listening.value = false;
+  try { c?.close(); } catch { /* noop */ }
+}
+function stopSpeak(): void {
+  closeConn();
+  status.value = "";
 }
 
 async function check(): Promise<void> {
-  if (!group.value || !mine.value.trim()) return;
+  if (!prompt.value || !mine.value.trim()) return;
   void logMake();
   checking.value = true;
   fb.value = null;
   try {
     fb.value = await api<{ ok: boolean; comment: string; improved: string }>("/speak/check", {
       method: "POST",
-      body: JSON.stringify({ pattern: group.value.items[si.value]?.en ?? "", sentence: mine.value.trim() }),
+      body: JSON.stringify({
+        pattern: prompt.value.answer,
+        prompt_cn: prompt.value.prompt_cn,
+        sentence: mine.value.trim(),
+      }),
     });
+    answerShown.value = true;
+    status.value = "";
   } catch (e) {
     fb.value = { ok: false, comment: "AI 暂时不可用：" + (e as Error).message, improved: "" };
   }
@@ -175,6 +330,7 @@ async function logMake(): Promise<void> {
 }
 
 async function play(text: string): Promise<void> {
+  if (!text) return;
   try {
     const r = await api<{ b64: string; mime: string }>("/speak/tts", {
       method: "POST",
@@ -182,10 +338,6 @@ async function play(text: string): Promise<void> {
     });
     void new Audio(`data:${r.mime};base64,${r.b64}`).play();
   } catch { /* 忽略播放失败 */ }
-}
-
-function speakMine(): void {
-  void play(mine.value.trim());
 }
 function mmss(s: number): string {
   const m = Math.floor(s / 60);
@@ -211,27 +363,36 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .targetbar.over { background: var(--c-accent-soft, #fffbeb); border-color: var(--c-accent, #f59e0b); }
 .targetbar.over .target-hint { color: var(--c-accent, #b45309); font-weight: 600; }
 .empty { padding: 28px 16px; text-align: center; color: var(--c-text-2); }
-.groups { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
 .gbtn { border: 1px solid var(--c-line, #d1d5db); background: var(--c-surface); color: var(--c-text); border-radius: 999px; padding: 6px 12px; font-size: var(--fs-sub); cursor: pointer; }
 .gbtn.on { background: var(--c-primary); border-color: var(--c-primary); color: #fff; font-weight: 700; }
+.scene-select { min-width: 260px; flex: 1; max-width: 420px; }
 .panel { padding: 16px; }
 .gname { font-weight: 800; color: var(--c-text); margin-bottom: 10px; }
 .gcn { font-weight: 400; color: var(--c-text-2); font-size: var(--fs-sub); margin-left: 6px; }
-.sents { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; margin-bottom: 14px; }
-.sent { text-align: left; background: var(--c-mint-bg); border: 1px solid transparent; border-radius: var(--r-btn); padding: 8px 12px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
-.sent.on { border-color: var(--c-primary); background: var(--c-primary-soft); }
-.sent .en { color: var(--c-text); font-weight: 600; }
-.sent .cn { color: var(--c-text-2); font-size: var(--fs-sub); }
+.prompts { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-bottom: 14px; }
+.prompt-card {
+  text-align: left; background: var(--c-mint-bg); border: 1px solid transparent;
+  border-radius: var(--r-btn); padding: 10px 12px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.prompt-card.on { border-color: var(--c-primary); background: var(--c-primary-soft); }
+.pno { color: var(--c-primary); font-size: 12px; font-weight: 700; }
+.pcn { color: var(--c-text); font-size: var(--fs-sub); line-height: 1.6; }
 .practice { border-top: 1px dashed var(--c-line, #e5e7eb); padding-top: 12px; }
-.prompt { color: var(--c-text-2); font-size: var(--fs-sub); margin-bottom: 6px; }
+.prompt-big { font-size: 17px; font-weight: 700; color: var(--c-text); line-height: 1.7; }
+.hint { color: var(--c-text-2); font-size: var(--fs-sub); margin: 4px 0 10px; }
+.saybar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.sayhint, .status { color: var(--c-text-2); font-size: var(--fs-sub); }
 textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--c-line, #d1d5db); border-radius: var(--r-btn); padding: 10px; font-family: inherit; font-size: var(--fs-body, 16px); color: var(--c-text); resize: vertical; }
 .actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+.answer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--c-mint-bg); }
+.ans { font-weight: 600; color: var(--c-text); }
 .fb { margin-top: 14px; padding: 12px; border-radius: var(--r-btn); background: #fef3c7; }
 .fb.good { background: var(--c-primary-soft); }
 .fb-title { font-weight: 800; margin-bottom: 4px; color: var(--c-text); }
-.fb-comment { color: var(--c-text); font-size: var(--fs-sub); }
+.heard { color: var(--c-text-2); font-size: var(--fs-sub); margin-bottom: 6px; }
+.fb-comment { color: var(--c-text); font-size: var(--fs-sub); line-height: 1.6; }
 .fb-better { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-.tag { font-size: var(--fs-sub); color: var(--c-primary); font-weight: 700; }
 .better { font-weight: 700; color: var(--c-text); }
-.small { padding: 2px 8px; font-size: var(--fs-sub); }
 </style>

@@ -1,0 +1,726 @@
+{
+  "version": 4,
+  "note": "45 个统一口语场景：每场 3 条跟读句（B1+ 完整句）+ 2 道造句题（中文提示 + 标准答案）。",
+  "scenes": [
+    {
+      "id": "s01", "part": 1,
+      "title": "Greetings and introductions", "cn": "问候与介绍",
+      "focus": "完整句问候 + 自我介绍 + 原因扩展",
+      "openers": ["Good morning! How are you today?", "Could you introduce yourself in a few sentences?"],
+      "sourceRefs": ["215话题 1-5", "essays 68"],
+      "shadow": [
+        { "en": "Good morning, everyone. It is really nice to meet you today.", "cn": "大家早上好，今天很高兴见到你们。", "tip": "先看对方再微笑，重读 nice 和 today。" },
+        { "en": "My name is Wenwen, and I am twelve years old. I come from a small town near Shanghai.", "cn": "我叫文文，今年十二岁，来自上海附近的一个小镇。", "tip": "两句之间稍作停顿，town 和 Shanghai 重读。" },
+        { "en": "I usually say hello with a smile because it makes people feel welcome.", "cn": "我通常微笑着打招呼，因为这样让人感到受欢迎。", "tip": "because 前稍停，welcome 尾音收住。" }
+      ],
+      "make": [
+        { "prompt_cn": "告诉考官你的名字、年龄，以及你来自哪里。", "answer": "My name is Wenwen, and I am twelve years old. I come from a small town near Shanghai.", "pattern": "greeting" },
+        { "prompt_cn": "第一次见面时，你会怎样礼貌地打招呼？请说两句。", "answer": "Good morning! It is really nice to meet you. I hope we can have a good talk today.", "pattern": "greeting" }
+      ]
+    },
+    {
+      "id": "s02", "part": 1,
+      "title": "Personal information and family", "cn": "个人信息与家庭",
+      "focus": "介绍家庭成员 + 职业 + 相处方式",
+      "openers": ["Who do you live with?", "Can you tell me something about your family?"],
+      "sourceRefs": ["215话题 6-10", "essays 46, 48"],
+      "shadow": [
+        { "en": "There are four people in my family: my parents, my younger sister and me.", "cn": "我家有四口人：爸爸妈妈、妹妹和我。", "tip": "列举时用降调，最后一项稍降。" },
+        { "en": "My father is a doctor, and he often tells me interesting stories about his work.", "cn": "我爸爸是医生，他常给我讲工作中有趣的故事。", "tip": "interesting 重音在 IN，stories 复数别漏。" },
+        { "en": "Although my sister is only six, she already helps my mother with small chores.", "cn": "虽然我妹妹才六岁，她已经会帮妈妈做些小家务。", "tip": "Although 引导让步，后半句重读 already。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍你的家庭成员和他们的职业。", "answer": "There are four people in my family. My father is a doctor and my mother is a teacher, and my sister is a primary school student.", "pattern": "description" },
+        { "prompt_cn": "说说你周末通常和家人一起做什么。", "answer": "At weekends I usually cook dinner with my mother and then watch a film with my family.", "pattern": "daily-life" }
+      ]
+    },
+    {
+      "id": "s03", "part": 1,
+      "title": "School and study", "cn": "校园学习",
+      "focus": "科目与老师 + 上学方式 + 校园生活",
+      "openers": ["What is your favourite subject? Why?", "How do you travel to school?"],
+      "sourceRefs": ["215话题 11-15", "essays 10, 32, 40, 86"],
+      "shadow": [
+        { "en": "My favourite subject is English because I enjoy learning about other cultures.", "cn": "我最喜欢的科目是英语，因为我喜欢了解其他文化。", "tip": "favourite 重音在 FAV，cultures 复数发音清晰。" },
+        { "en": "We have maths lessons four times a week, and our teacher always makes them interesting.", "cn": "我们每周有四节数学课，老师总能把课上得很有趣。", "tip": "four times a week 连读自然，interesting 重读 IN。" },
+        { "en": "I usually finish school at half past four and then go to the library to read.", "cn": "我通常四点半放学，然后去图书馆看书。", "tip": "half past four 连读，library 重音在 LI。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你最喜欢的科目和原因。", "answer": "My favourite subject is English because it is useful and I enjoy learning about other countries.", "pattern": "reason" },
+        { "prompt_cn": "描述你每天怎么去学校，以及路上要花多久。", "answer": "I usually go to school by bus, and it takes me about twenty minutes.", "pattern": "daily-life" }
+      ]
+    },
+    {
+      "id": "s04", "part": 1,
+      "title": "Daily life and routines", "cn": "日常生活",
+      "focus": "作息 + 课后安排 + 周末活动",
+      "openers": ["What do you usually do on a school day?", "What did you do last weekend?"],
+      "sourceRefs": ["215话题 16-20", "essays 50, 89"],
+      "shadow": [
+        { "en": "On school days I get up at seven and have breakfast with my family.", "cn": "上学日我七点起床，和家人一起吃早饭。", "tip": "school days 连读，seven 重读。" },
+        { "en": "After school I usually do my homework before I play with my friends.", "cn": "放学后我通常先做作业，再和朋友玩。", "tip": "before 前稍停，homework 重音在 HOME。" },
+        { "en": "At weekends I help my parents clean the house and then relax at home.", "cn": "周末我帮爸妈打扫房子，然后在家休息。", "tip": "At weekends 连读，relax 重音在后。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你上学日的一天安排。", "answer": "On school days I get up at seven, go to school at half past seven, and do my homework after dinner.", "pattern": "daily-life" },
+        { "prompt_cn": "介绍你上个周末做了什么。", "answer": "Last weekend I visited my grandparents and helped them pick fruit in their garden.", "pattern": "past" }
+      ]
+    },
+    {
+      "id": "s05", "part": 1,
+      "title": "Clothes and shopping", "cn": "衣服与购物",
+      "focus": "穿着偏好 + 购物场所 + 旧衣处理",
+      "openers": ["Do you like buying clothes?", "What do you do with your old clothes?"],
+      "sourceRefs": ["215话题 21-25", "essays 7, 17, 51"],
+      "shadow": [
+        { "en": "I prefer casual clothes such as jeans and T-shirts because they are comfortable.", "cn": "我更喜欢牛仔裤、T恤这类休闲装，因为穿着舒服。", "tip": "prefer 重音在后，comfortable 三个音节都清晰。" },
+        { "en": "There are several clothes shops near my home, so it is easy to buy what I need.", "cn": "我家附近有好几家服装店，所以买需要的东西很方便。", "tip": "several 重音在 SEV，shops 复数别漏。" },
+        { "en": "I usually give my old clothes to charity instead of throwing them away.", "cn": "我通常把旧衣服捐给慈善机构，而不是扔掉。", "tip": "instead of 连读，throwing 注意 th 音。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你更喜欢休闲装还是正装，以及原因。", "answer": "I prefer casual clothes because they are comfortable and I can move easily in them.", "pattern": "opinion" },
+        { "prompt_cn": "旧衣服你会怎么处理？", "answer": "I usually give my old clothes to a charity shop so that other children can wear them.", "pattern": "reason" }
+      ]
+    },
+    {
+      "id": "s06", "part": 1,
+      "title": "Food and drink", "cn": "饮食",
+      "focus": "最爱食物 + 健康饮食 + 家庭用餐",
+      "openers": ["What is your favourite food?", "Do you eat out often?"],
+      "sourceRefs": ["215话题 31-35", "essays 6, 19, 59, 62, 83"],
+      "shadow": [
+        { "en": "My favourite food is dumplings because my grandmother makes them every New Year.", "cn": "我最喜欢的食物是饺子，因为奶奶每年过年都包。", "tip": "dumplings 复数，every New Year 连读。" },
+        { "en": "I try to eat more vegetables and fruit, although I sometimes want sweet drinks.", "cn": "我尽量多吃蔬菜水果，虽然有时也想喝甜饮料。", "tip": "although 引导让步，vegetables 重音在 VEG。" },
+        { "en": "We usually have dinner together at half past six and talk about our day.", "cn": "我们通常六点半一起吃晚饭，聊聊各自的一天。", "tip": "together 重音在 GE，talk about 连读。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍你最喜欢的一道菜和它的味道。", "answer": "My favourite dish is sweet and sour pork because it tastes delicious and my mother cooks it well.", "pattern": "reason" },
+        { "prompt_cn": "说说健康饮食应该包括什么。", "answer": "A healthy diet should include plenty of vegetables, fruit and water, and we should eat less junk food.", "pattern": "opinion" }
+      ]
+    },
+    {
+      "id": "s07", "part": 1,
+      "title": "Hobbies and free time", "cn": "休闲爱好",
+      "focus": "爱好 + 频率 + 放松原因",
+      "openers": ["What do you like doing in your free time?", "How often do you do it?"],
+      "sourceRefs": ["215话题 36-40", "essays 15, 60, 128"],
+      "shadow": [
+        { "en": "In my free time I enjoy drawing cartoons because it helps me relax after school.", "cn": "空闲时我喜欢画漫画，因为能帮我在放学后放松。", "tip": "free time 连读，cartoons 重音在后。" },
+        { "en": "I have been learning the guitar for two years, and I practise for thirty minutes every day.", "cn": "我学吉他两年了，每天练三十分钟。", "tip": "have been learning 连读，practise 重音在 PRAC。" },
+        { "en": "When the weather is fine, I ride my bike around the park with my friends.", "cn": "天气好的时候，我和朋友在公园骑车。", "tip": "weather 注意 th，around 重音在后。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍一个你的爱好，以及你多久做一次。", "answer": "I enjoy playing basketball, and I play it with my classmates twice a week.", "pattern": "frequency" },
+        { "prompt_cn": "说说你放学后通常做什么。", "answer": "After school I usually finish my homework first and then play with my friends in the park.", "pattern": "daily-life" }
+      ]
+    },
+    {
+      "id": "s08", "part": 1,
+      "title": "Home and housework", "cn": "住宿与家务",
+      "focus": "居住环境 + 最喜欢的房间 + 家务分工",
+      "openers": ["What is your favourite room?", "Do you help with housework?"],
+      "sourceRefs": ["215话题 41-45", "essays 18, 120"],
+      "shadow": [
+        { "en": "I live in a flat on the fifth floor with my parents and my brother.", "cn": "我和爸妈、哥哥住在五楼的一套公寓里。", "tip": "fifth floor 连读，flat 短音。" },
+        { "en": "My favourite room is the kitchen because it is always warm and full of good smells.", "cn": "我最喜欢的房间是厨房，因为那里总是很温暖，满是香味。", "tip": "favourite 重音在 FAV，smells 复数。" },
+        { "en": "I make my bed every morning and help wash the dishes after dinner.", "cn": "我每天早上整理床铺，晚饭后帮忙洗碗。", "tip": "make my bed 连读，dishes 重音在 DISH。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍你家的房子和你最喜欢的房间。", "answer": "I live in a flat with three bedrooms. My favourite room is the living room because it is bright and we often talk there.", "pattern": "description" },
+        { "prompt_cn": "说说你在家帮忙做哪些家务。", "answer": "I make my bed every morning, and at weekends I help my mother clean the floor.", "pattern": "daily-life" }
+      ]
+    },
+    {
+      "id": "s09", "part": 1,
+      "title": "Travel and holidays", "cn": "旅行度假",
+      "focus": "旅行经历 + 出行方式 + 行前准备",
+      "openers": ["Where did you go last summer?", "How do you prefer to travel?"],
+      "sourceRefs": ["215话题 51-55", "essays 20, 57, 64, 85"],
+      "shadow": [
+        { "en": "Last summer I travelled to Sanya with my family and we stayed there for a week.", "cn": "去年夏天我和家人去了三亚，在那里待了一周。", "tip": "travelled 重音在 TRAV，stayed 尾音 d 轻。" },
+        { "en": "I prefer travelling by train because I can enjoy the view and walk around.", "cn": "我更喜欢坐火车旅行，因为可以欣赏风景、走动。", "tip": "prefer 重音在后，enjoy the view 连读。" },
+        { "en": "Before a trip I always make a list of things I need so that I do not forget anything.", "cn": "旅行前我总会列一份需要带的东西，以免忘带。", "tip": "so that 连读，forget anything 连读。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你上一次旅行去了哪里、做了什么。", "answer": "Last summer I went to Sanya with my family. We swam in the sea and visited a small island.", "pattern": "past" },
+        { "prompt_cn": "介绍你最喜欢的出行方式及原因。", "answer": "I prefer travelling by train because it is comfortable and I can see the countryside.", "pattern": "reason" }
+      ]
+    },
+    {
+      "id": "s10", "part": 1,
+      "title": "Places and hometown", "cn": "地方与家乡",
+      "focus": "家乡介绍 + 推荐地点 + 感受",
+      "openers": ["Can you tell me something about your hometown?", "What is the best place to visit there?"],
+      "sourceRefs": ["215话题 56-60", "essays 82, 123"],
+      "shadow": [
+        { "en": "My hometown is a quiet city with a long river and many green parks.", "cn": "我的家乡是一座安静的城市，有长长的河流和许多绿色公园。", "tip": "hometown 重音在 HOME，quiet 两个音节。" },
+        { "en": "The best place to visit is the old bridge, which was built more than two hundred years ago.", "cn": "最值得去的地方是那座古桥，它建于两百多年前。", "tip": "which 从句语调稍降，two hundred 连读。" },
+        { "en": "Although my hometown is small, it has a friendly atmosphere that visitors love.", "cn": "虽然我的家乡很小，但有游客喜爱的友好氛围。", "tip": "Although 引导让步，atmosphere 重音在 AT。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍你的家乡以及一个值得去的地方。", "answer": "My hometown is a small city near the sea. The best place to visit is the old market, where you can buy fresh seafood.", "pattern": "description" },
+        { "prompt_cn": "说说你家附近你最喜欢的地方。", "answer": "My favourite place near my home is the park, because I can run and read there.", "pattern": "reason" }
+      ]
+    },
+    {
+      "id": "s11", "part": 1,
+      "title": "Music and media", "cn": "音乐与媒体",
+      "focus": "音乐偏好 + 电视节目 + 屏幕时间",
+      "openers": ["What kind of music do you like?", "What TV programme do you watch?"],
+      "sourceRefs": ["215话题 26-30", "essays 27, 42, 43, 55, 56, 76, 102"],
+      "shadow": [
+        { "en": "I enjoy listening to pop music because the songs are full of energy.", "cn": "我喜欢听流行音乐，因为歌曲充满活力。", "tip": "listening to 连读，energy 重音在 EN。" },
+        { "en": "My favourite TV programme is a nature show that teaches me about animals.", "cn": "我最喜欢的电视节目是自然节目，它教我了解动物。", "tip": "programme 重音在 PRO，nature show 连读。" },
+        { "en": "I think we should spend less time on our phones and more time reading books.", "cn": "我认为我们应该少花时间看手机，多花时间读书。", "tip": "should 弱读，reading books 连读。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍你最喜欢的音乐类型和原因。", "answer": "I like pop music because it is lively and it makes me feel happy.", "pattern": "reason" },
+        { "prompt_cn": "说说你最喜欢的电视节目或电影。", "answer": "My favourite film is a cartoon about a brave girl, because the story is exciting and funny.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s12", "part": 1,
+      "title": "Social interaction and friends", "cn": "社交与朋友",
+      "focus": "朋友介绍 + 共同活动 + 处理分歧",
+      "openers": ["Who is your best friend?", "What do you usually do together?"],
+      "sourceRefs": ["215话题 71-75", "essays 25, 35, 48, 49, 81, 129"],
+      "shadow": [
+        { "en": "My best friend is kind and patient, and she always listens when I have a problem.", "cn": "我最好的朋友善良又有耐心，我有问题时她总会倾听。", "tip": "patient 重音在 PA，problem 重音在 PRO。" },
+        { "en": "We often play basketball together after school and share our homework on the phone.", "cn": "我们放学后常一起打篮球，还会在电话里交流作业。", "tip": "basketball 重音在 BAS，together 重音在 GE。" },
+        { "en": "If a friend makes me angry, I try to talk to him calmly instead of shouting.", "cn": "如果朋友惹我生气，我会试着平静地和他谈，而不是大喊。", "tip": "angry 重音在 AN，instead of 连读。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍你最好的朋友以及你们常一起做什么。", "answer": "My best friend is Lin, and we often play football and do our homework together.", "pattern": "description" },
+        { "prompt_cn": "朋友之间意见不同时，你会怎么办？", "answer": "If we have different ideas, I will listen to my friend first and then explain my own opinion.", "pattern": "opinion" }
+      ]
+    },
+    {
+      "id": "s13", "part": 1,
+      "title": "Sports and health", "cn": "运动与健康",
+      "focus": "运动习惯 + 热身安全 + 健康方式",
+      "openers": ["What sport do you like?", "How do you keep healthy?"],
+      "sourceRefs": ["215话题 76-80", "essays 1, 2, 4, 51b, 52, 98"],
+      "shadow": [
+        { "en": "I play badminton twice a week because it keeps me healthy and happy.", "cn": "我每周打两次羽毛球，因为它让我健康又开心。", "tip": "badminton 重音在第一音节，healthy 注意 th。" },
+        { "en": "Our P.E. teacher tells us to warm up before running so that we do not get hurt.", "cn": "体育老师让我们跑步前热身，以免受伤。", "tip": "warm up 连读，hurt 尾音 t 轻。" },
+        { "en": "Although I am not good at swimming, I am learning it this summer.", "cn": "虽然我不擅长游泳，今年夏天正在学。", "tip": "Although 引导让步，swimming 双 m 音。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍你喜欢的运动以及多久做一次。", "answer": "I like playing table tennis, and I play it three times a week after school.", "pattern": "frequency" },
+        { "prompt_cn": "说说怎样才能保持健康。", "answer": "To keep healthy, we should exercise every day, eat more vegetables and sleep for eight hours.", "pattern": "opinion" }
+      ]
+    },
+    {
+      "id": "s14", "part": 1,
+      "title": "Nature and environment", "cn": "自然与环境",
+      "focus": "环保行动 + 节约资源 + 个人责任",
+      "openers": ["What can we do to protect the environment?", "How do you save water at home?"],
+      "sourceRefs": ["215话题 81-85", "essays 61, 71, 72, 75, 96, 103, 109"],
+      "shadow": [
+        { "en": "We should sort our rubbish so that more materials can be recycled.", "cn": "我们应该分类垃圾，让更多材料能被回收。", "tip": "rubbish 重音在 RUB，recycled 重音在 CY。" },
+        { "en": "My class planted ten trees last spring, and we take turns watering them.", "cn": "去年春天我们班种了十棵树，大家轮流浇水。", "tip": "planted 尾音 d 轻，take turns 连读。" },
+        { "en": "If everyone turns off the lights when leaving a room, we can save a lot of energy.", "cn": "如果每个人离开房间时关灯，我们能省很多能源。", "tip": "turns off 连读，energy 重音在 EN。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你在家怎样节约用水用电。", "answer": "I turn off the tap when I brush my teeth and switch off the lights when I leave my room.", "pattern": "daily-life" },
+        { "prompt_cn": "为了保护环境，你认为最重要的一件事是什么？", "answer": "I think sorting rubbish is the most important thing, because it helps us recycle paper and plastic.", "pattern": "opinion" }
+      ]
+    },
+    {
+      "id": "s15", "part": 2,
+      "title": "Classroom and study", "cn": "课堂学习",
+      "focus": "四步法：整体 → 人物 → 位置 → 猜测",
+      "openers": ["Please describe the picture: a teacher helping students in a classroom."],
+      "sourceRefs": ["zhen2 1, 7, 15, 35, 37, 38, 47, 54, 68, 74, 80, 81, 84"],
+      "shadow": [
+        { "en": "In the picture, a teacher is helping two students with their work at a desk.", "cn": "照片里，一位老师正在桌边帮助两名学生做作业。", "tip": "helping 重音在 HELP，at a desk 连读。" },
+        { "en": "The boy on the left is writing carefully while the girl next to him is listening.", "cn": "左边的男孩正在认真写字，他旁边的女孩在听。", "tip": "carefully 重音在 CARE，while 弱读。" },
+        { "en": "They look interested because the teacher is explaining something in a friendly way.", "cn": "他们看起来很有兴趣，因为老师正用友好的方式讲解。", "tip": "interested 重音在 IN，explaining 重音在 PLAIN。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，一位老师正在教室里帮助学生做作业。", "answer": "In the picture, a teacher is helping some students with their homework in the classroom.", "pattern": "photo-total" },
+        { "prompt_cn": "猜一猜学生们为什么看起来很开心。", "answer": "The students look happy because the teacher is kind and their work is going well.", "pattern": "reason" }
+      ]
+    },
+    {
+      "id": "s16", "part": 2,
+      "title": "Library and reading", "cn": "图书馆阅读",
+      "focus": "整体 → 人物动作 → 氛围 → 猜测",
+      "openers": ["Please describe the picture: students reading in a library."],
+      "sourceRefs": ["zhen2 2, 34, 48, 57, 64, 75, 78"],
+      "shadow": [
+        { "en": "Several students are sitting at a long table and reading quietly in the library.", "cn": "几名学生正坐在长桌旁，在图书馆里安静地看书。", "tip": "quietly 重音在 QUI，library 重音在 LI。" },
+        { "en": "A girl in the middle is taking notes from a thick book.", "cn": "中间的一个女孩正在从一本厚书里做笔记。", "tip": "taking notes 连读，thick 注意 th。" },
+        { "en": "The room looks peaceful because everyone is focused on their own study.", "cn": "房间看起来很安静，因为每个人都专注于自己的学习。", "tip": "peaceful 重音在 PEACE，focused 重音在 FO。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，几名学生正在图书馆安静地看书。", "answer": "In the picture, several students are reading quietly in the library.", "pattern": "photo-total" },
+        { "prompt_cn": "描述坐在中间的女孩正在做什么。", "answer": "The girl sitting in the middle is taking notes from a big book.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s17", "part": 2,
+      "title": "Meals and restaurants", "cn": "用餐",
+      "focus": "整体 → 人物 → 食物 → 猜测关系",
+      "openers": ["Please describe the picture: people eating together in a restaurant."],
+      "sourceRefs": ["zhen2 3, 22, 24, 28, 41, 50, 76, 85"],
+      "shadow": [
+        { "en": "Three friends are sharing a pizza in a busy restaurant.", "cn": "三个朋友正在一家热闹的餐厅里分享披萨。", "tip": "sharing 重音在 SHA，busy 重音在 BU。" },
+        { "en": "The boy on the right is laughing while he holds a slice of pizza.", "cn": "右边的男孩一边拿着披萨，一边大笑。", "tip": "laughing 尾音 ng，slice of 连读。" },
+        { "en": "They seem relaxed because they are enjoying their free time together.", "cn": "他们看起来很放松，因为正一起享受空闲时间。", "tip": "relaxed 重音在后，together 重音在 GE。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，三个朋友正在餐厅一起吃披萨。", "answer": "In the picture, three friends are eating a pizza together in a restaurant.", "pattern": "photo-total" },
+        { "prompt_cn": "描述右边男孩的表情和动作。", "answer": "The boy on the right is laughing and holding a slice of pizza in his hand.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s18", "part": 2,
+      "title": "Cooking at home", "cn": "家庭烹饪",
+      "focus": "整体 → 分工 → 厨房物品 → 猜测菜品",
+      "openers": ["Please describe the picture: a family cooking in the kitchen."],
+      "sourceRefs": ["zhen2 39, 42, 49, 66, 71, 74, 83"],
+      "shadow": [
+        { "en": "A mother and her daughter are preparing dinner in a bright kitchen.", "cn": "一位妈妈和女儿正在明亮的厨房里准备晚饭。", "tip": "preparing 重音在 PAR，bright 尾音 t 轻。" },
+        { "en": "The mother is cutting vegetables while the girl is washing tomatoes at the sink.", "cn": "妈妈在切菜，女孩在水槽边洗西红柿。", "tip": "vegetables 重音在 VEG，tomatoes 重音在 MA。" },
+        { "en": "They are probably making a family meal because there are several dishes on the table.", "cn": "他们大概在做一家人的饭，因为桌上已经有好几道菜。", "tip": "probably 三个音节，dishes 重音在 DISH。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，妈妈和女儿正在厨房准备晚饭。", "answer": "In the picture, a mother and her daughter are preparing dinner in the kitchen.", "pattern": "photo-total" },
+        { "prompt_cn": "说说她们可能在做什么菜，以及为什么。", "answer": "They are probably making soup because I can see vegetables and a large pot on the cooker.", "pattern": "reason" }
+      ]
+    },
+    {
+      "id": "s19", "part": 2,
+      "title": "Sports on the field", "cn": "球场运动",
+      "focus": "整体 → 动作 → 穿着 → 猜测比赛",
+      "openers": ["Please describe the picture: people playing sports outdoors."],
+      "sourceRefs": ["zhen2 10, 11, 46, 51, 55, 72"],
+      "shadow": [
+        { "en": "Two boys are playing football on a grassy field while several classmates watch.", "cn": "两个男孩正在草地上踢足球，几个同学在旁边看。", "tip": "football 重音在 FOOT，grassy 重音在 GRA。" },
+        { "en": "The boy in the blue shirt is running towards the ball.", "cn": "穿蓝衬衫的男孩正朝球跑去。", "tip": "towards 重音在后，ball 长音。" },
+        { "en": "It looks like a school match because both teams are wearing the same colours.", "cn": "看起来像学校比赛，因为两队穿着同色队服。", "tip": "looks like 连读，colours 重音在 CUL。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，两个男孩正在草地上踢足球。", "answer": "In the picture, two boys are playing football on the grass.", "pattern": "photo-total" },
+        { "prompt_cn": "描述穿蓝衬衫的男孩正在做什么。", "answer": "The boy in the blue shirt is running quickly towards the ball.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s20", "part": 2,
+      "title": "Cycling and skating", "cn": "骑行与滑板",
+      "focus": "整体 → 人物 → 安全装备 → 猜测目的",
+      "openers": ["Please describe the picture: children riding bikes or skating."],
+      "sourceRefs": ["zhen2 18, 19, 21, 40, 58, 60"],
+      "shadow": [
+        { "en": "A group of children are riding bicycles along a path in the park.", "cn": "一群孩子正沿着公园的小路骑自行车。", "tip": "bicycles 重音在 BI，along a 连读。" },
+        { "en": "The girl at the front is ringing her bell and smiling.", "cn": "最前面的女孩一边按铃一边笑。", "tip": "ringing 尾音 ng，smiling 重音在 SMI。" },
+        { "en": "They are wearing helmets because they want to stay safe.", "cn": "他们戴着头盔，因为想保持安全。", "tip": "helmets 重音在 HEL，stay safe 连读。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，一群孩子正在公园的小路上骑自行车。", "answer": "In the picture, a group of children are riding bicycles along a path in the park.", "pattern": "photo-total" },
+        { "prompt_cn": "说说他们为什么戴头盔。", "answer": "They are wearing helmets because they want to keep safe while riding.", "pattern": "reason" }
+      ]
+    },
+    {
+      "id": "s21", "part": 2,
+      "title": "Park and outdoor leisure", "cn": "公园休闲",
+      "focus": "整体 → 活动 → 天气 → 猜测安排",
+      "openers": ["Please describe the picture: people enjoying time in a park."],
+      "sourceRefs": ["zhen2 4, 9, 22, 29, 32, 33, 53, 67, 70, 77, 87"],
+      "shadow": [
+        { "en": "Some teenagers are sitting on the grass and chatting happily in the park.", "cn": "几个青少年正坐在公园草地上开心地聊天。", "tip": "teenagers 重音在 TEE，chatting 重音在 CHA。" },
+        { "en": "Two of them are sharing a bottle of water after playing games.", "cn": "其中两人做完游戏后正在分享一瓶水。", "tip": "sharing 重音在 SHA，bottle of 连读。" },
+        { "en": "The weather is sunny, so they have decided to spend the afternoon outside.", "cn": "天气晴朗，所以他们决定在户外度过下午。", "tip": "decided 重音在 CI，afternoon 重音在 NOON。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，几个青少年正坐在公园的草地上聊天。", "answer": "In the picture, some teenagers are sitting on the grass and chatting in the park.", "pattern": "photo-total" },
+        { "prompt_cn": "猜测他们下午还会做什么。", "answer": "They will probably play games or take a walk around the lake.", "pattern": "prediction" }
+      ]
+    },
+    {
+      "id": "s22", "part": 2,
+      "title": "Beach and seaside", "cn": "海边",
+      "focus": "整体 → 人物动作 → 景物 → 感受",
+      "openers": ["Please describe the picture: people at the beach."],
+      "sourceRefs": ["zhen2 8, 14, 29, 32, 43, 56, 63, 79, 89"],
+      "shadow": [
+        { "en": "Two girls are walking along the beach and taking photos of the sea.", "cn": "两个女孩正沿着海滩散步，拍海景照片。", "tip": "walking 重音在 WALK，photos 重音在 PHO。" },
+        { "en": "The girl in the yellow dress is pointing at a boat in the distance.", "cn": "穿黄裙子的女孩正指着远处的一艘船。", "tip": "pointing at 连读，distance 重音在 DIS。" },
+        { "en": "They look relaxed because the weather is warm and the view is beautiful.", "cn": "他们看起来很放松，因为天气温暖、景色美丽。", "tip": "relaxed 重音在后，beautiful 重音在 BEAU。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，两个女孩正在海边散步并拍照。", "answer": "In the picture, two girls are walking along the beach and taking photos.", "pattern": "photo-total" },
+        { "prompt_cn": "描述远处有什么，以及她们在看什么。", "answer": "There is a small boat in the distance, and the girls are looking at it.", "pattern": "position" }
+      ]
+    },
+    {
+      "id": "s23", "part": 2,
+      "title": "Shopping centre", "cn": "商场购物",
+      "focus": "整体 → 商品 → 人物动作 → 猜测目的",
+      "openers": ["Please describe the picture: people shopping in a mall."],
+      "sourceRefs": ["zhen2 5, 20, 31, 44, 45, 61"],
+      "shadow": [
+        { "en": "Four girls are looking at clothes in a large shopping centre.", "cn": "四个女孩正在一家大商场里看衣服。", "tip": "shopping 重音在 SHOP，centre 重音在 CEN。" },
+        { "en": "One of them is holding a blue dress in front of a mirror.", "cn": "其中一个女孩正站在镜子前拿着一条蓝裙子。", "tip": "holding 重音在 HOL，mirror 重音在 MIR。" },
+        { "en": "They seem excited because they are choosing presents for a friend.", "cn": "他们看起来很开心，因为在给朋友挑礼物。", "tip": "excited 重音在 CI，presents 重音在 PRES。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，四个女孩正在商场里看衣服。", "answer": "In the picture, four girls are looking at clothes in a shopping centre.", "pattern": "photo-total" },
+        { "prompt_cn": "猜猜她们在为什么挑选衣服。", "answer": "They are probably choosing a birthday present for their friend.", "pattern": "prediction" }
+      ]
+    },
+    {
+      "id": "s24", "part": 2,
+      "title": "Birthday and celebrations", "cn": "生日庆祝",
+      "focus": "整体 → 蛋糕蜡烛 → 表情 → 气氛",
+      "openers": ["Please describe the picture: a birthday celebration."],
+      "sourceRefs": ["zhen2 6, 17, 82"],
+      "shadow": [
+        { "en": "A family is celebrating a boy's birthday with a cake and candles.", "cn": "一家人正在用蛋糕和蜡烛给一个男孩庆祝生日。", "tip": "celebrating 重音在 CEL，candles 重音在 CAN。" },
+        { "en": "The boy is smiling while his mother lights the candles.", "cn": "男孩笑着，妈妈正在点蜡烛。", "tip": "smiling 重音在 SMI，lights 尾音 ts。" },
+        { "en": "Everyone looks happy because they are singing a birthday song together.", "cn": "每个人看起来都很开心，因为正一起唱生日歌。", "tip": "everyone 三个音节，together 重音在 GE。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，一家人正在给一个小男孩庆祝生日。", "answer": "In the picture, a family is celebrating a little boy's birthday.", "pattern": "photo-total" },
+        { "prompt_cn": "描述男孩和妈妈正在做什么。", "answer": "The boy is smiling while his mother is lighting the candles on the cake.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s25", "part": 2,
+      "title": "Family at home", "cn": "家庭居家",
+      "focus": "整体 → 人物位置 → 活动 → 氛围",
+      "openers": ["Please describe the picture: a family at home."],
+      "sourceRefs": ["zhen2 16, 25, 26, 36, 89"],
+      "shadow": [
+        { "en": "A family of five are sitting on a sofa and watching TV together.", "cn": "一家五口正坐在沙发上一看电视。", "tip": "sofa 重音在 SO，watching 重音在 WATCH。" },
+        { "en": "The father is holding the remote control while the children eat snacks.", "cn": "爸爸拿着遥控器，孩子们在吃零食。", "tip": "remote control 连读，snacks 尾音 ks。" },
+        { "en": "They look comfortable because it is a quiet evening at home.", "cn": "他们看起来很舒适，因为这是家里安静的夜晚。", "tip": "comfortable 三个音节，evening 重音在 EVE。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，一家五口正坐在沙发上看电视。", "answer": "In the picture, a family of five are sitting on a sofa and watching TV.", "pattern": "photo-total" },
+        { "prompt_cn": "说说孩子们正在做什么。", "answer": "The children are eating snacks and watching the programme happily.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s26", "part": 2,
+      "title": "Electronic devices", "cn": "电子设备",
+      "focus": "整体 → 设备 → 专注程度 → 猜测",
+      "openers": ["Please describe the picture: children using electronic devices."],
+      "sourceRefs": ["zhen2 13, 69"],
+      "shadow": [
+        { "en": "Two children are playing computer games in their bedroom.", "cn": "两个小孩正在卧室里玩电脑游戏。", "tip": "computer 重音在 PU，bedroom 重音在 BED。" },
+        { "en": "The boy is using a laptop while his sister is holding a tablet.", "cn": "男孩在用笔记本电脑，妹妹拿着平板。", "tip": "laptop 重音在 LAP，tablet 重音在 TAB。" },
+        { "en": "They are concentrating hard because the game is difficult.", "cn": "他们非常专注，因为游戏很难。", "tip": "concentrating 重音在 CEN，difficult 重音在 DIF。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，两个小孩正在卧室里玩电脑游戏。", "answer": "In the picture, two children are playing computer games in their bedroom.", "pattern": "photo-total" },
+        { "prompt_cn": "描述他们分别在使用什么设备。", "answer": "The boy is using a laptop, and his sister is holding a tablet.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s27", "part": 2,
+      "title": "Travel and transport", "cn": "出行与交通",
+      "focus": "整体 → 行李 → 人物动作 → 猜测行程",
+      "openers": ["Please describe the picture: people travelling or waiting."],
+      "sourceRefs": ["zhen2 12, 23, 27, 30, 39, 59, 62, 73"],
+      "shadow": [
+        { "en": "A family are waiting for their train with several suitcases.", "cn": "一家人带着几个行李箱在等火车。", "tip": "waiting for 连读，suitcases 重音在 SUIT。" },
+        { "en": "The father is checking the timetable while the children sit on a bench.", "cn": "爸爸在看时刻表，孩子们坐在长椅上。", "tip": "timetable 重音在 TIME，bench 尾音 ch。" },
+        { "en": "They look tired but excited because they are going on holiday.", "cn": "他们看起来累但兴奋，因为要去度假。", "tip": "excited 重音在 CI，holiday 重音在 HOL。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，一家人带着行李在等火车。", "answer": "In the picture, a family are waiting for their train with some suitcases.", "pattern": "photo-total" },
+        { "prompt_cn": "描述爸爸正在做什么。", "answer": "The father is checking the timetable while the children are sitting on a bench.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s28", "part": 2,
+      "title": "Sightseeing and tours", "cn": "观光游览",
+      "focus": "整体 → 导游游客 → 建筑特征 → 猜测历史",
+      "openers": ["Please describe the picture: people visiting a place of interest."],
+      "sourceRefs": ["zhen2 52, 73"],
+      "shadow": [
+        { "en": "A guide is showing a group of tourists around an old building.", "cn": "一位导游正带着一群游客参观一座古建筑。", "tip": "tourists 重音在 TOUR，building 重音在 BUIL。" },
+        { "en": "Some visitors are taking photos while others are listening carefully.", "cn": "一些游客在拍照，另一些在认真听。", "tip": "visitors 重音在 VIS，carefully 重音在 CARE。" },
+        { "en": "The building looks historic because it has tall stone walls and small windows.", "cn": "这座建筑看起来很古老，因为有高高的石墙和小窗户。", "tip": "historic 重音在 TOR，windows 重音在 WIN。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，一位导游正带着游客参观一座古老的建筑。", "answer": "In the picture, a guide is showing a group of tourists around an old building.", "pattern": "photo-total" },
+        { "prompt_cn": "描述游客们在做什么。", "answer": "Some tourists are taking photos, and others are listening to the guide carefully.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s29", "part": 2,
+      "title": "Music and performance", "cn": "音乐演奏",
+      "focus": "整体 → 乐器 → 合作 → 猜测目的",
+      "openers": ["Please describe the picture: people playing music."],
+      "sourceRefs": ["zhen2 42"],
+      "shadow": [
+        { "en": "Two girls are playing the violin together in a music room.", "cn": "两个女孩正在音乐教室里一起拉小提琴。", "tip": "violin 重音在后，together 重音在 GE。" },
+        { "en": "The girl on the left is reading the music book while her friend follows the rhythm.", "cn": "左边的女孩在看乐谱，她的朋友跟着节奏。", "tip": "rhythm 注意 th，follows 重音在 FOL。" },
+        { "en": "They practise every week because they want to play in a concert.", "cn": "她们每周练习，因为想在音乐会上演奏。", "tip": "practise 重音在 PRAC，concert 重音在 CON。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，两个女孩正在音乐教室里一起拉小提琴。", "answer": "In the picture, two girls are playing the violin together in a music room.", "pattern": "photo-total" },
+        { "prompt_cn": "说说她们为什么每周练习。", "answer": "They practise every week because they want to play in a school concert.", "pattern": "reason" }
+      ]
+    },
+    {
+      "id": "s30", "part": 2,
+      "title": "Farm and animals", "cn": "农场动物",
+      "focus": "整体 → 人物动作 → 动物 → 感受",
+      "openers": ["Please describe the picture: people working on a farm."],
+      "sourceRefs": ["zhen2 65, 77, 88"],
+      "shadow": [
+        { "en": "Two girls are helping on a farm by feeding the chickens.", "cn": "两个女孩正在农场帮忙喂鸡。", "tip": "feeding 重音在 FEE，chickens 重音在 CHI。" },
+        { "en": "One girl is carrying a basket of eggs while the other opens the gate.", "cn": "一个女孩提着一篮鸡蛋，另一个打开门。", "tip": "carrying 重音在 CAR，basket 重音在 BAS。" },
+        { "en": "They are enjoying the work because they love animals and fresh air.", "cn": "她们很享受这份工作，因为喜欢动物和新鲜空气。", "tip": "enjoying 重音在 JOY，animals 重音在 AN。" }
+      ],
+      "make": [
+        { "prompt_cn": "照片里，两个女孩正在农场帮忙喂鸡。", "answer": "In the picture, two girls are helping on a farm and feeding the chickens.", "pattern": "photo-total" },
+        { "prompt_cn": "描述她们手里拿着什么。", "answer": "One girl is carrying a basket of eggs, and the other is opening the gate.", "pattern": "description" }
+      ]
+    },
+    {
+      "id": "s31", "part": 3,
+      "title": "Gifts and prizes", "cn": "礼物与奖品",
+      "focus": "观点 → 理由 → 反问 → 达成一致",
+      "openers": ["Let's talk about a good prize for a competition winner.", "What would you choose and why?"],
+      "sourceRefs": ["zhen34 1, 3, 4, 5, 6, 7, 33, 39, 42, 48, 49, 53"],
+      "shadow": [
+        { "en": "I think a book would be a better prize because it can be enjoyed for a long time.", "cn": "我认为书是更好的奖品，因为可以长久地享受。", "tip": "better prize 连读，enjoyed 重音在 JOY。" },
+        { "en": "What about giving the winner a day trip with friends instead of a trophy?", "cn": "与其给奖杯，不如送冠军一次和朋友的一日游，怎么样？", "tip": "What about 连读，instead of 连读。" },
+        { "en": "In my opinion, the prize should be useful, such as a pair of sports shoes.", "cn": "在我看来，奖品应该实用，比如一双运动鞋。", "tip": "opinion 重音在 PIN，useful 重音在 USE。" }
+      ],
+      "make": [
+        { "prompt_cn": "你认为比赛冠军最好的奖品是书，请说明两个理由。", "answer": "I think a book is the best prize because it is useful and it can be kept for many years.", "pattern": "opinion" },
+        { "prompt_cn": "建议送冠军一次和朋友一起的短途旅行。", "answer": "How about giving the winner a short trip with friends? It would be more exciting than a trophy.", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s32", "part": 3,
+      "title": "Travel packing", "cn": "旅行物品",
+      "focus": "列物品 → 用途 → 取舍 → 达成一致",
+      "openers": ["We are going on a trip. What should we take?", "Which item is the most important?"],
+      "sourceRefs": ["zhen34 2, 16, 17, 18, 19, 20, 32, 34, 44, 47, 51"],
+      "shadow": [
+        { "en": "Before a long trip, I always pack a raincoat so that I stay dry if it rains.", "cn": "长途旅行前，我总会带雨衣，这样下雨也能保持干燥。", "tip": "raincoat 重音在 RAIN，stay dry 连读。" },
+        { "en": "What about taking a small first-aid kit in case someone gets hurt?", "cn": "带一个小急救包怎么样，以防有人受伤？", "tip": "first-aid kit 连读，in case 连读。" },
+        { "en": "In my opinion, we should take fewer clothes and more water.", "cn": "我认为我们应该少带衣服、多带水。", "tip": "fewer 重音在 FEW，water 重音在 WA。" }
+      ],
+      "make": [
+        { "prompt_cn": "去海边旅行你会带什么？说两样并解释。", "answer": "I would take a hat and some water because the sun is strong and we need to drink.", "pattern": "opinion" },
+        { "prompt_cn": "建议带一个小药箱，以防有人受伤。", "answer": "How about taking a small first-aid kit in case someone gets hurt?", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s33", "part": 3,
+      "title": "Best places for activities", "cn": "活动地点",
+      "focus": "比较地点 → 理由 → 天气备选 → 决定",
+      "openers": ["Where is the best place for our class activity?", "Why do you think so?"],
+      "sourceRefs": ["zhen34 8, 9, 10, 43, 52, 54"],
+      "shadow": [
+        { "en": "I think the park is the best place for a picnic because it is quiet and green.", "cn": "我认为公园是野餐的最佳地点，因为安静又绿意盎然。", "tip": "picnic 重音在 PIC，quiet 两个音节。" },
+        { "en": "What about going to the sports centre instead, since it is close to school?", "cn": "既然离学校近，改去体育中心怎么样？", "tip": "sports centre 连读，since 弱读。" },
+        { "en": "We could meet at the library if the weather is bad.", "cn": "如果天气不好，我们可以改在图书馆集合。", "tip": "weather 注意 th，library 重音在 LI。" }
+      ],
+      "make": [
+        { "prompt_cn": "你认为公园是野餐的最佳地点，请说明理由。", "answer": "I think the park is the best place for a picnic because it is quiet and has lots of grass.", "pattern": "opinion" },
+        { "prompt_cn": "建议下雨时改去图书馆。", "answer": "If it rains, we could go to the library instead.", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s34", "part": 3,
+      "title": "Weekend and holiday activities", "cn": "假期活动",
+      "focus": "提议 → 比较 → 偏好 → 约定",
+      "openers": ["What shall we do this weekend?", "Do you prefer staying at home or going out?"],
+      "sourceRefs": ["zhen34 11, 12, 14, 24, 29, 31, 41, 46, 50, 55"],
+      "shadow": [
+        { "en": "On sunny weekends I usually go cycling with my family.", "cn": "晴朗的周末我通常和家人去骑车。", "tip": "cycling 重音在 CY，family 重音在 FAM。" },
+        { "en": "How about visiting a museum this Saturday? It will be both fun and educational.", "cn": "这周六去参观博物馆怎么样？既有趣又能学到东西。", "tip": "museum 重音在 SE，educational 重音在 CA。" },
+        { "en": "I would rather stay at home and read than go shopping all day.", "cn": "我宁愿在家看书，也不想逛一整天街。", "tip": "rather 重音在 RA，shopping 重音在 SHOP。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你晴朗周末通常做什么。", "answer": "On sunny weekends I usually go cycling with my family in the park.", "pattern": "daily-life" },
+        { "prompt_cn": "建议这周六去博物馆并说明理由。", "answer": "How about visiting a museum this Saturday? It will be fun and we can learn something new.", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s35", "part": 3,
+      "title": "School life and rules", "cn": "校园生活与规则",
+      "focus": "规则评价 → 理由 → 修改建议 → 结论",
+      "openers": ["What school rule would you like to change?", "Why?"],
+      "sourceRefs": ["zhen34 21, 22, 30, 40"],
+      "shadow": [
+        { "en": "In my opinion, students should be allowed to use phones only for study.", "cn": "我认为应该只允许学生用手机学习。", "tip": "allowed 重音在 LOW，only for 连读。" },
+        { "en": "Our school rule says we must wear uniforms, although some students find them uncomfortable.", "cn": "校规要求我们穿校服，虽然有些学生觉得不舒服。", "tip": "uniforms 重音在 U，uncomfortable 重音在 COM。" },
+        { "en": "If we could change one rule, I would make the lunch break longer.", "cn": "如果只能改一条规则，我会把午休时间延长。", "tip": "lunch break 连读，longer 重音在 LON。" }
+      ],
+      "make": [
+        { "prompt_cn": "你认为学生只能在学习时使用手机，请说明理由。", "answer": "I think students should use phones only for study because games waste too much time.", "pattern": "opinion" },
+        { "prompt_cn": "如果只能改一条校规，你想改什么？为什么？", "answer": "If I could change one rule, I would make the lunch break longer so that we can relax and eat slowly.", "pattern": "reason" }
+      ]
+    },
+    {
+      "id": "s36", "part": 3,
+      "title": "Helping at home", "cn": "家务与家庭",
+      "focus": "家务分工 → 独立性 → 家庭活动 → 建议",
+      "openers": ["Do you help with housework at home?", "Should children do chores?"],
+      "sourceRefs": ["zhen34 25, 28, 45"],
+      "shadow": [
+        { "en": "I help my parents by washing the dishes after dinner.", "cn": "晚饭后我帮父母洗碗。", "tip": "washing 重音在 WASH，dishes 重音在 DISH。" },
+        { "en": "In my opinion, children should do some housework because it teaches them to be independent.", "cn": "我认为孩子应该做些家务，因为这教会他们独立。", "tip": "independent 重音在 PEN，housework 重音在 HOUSE。" },
+        { "en": "How about cleaning the room together so that it is finished faster?", "cn": "一起打扫房间怎么样，这样能更快完成？", "tip": "together 重音在 GE，faster 重音在 FAS。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你在家帮忙做什么。", "answer": "I help my parents by washing the dishes and cleaning the table after dinner.", "pattern": "daily-life" },
+        { "prompt_cn": "你认为孩子应该做家务，请说明理由。", "answer": "I think children should do housework because it teaches us to look after ourselves.", "pattern": "opinion" }
+      ]
+    },
+    {
+      "id": "s37", "part": 3,
+      "title": "Learning English", "cn": "英语学习",
+      "focus": "方法 → 效果 → 建议 → 鼓励",
+      "openers": ["How do you learn English?", "What is the best way to improve speaking?"],
+      "sourceRefs": ["zhen34 27"],
+      "shadow": [
+        { "en": "I learn new words by reading English stories every night.", "cn": "我每天晚上读英语故事来学新单词。", "tip": "stories 重音在 STO，every 重音在 EV。" },
+        { "en": "Watching English films with subtitles helps me improve my listening.", "cn": "看带字幕的英语电影帮助我提高听力。", "tip": "subtitles 重音在 SUB，improve 重音在后。" },
+        { "en": "If you want to speak better, you should practise with a friend every day.", "cn": "如果你想说得更好，应该每天和朋友练习。", "tip": "practise 重音在 PRAC，better 重音在 BET。" }
+      ],
+      "make": [
+        { "prompt_cn": "介绍你学英语的一个好方法。", "answer": "I learn new words by reading English stories every night before I go to bed.", "pattern": "description" },
+        { "prompt_cn": "建议朋友每天和朋友练口语。", "answer": "If you want to speak better, you should practise with a friend for ten minutes every day.", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s38", "part": 3,
+      "title": "Environment and city", "cn": "环境与城市",
+      "focus": "问题 → 建议 → 好处 → 行动",
+      "openers": ["What should we do to make our city cleaner?", "Which idea is the best?"],
+      "sourceRefs": ["zhen34 21, 22, 23, 24"],
+      "shadow": [
+        { "en": "We should plant more trees because they make the air cleaner.", "cn": "我们应该多种树，因为它们让空气更干净。", "tip": "plant 尾音 t 轻，cleaner 重音在 CLEAN。" },
+        { "en": "What about asking shops to use paper bags instead of plastic ones?", "cn": "让商店用纸袋代替塑料袋怎么样？", "tip": "instead of 连读，plastic 重音在 PLAS。" },
+        { "en": "If everyone walks or cycles short distances, the city will be quieter and cleaner.", "cn": "如果每个人都步行或骑车走短途，城市会更安静、更干净。", "tip": "distances 重音在 DIS，quieter 重音在 QUI。" }
+      ],
+      "make": [
+        { "prompt_cn": "你认为应该多种树，请说明理由。", "answer": "I think we should plant more trees because they make the air cleaner and the city greener.", "pattern": "opinion" },
+        { "prompt_cn": "建议商店用纸袋代替塑料袋。", "answer": "How about asking shops to use paper bags instead of plastic bags?", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s39", "part": 3,
+      "title": "Health and lifestyle", "cn": "健康生活",
+      "focus": "睡眠 → 饮食 → 运动 → 习惯建议",
+      "openers": ["How do you stay healthy?", "What is the most important healthy habit?"],
+      "sourceRefs": ["zhen34 13, 15, 26, 35, 52"],
+      "shadow": [
+        { "en": "I try to sleep for eight hours every night so that I have enough energy.", "cn": "我尽量每晚睡八小时，这样才有足够精力。", "tip": "enough energy 连读，energy 重音在 EN。" },
+        { "en": "Although I like sweets, I only eat them at weekends.", "cn": "虽然我喜欢甜食，但只在周末吃。", "tip": "Although 引导让步，sweets 尾音 ts。" },
+        { "en": "In my opinion, doing exercise with friends is the easiest way to stay healthy.", "cn": "我认为和朋友一起运动是最容易保持健康的方式。", "tip": "easiest 重音在 EA，healthy 注意 th。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你怎样保证充足睡眠。", "answer": "I go to bed before ten every night so that I can sleep for eight hours.", "pattern": "daily-life" },
+        { "prompt_cn": "你认为和朋友一起运动是最容易保持健康的方式，请说明理由。", "answer": "I think exercising with friends is the easiest way to stay healthy because it is fun and we encourage each other.", "pattern": "opinion" }
+      ]
+    },
+    {
+      "id": "s40", "part": 3,
+      "title": "Food and cooking", "cn": "饮食与烹饪",
+      "focus": "烹饪价值 → 班级活动 → 健康比较 → 选择",
+      "openers": ["Should students learn to cook?", "What food would you make for a class party?"],
+      "sourceRefs": ["zhen34 13, 15"],
+      "shadow": [
+        { "en": "I would like to learn how to cook because it is a useful life skill.", "cn": "我想学做饭，因为这是一项有用的生活技能。", "tip": "useful 重音在 USE，skill 短音。" },
+        { "en": "What about making a fruit salad for the class party?", "cn": "为班级聚会做水果沙拉怎么样？", "tip": "fruit salad 连读，party 重音在 PAR。" },
+        { "en": "In my opinion, home-made food is healthier than fast food.", "cn": "我认为家里做的饭比快餐更健康。", "tip": "home-made 重音在 HOME，healthier 注意 th。" }
+      ],
+      "make": [
+        { "prompt_cn": "你想学做饭，请说明理由。", "answer": "I would like to learn how to cook because it is a useful skill and I can help my parents.", "pattern": "reason" },
+        { "prompt_cn": "建议班级聚会做水果沙拉。", "answer": "How about making a fruit salad for the class party? It is easy and everyone likes fruit.", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s41", "part": 3,
+      "title": "Movies and media", "cn": "电影与媒体",
+      "focus": "类型偏好 → 推荐 → 广告判断 → 结论",
+      "openers": ["What kind of films do you enjoy?", "Do you believe advertisements?"],
+      "sourceRefs": ["zhen34 37, 38"],
+      "shadow": [
+        { "en": "I enjoy watching films with a good story because they make me think.", "cn": "我喜欢看故事精彩的电影，因为它们让我思考。", "tip": "watching 重音在 WATCH，story 重音在 STO。" },
+        { "en": "What about watching a comedy tonight? We have had a long week.", "cn": "今晚看部喜剧怎么样？我们这周太累了。", "tip": "comedy 重音在 COM，tonight 重音在 NIGHT。" },
+        { "en": "In my opinion, we should not believe everything we see in advertisements.", "cn": "我认为我们不该相信广告里看到的一切。", "tip": "believe 重音在后，advertisements 重音在 VER。" }
+      ],
+      "make": [
+        { "prompt_cn": "你喜欢有精彩故事的电影，请说明理由。", "answer": "I enjoy watching films with a good story because they make me think and feel excited.", "pattern": "reason" },
+        { "prompt_cn": "建议今晚看喜剧，因为大家这周很累。", "answer": "How about watching a comedy tonight? We have had a long week and need to relax.", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s42", "part": 3,
+      "title": "Celebrations and parties", "cn": "庆祝与派对",
+      "focus": "派对细节 → 地点 → 纪念方式 → 决定",
+      "openers": ["How should we celebrate the end of term?", "Where should we have the party?"],
+      "sourceRefs": ["zhen34 43"],
+      "shadow": [
+        { "en": "I think a birthday party is more fun when friends bring small gifts.", "cn": "我认为朋友带小礼物会让生日派对更有趣。", "tip": "birthday 重音在 BIRTH，gifts 尾音 ts。" },
+        { "en": "What about having the party in the park if the weather is nice?", "cn": "如果天气好，在公园办派对怎么样？", "tip": "having 重音在 HA，weather 注意 th。" },
+        { "en": "We could make a photo album together to remember the day.", "cn": "我们可以一起做一本相册来纪念这一天。", "tip": "album 重音在 AL，remember 重音在 MEM。" }
+      ],
+      "make": [
+        { "prompt_cn": "你认为朋友带小礼物会让生日派对更有趣。", "answer": "I think a birthday party is more fun when friends bring small gifts and we open them together.", "pattern": "opinion" },
+        { "prompt_cn": "建议天气好时在公园办派对。", "answer": "If the weather is nice, we could have the party in the park.", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s43", "part": 3,
+      "title": "Money and budgets", "cn": "金钱与预算",
+      "focus": "存钱 → 比价 → 列清单 → 选择",
+      "openers": ["How do you manage your pocket money?", "How can we spend less?"],
+      "sourceRefs": ["zhen34 26, 35"],
+      "shadow": [
+        { "en": "I save part of my pocket money every month so that I can buy a present.", "cn": "我每月存一部分零花钱，这样可以买礼物。", "tip": "pocket money 连读，present 重音在 PRES。" },
+        { "en": "In my opinion, we should compare prices before we buy anything expensive.", "cn": "我认为买贵东西前应该比较价格。", "tip": "compare 重音在后，expensive 重音在 PEN。" },
+        { "en": "What about making a shopping list so that we do not waste money?", "cn": "列一张购物清单怎么样，这样就不会浪费钱？", "tip": "shopping list 连读，waste 尾音 t 轻。" }
+      ],
+      "make": [
+        { "prompt_cn": "说说你怎样管理零花钱。", "answer": "I save part of my pocket money every month so that I can buy a present for my family.", "pattern": "daily-life" },
+        { "prompt_cn": "建议买东西前比较价格。", "answer": "We should compare prices before we buy something expensive, because it helps us save money.", "pattern": "opinion" }
+      ]
+    },
+    {
+      "id": "s44", "part": 3,
+      "title": "Technology and phones", "cn": "科技与手机",
+      "focus": "好处 → 限制 → 专注方法 → 结论",
+      "openers": ["Do students need mobile phones at school?", "How can we use phones well?"],
+      "sourceRefs": ["zhen34 15"],
+      "shadow": [
+        { "en": "Mobile phones are useful for learning because we can look up new words quickly.", "cn": "手机对学习很有用，因为能快速查生词。", "tip": "useful 重音在 USE，quickly 重音在 QUICK。" },
+        { "en": "However, we should not use them for too long because it is bad for our eyes.", "cn": "不过我们不该用太久，因为对眼睛不好。", "tip": "However 后稍停，eyes 双元音。" },
+        { "en": "What about turning off notifications while we are doing homework?", "cn": "做作业时关闭通知怎么样？", "tip": "notifications 重音在 CA，homework 重音在 HOME。" }
+      ],
+      "make": [
+        { "prompt_cn": "手机对学习有帮助，请说明理由。", "answer": "Mobile phones are useful for learning because we can look up new words and watch teaching videos.", "pattern": "opinion" },
+        { "prompt_cn": "建议做作业时关闭通知。", "answer": "What about turning off notifications while we are doing homework? It will help us focus.", "pattern": "suggest" }
+      ]
+    },
+    {
+      "id": "s45", "part": 3,
+      "title": "Volunteering and helping others", "cn": "志愿与助人",
+      "focus": "志愿动机 → 具体经历 → 公益提议 → 决定",
+      "openers": ["Would you like to be a volunteer?", "What can we do to help others?"],
+      "sourceRefs": ["zhen34 28"],
+      "shadow": [
+        { "en": "I would like to be a volunteer because I enjoy helping other people.", "cn": "我想当志愿者，因为我喜欢帮助别人。", "tip": "volunteer 重音在后，helping 重音在 HELP。" },
+        { "en": "Last month I helped an old neighbour carry her shopping upstairs.", "cn": "上个月我帮一位老邻居把买的东西搬上楼。", "tip": "neighbour 重音在 NEIGH，upstairs 重音在 STAIRS。" },
+        { "en": "What about organising a book collection for children in the countryside?", "cn": "为乡村儿童组织一次捐书活动怎么样？", "tip": "organising 重音在 OR，countryside 重音在 COUN。" }
+      ],
+      "make": [
+        { "prompt_cn": "你想当志愿者，请说明理由。", "answer": "I would like to be a volunteer because I enjoy helping others and making new friends.", "pattern": "reason" },
+        { "prompt_cn": "建议为乡村儿童组织一次捐书活动。", "answer": "How about organising a book collection for children in the countryside?", "pattern": "suggest" }
+      ]
+    }
+  ]
+}

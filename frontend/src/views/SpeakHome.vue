@@ -210,7 +210,7 @@ const validDays = computed(() => Number.isInteger(days.value) && days.value >= 1
 const previewDays = computed<PlanDayView[]>(() =>
   validDays.value ? splitSpeakPlan(planData.value, days.value) : [],
 );
-/** 选中计划日包含的真题场景（来自 161 场景题库） */
+/** 选中计划日包含的真题场景（来自 45 场景题库） */
 const activeScenes = computed(() => {
   const pd = activePlanDay.value;
   if (!pd) return [];
