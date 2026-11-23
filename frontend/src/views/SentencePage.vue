@@ -44,14 +44,13 @@
 
         <div v-if="prompt" class="practice">
           <div class="prompt-big">{{ prompt.prompt_cn }}</div>
-          <div class="hint">先自己说一句完整的英文，再提交。</div>
+          <div class="hint">点「开始说」，用英文把这句意思说出来；说完点「说完了」。</div>
 
           <div class="saybar">
             <template v-if="!conn">
               <n-button type="primary" size="large" :disabled="checking" @click="startSpeak">
-                🎤 开始说
+                {{ mine ? "🎤 再说一次" : "🎤 开始说" }}
               </n-button>
-              <span class="sayhint">也可以直接在下面用键盘输入</span>
             </template>
             <template v-else>
               <n-button type="primary" size="large" :loading="listening" @click="finishSpeak">
@@ -62,16 +61,8 @@
             <span class="status">{{ status }}</span>
           </div>
 
-          <textarea
-            v-model="mine" rows="2"
-            placeholder="或在这里输入你说的英文，例如：I think a book is the best prize..."
-          ></textarea>
-
           <div class="actions">
-            <n-button
-              type="primary" :disabled="!mine.trim() || checking" :loading="checking" @click="check"
-            >{{ checking ? "AI 正在看…" : "让 AI 看看" }}</n-button>
-            <n-button secondary :disabled="!mine.trim()" @click="play(mine.trim())">听我这句话</n-button>
+            <n-button v-if="heard" secondary @click="play(heard)">听我说的</n-button>
             <n-button quaternary @click="answerShown = !answerShown">
               {{ answerShown ? "收起标准答案" : "看标准答案" }}
             </n-button>
@@ -232,6 +223,8 @@ async function startSpeak(): Promise<void> {
   if (!prompt.value || conn.value) return;
   finished = false;
   heard.value = "";
+  fb.value = null;
+  answerShown.value = false;
   status.value = "连接语音服务…";
   try {
     const c = await createSpeakConn({
@@ -253,7 +246,7 @@ async function startSpeak(): Promise<void> {
     connLocal = c;
     conn.value = c;
   } catch (e) {
-    status.value = "语音不可用：" + (e as Error).message + "（可以用键盘输入）";
+    status.value = "语音不可用：" + (e as Error).message + "（请检查麦克风后重试）";
     closeConn();
   }
 }
@@ -262,9 +255,17 @@ function finishSpeak(): void {
   if (!connLocal) return;
   listening.value = true;
   status.value = "AI 正在听…";
-  mine.value = heard.value.trim();
   connLocal.commitAndRespond();
-  window.setTimeout(() => { if (listening.value) listening.value = false; }, 8000);
+  window.setTimeout(() => {
+    if (!listening.value) return;
+    if (heard.value.trim()) {
+      void finishWithTranscript();
+      return;
+    }
+    listening.value = false;
+    status.value = "没有听清，请再说一次。";
+    closeConn();
+  }, 8000);
 }
 
 async function finishWithTranscript(): Promise<void> {
@@ -273,7 +274,7 @@ async function finishWithTranscript(): Promise<void> {
   const said = heard.value.trim();
   closeConn();
   if (!said) {
-    status.value = "没有听清，请再说一遍，或在下面输入。";
+    status.value = "没有听清，请再说一次。";
     return;
   }
   mine.value = said;
@@ -383,8 +384,7 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .prompt-big { font-size: 17px; font-weight: 700; color: var(--c-text); line-height: 1.7; }
 .hint { color: var(--c-text-2); font-size: var(--fs-sub); margin: 4px 0 10px; }
 .saybar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-.sayhint, .status { color: var(--c-text-2); font-size: var(--fs-sub); }
-textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--c-line, #d1d5db); border-radius: var(--r-btn); padding: 10px; font-family: inherit; font-size: var(--fs-body, 16px); color: var(--c-text); resize: vertical; }
+.status { color: var(--c-text-2); font-size: var(--fs-sub); }
 .actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
 .answer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--c-mint-bg); }
 .ans { font-weight: 600; color: var(--c-text); }

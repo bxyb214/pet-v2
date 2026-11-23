@@ -167,22 +167,40 @@ def recent_issues(db: Session, user_id: int, limit: int = 8) -> list[str]:
     return out[:limit]
 
 
+def _api_keys(db: Session, cfg: dict) -> list[str]:
+    """口语 Key 优先；Authorization 失败时回退 llm.api_key（只配了一个百炼 Key 也能用）。"""
+    from app.services.ai_enrich import get_cfg
+
+    keys = [cfg["api_key"]] if cfg["api_key"] else []
+    llm = (get_cfg(db, "llm.api_key") or "").strip()
+    if llm and llm not in keys:
+        keys.append(llm)
+    return keys
+
+
 def proxy_sdp(db: Session, sdp: str, mode: str) -> dict:
     """带 Key 换 SDP。Key 不回传。失败抛 RuntimeError(带消息)。"""
     cfg = qwen_cfg(db)
-    if not cfg["api_key"]:
+    keys = _api_keys(db, cfg)
+    if not keys:
         raise PermissionError("管理员还没有配置 Qwen API Key")
     model = pick_model(cfg, mode)
     url = webrtc_url(cfg, model)
-    resp = httpx.post(
-        url,
-        content=sdp,
-        headers={"Content-Type": "application/sdp", "Authorization": f"Bearer {cfg['api_key']}"},
-        timeout=_TIMEOUT,
-    )
-    body = resp.text
-    if 200 <= resp.status_code < 300 and body.lstrip().startswith("v="):
-        return {"sdp": body, "model": model, "voice": pick_voice(cfg, mode), "url": url}
+    body = ""
+    status_code = 0
+    for key in keys:
+        resp = httpx.post(
+            url,
+            content=sdp,
+            headers={"Content-Type": "application/sdp", "Authorization": f"Bearer {key}"},
+            timeout=_TIMEOUT,
+        )
+        body = resp.text
+        status_code = resp.status_code
+        if 200 <= status_code < 300 and body.lstrip().startswith("v="):
+            return {"sdp": body, "model": model, "voice": pick_voice(cfg, mode), "url": url}
+        if status_code not in (401, 403):
+            break  # 不是 Key 的问题，不再换 Key 重试
     msg = ""
     try:
         j = json.loads(body)
@@ -190,8 +208,8 @@ def proxy_sdp(db: Session, sdp: str, mode: str) -> dict:
     except (json.JSONDecodeError, AttributeError):
         pass
     if not msg:
-        msg = body[:200] or str(resp.status_code)
-    raise RuntimeError(f"连接语音服务失败（HTTP {resp.status_code}，{model}）：{msg}")
+        msg = body[:200] or str(status_code)
+    raise RuntimeError(f"连接语音服务失败（HTTP {status_code}，{model}）：{msg}")
 
 
 def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
@@ -200,10 +218,9 @@ def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
     import hashlib
     from pathlib import Path
 
-    from app.services.ai_enrich import get_cfg  # noqa: F401 占位避免循环引用语义混淆
-
     cfg = qwen_cfg(db)
-    if not cfg["api_key"]:
+    keys = _api_keys(db, cfg)
+    if not keys:
         raise PermissionError("管理员还没有配置 Qwen API Key")
     text = text.strip()[:300]
     if not text:
@@ -217,19 +234,27 @@ def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
     f = d / f"{key}.wav"
     cached = f.is_file() and f.stat().st_size >= 1000
     if not cached:
-        resp = httpx.post(
-            "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {cfg['api_key']}"},
-            json={"model": model, "input": {"text": text, "voice": voice, "language_type": "English"}},
-            timeout=40.0,
-        )
         audio_url = ""
-        try:
-            audio_url = resp.json()["output"]["audio"]["url"]
-        except (json.JSONDecodeError, KeyError, TypeError):
-            pass
+        status_code, detail = 0, ""
+        for key in keys:
+            resp = httpx.post(
+                "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+                json={"model": model, "input": {"text": text, "voice": voice, "language_type": "English"}},
+                timeout=40.0,
+            )
+            status_code = resp.status_code
+            try:
+                audio_url = resp.json()["output"]["audio"]["url"]
+            except (json.JSONDecodeError, KeyError, TypeError):
+                audio_url = ""
+            if audio_url:
+                break
+            detail = resp.text[:160]
+            if status_code not in (401, 403):
+                break  # 不是 Key 的问题，不再换 Key 重试
         if not audio_url:
-            raise RuntimeError(f"合成失败（HTTP {resp.status_code}）：{resp.text[:160]}")
+            raise RuntimeError(f"合成失败（HTTP {status_code}）：{detail}")
         audio = httpx.get(audio_url, timeout=40.0).content
         if len(audio) < 1000:
             raise RuntimeError("下载合成音频失败")
