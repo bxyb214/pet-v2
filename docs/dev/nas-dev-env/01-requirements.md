@@ -22,11 +22,13 @@
 | F-03 | dev 首次部署自动生成独立 `.env`（独立 JWT secret、`PET_DEV_MODE=1`、`PET_DEV_PORT=8089`） | P0 |
 | F-04 | 部署脚本解包后修正 `frontend/dist` 权限（`a+rX`），避免 nginx 403 | P0 |
 | F-05 | 文档：`docs/06` 增加开发环境说明与发布顺序 | P1 |
+| F-06 | `seed-db`：用生产库一致快照初始化/重置开发库（只对 dev 生效） | P0 |
 
 ## 4. 边界与非目标
 
 - 不引入 CI/CD、自动回滚、镜像仓库。
-- 开发环境不复制生产数据库与 AI Key；空库首次用邀请码 `claim` 注册。
+- 开发库由生产一致快照复制（账号、密码哈希、学习数据、`app_cfg` 里的 AI 配置随库带入）；
+  若切真实 AI 调用，建议在 dev 的 `/admin` 换成独立 Key。
 - 不改变生产 compose、同步合并语义、错题本规则与任何业务代码。
 
 ## 5. 验收标准
@@ -37,13 +39,15 @@
 - **AC-04**（F-01/F-03）：dev 的 `data/pet.db` 与生产 `data/pet.db` 为不同文件；生产 `8088` 健康检查不受影响。
 - **AC-05**（F-04）：重新执行 dev/prod 部署后，`frontend/dist` 权限为可读（nginx 无 403）。
 - **AC-06**（F-05）：`docs/06` 能找到 dev 部署命令、端口、目录与发布顺序。
+- **AC-07**（F-06）：`seed-db --profile dev` 后，dev 的 `users` / `mastery` / `plans` 数量与迁移版本同生产一致；生产 healthz 与数据不受影响。
+- **AC-08**（F-06）：`seed-db` 只接受 `--profile dev`，对 prod 调用直接拒绝。
 
 ## 6. 影响面
 
 | 类别 | 内容 |
 |---|---|
-| 脚本 | `tools/deploy_nas.py`（新增 profile、权限修正、`.env` 内容） |
+| 脚本 | `tools/deploy_nas.py`（新增 profile、权限修正、`.env` 内容、`seed-db`） |
 | 部署 | 新增 `deploy/docker-compose.dev.yml`；不修改生产 `docker-compose.yml` |
-| 数据 | 新增 NAS 目录 `/vol1/1000/docker/pet-v2-dev/`（含独立 `data/`） |
+| 数据 | 新增 NAS 目录 `/vol1/1000/docker/pet-v2-dev/`（含独立 `data/`，可由生产快照初始化） |
 | 业务代码 | 无 |
 | 依赖 | 无新增 |

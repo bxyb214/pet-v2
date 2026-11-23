@@ -14,6 +14,9 @@
     python tools/deploy_nas.py deploy  --host <NAS-IP> --profile dev
     python tools/deploy_nas.py ps      --host <NAS-IP> --profile dev
 
+    # 用生产库快照重置开发库（覆盖 dev 数据，不影响生产）
+    python tools/deploy_nas.py seed-db --host <NAS-IP> --profile dev
+
 密码来源优先级：--password > 环境变量 NAS_PASS > 交互输入（不回显）。
 凭据绝不写进本文件、也不进 git；本机存在 ../nas-credentials.md（仓库外）。
 
@@ -182,10 +185,12 @@ class Runner:
             return self.sudo(f"docker {sub}", timeout, stream)
         return self.sh(f"docker {sub}", timeout, stream)
 
-    def compose(self, sub: str, timeout: int = 1800, stream: bool = True) -> tuple[int, str]:
+    def compose(self, sub: str, timeout: int = 1800, stream: bool = True,
+                remote: str | None = None, compose_file: str | None = None) -> tuple[int, str]:
         self.detect_docker()
-        remote = shlex.quote(getattr(self, "remote", DEFAULT_REMOTE))
-        inner = f"cd {remote}/deploy && docker compose -f {self.compose_file} {sub}"
+        remote = shlex.quote(remote or getattr(self, "remote", DEFAULT_REMOTE))
+        compose_file = compose_file or self.compose_file
+        inner = f"cd {remote}/deploy && docker compose -f {compose_file} {sub}"
         # sudo() 内部已用 sh -c 包了一层，cd 这类内建命令可以直接用
         if self.docker_as_sudo:
             return self.sudo(inner, timeout, stream)
@@ -407,6 +412,62 @@ def cmd_deploy(args, R: Runner, cli) -> None:
     print(f"管理页：    http://{args.host}:{args.http_port}/admin")
 
 
+def cmd_seed_db(args, R: Runner) -> None:
+    """用生产库的一致快照覆盖开发库（仅 --profile dev）。"""
+    if args.profile != "dev":
+        die("seed-db 只用于 --profile dev（避免覆盖生产数据）")
+    prod = DEFAULT_REMOTE
+    dev = args.remote
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    snap_name = f"pet-seed-{stamp}.db"
+    snap_host = f"{prod}/data/backup/{snap_name}"
+
+    info("1/4 生产库一致快照 …")
+    snap_py = (
+        "import sqlite3;"
+        "s=sqlite3.connect('/app/data/pet.db');"
+        f"d=sqlite3.connect('/app/data/backup/{snap_name}');"
+        "s.backup(d);d.close();s.close();print('snapshot ok')"
+    )
+    code, out = R.compose(f"exec -T api python -c {shlex.quote(snap_py)}",
+                          remote=prod, compose_file="docker-compose.yml", timeout=300)
+    if code != 0 or "snapshot ok" not in out:
+        die(f"生产快照失败：{out[:400]}")
+
+    info("2/4 停止开发 api …")
+    code, out = R.compose("stop api", remote=dev,
+                          compose_file="docker-compose.dev.yml", timeout=180)
+    if code != 0:
+        die(f"停止 dev api 失败：{out[:300]}")
+
+    info("3/4 覆盖开发库（保留生产快照备份）…")
+    install = (
+        f"install -m 600 {shlex.quote(snap_host)} {shlex.quote(dev + '/data/pet.db')}"
+        f" && rm -f {shlex.quote(dev + '/data/pet.db-wal')}"
+        f" {shlex.quote(dev + '/data/pet.db-shm')}"
+    )
+    code, out = R.sudo(install)
+    if code != 0:
+        die(f"复制开发库失败：{out[:300]}")
+
+    info("4/4 启动开发 api …")
+    code, out = R.compose("start api", remote=dev,
+                          compose_file="docker-compose.dev.yml", timeout=180)
+    if code != 0:
+        die(f"启动 dev api 失败：{out[:300]}")
+
+    for _ in range(40):
+        _, out = R.sh(f"curl -fsS http://127.0.0.1:{args.http_port}/api/v1/healthz 2>/dev/null || true")
+        if "ok" in out.lower():
+            ok(f"开发库已就绪：{out.strip()}")
+            ok(f"生产快照保留于 {snap_host}")
+            return
+        time.sleep(3)
+    R.compose("logs --tail 40 api", remote=dev,
+              compose_file="docker-compose.dev.yml", timeout=120, stream=True)
+    die("开发环境健康检查超时")
+
+
 def cmd_ps(args, R: Runner) -> None:
     R.remote = args.remote
     _, out = R.compose("ps", timeout=60, stream=False)
@@ -432,7 +493,7 @@ def cmd_logs(args, R: Runner) -> None:
 # ---------------------------------------------------------------- main
 def main() -> None:
     ap = argparse.ArgumentParser(description="飞牛 NAS 部署工具")
-    ap.add_argument("action", choices=["check", "deploy", "ps", "restart", "logs"])
+    ap.add_argument("action", choices=["check", "deploy", "seed-db", "ps", "restart", "logs"])
     ap.add_argument("--host", required=True, help="NAS 内网 IP")
     ap.add_argument("--port", type=int, default=22, help="SSH 端口")
     ap.add_argument("--user", default="admin")
@@ -465,6 +526,7 @@ def main() -> None:
     try:
         {"check": lambda: cmd_check(args, R),
          "deploy": lambda: cmd_deploy(args, R, cli),
+         "seed-db": lambda: cmd_seed_db(args, R),
          "ps": lambda: cmd_ps(args, R),
          "restart": lambda: cmd_restart(args, R),
          "logs": lambda: cmd_logs(args, R)}[args.action]()
