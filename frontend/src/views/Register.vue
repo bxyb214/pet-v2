@@ -11,7 +11,7 @@
   >
     <header class="head">
       <h2>{{ isFirst ? "第一次使用" : "创建账号" }}</h2>
-      <p>{{ isFirst ? "这是本机的第一个账号，将拥有管理权限" : "找小淏要注册码后注册" }}</p>
+      <p>{{ isFirst ? "这是本机的第一个账号，将拥有管理权限" : "" }}</p>
     </header>
 
     <n-form label-placement="top" size="large" @submit.prevent="submit">
