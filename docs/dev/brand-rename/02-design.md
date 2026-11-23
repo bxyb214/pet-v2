@@ -27,3 +27,12 @@
 | 旧文案被测试断言 | 已检索 `frontend/src/**/*.test.ts`，无相关断言 |
 | 图标改变影响布局 | 同为 17px SVG / 单字符 emoji，不改变排版 |
 | 注册页首个账号流程 | `isFirst` 分支文案不变，仅普通注册分支调整 |
+
+## 4. 第 2 轮
+
+- `frontend/index.html`：`<title>火焰学习</title>`，新增
+  `<link rel="icon" type="image/svg+xml" href="/favicon.svg">`。
+- `frontend/public/favicon.svg`：64×64 viewBox，深绿圆角方块 + 橙黄渐变火焰；
+  16px 下仍能看出火光，与顶栏 🔥 一致。
+- 注册页 `points` 首条改为「邀请码找小淏要，一次性使用」。
+- 只改静态资源，无接口/依赖变更。
