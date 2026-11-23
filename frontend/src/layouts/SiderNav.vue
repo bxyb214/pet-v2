@@ -32,7 +32,7 @@
       </button>
     </template>
 
-    <div class="sider-foot">绿野成长 · 每天进步一点点</div>
+    <div class="sider-foot">火焰学习 · 每天进步一点点</div>
   </nav>
 </template>
 

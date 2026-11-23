@@ -8,8 +8,8 @@
         </svg>
       </button>
       <router-link to="/" class="logo">
-        <span class="leaf">🌿</span>
-        <span class="logo-txt">绿野英语</span>
+        <span class="leaf">🔥</span>
+        <span class="logo-txt">火焰学习</span>
       </router-link>
       <div class="spacer"></div>
       <n-dropdown

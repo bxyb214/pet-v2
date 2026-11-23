@@ -11,7 +11,6 @@
   >
     <header class="head">
       <h2>登录</h2>
-      <p>用老师给你的用户名和密码</p>
     </header>
 
     <n-form :show-label="false" size="large" @submit.prevent="submit">
@@ -85,13 +84,12 @@ async function submit(): Promise<void> {
 <style scoped>
 .head { margin-bottom: 22px; }
 .head h2 {
-  margin: 0 0 6px;
+  margin: 0;
   font-size: 20px;
   font-weight: 800;
   letter-spacing: 0.2px;
   color: var(--c-text);
 }
-.head p { margin: 0; font-size: 12.5px; color: var(--c-text-2); }
 
 .field { margin-bottom: 14px; }
 
