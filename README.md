@@ -1,91 +1,109 @@
 # PET 备考网站 v2
 
-面向小学生的 PET（B1 Preliminary for Schools）备考站点：单词 / 阅读 / 听力 / 口语四大板块 + 语文·数学占位。
-前端 Vue 3 + Naive UI，后端 FastAPI + SQLite，Docker Compose 部署于家用 NAS。
+面向小学生的 PET（B1 Preliminary for Schools）备考站点：**单词 / 阅读 / 语法 / 听力 / 口语** + 语文·数学占位。
+前端 Vue 3 + Naive UI，后端 FastAPI + SQLite，Docker Compose 自托管于家用 NAS。
+
+![Vue 3](https://img.shields.io/badge/Vue-3-42b883?logo=vue.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-WAL-003b57?logo=sqlite&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ed?logo=docker&logoColor=white)
 
 ## 功能
 
 | 板块 | 能力 |
 |---|---|
-| 单词 | 1680 词四库（必默 712 / 高频 414 / 固定搭配 254 / 同义 300）；任意天数计划；三题型测验（拼写 / 看词选义 / 看义选词）；错题本按 1/2/4/7/15 天记忆曲线复习；手动加词（AI 补全词性/释义/例句）；发音（浏览器 TTS） |
-| 阅读 | 207 句精读（语法解析 + 知识点 + 生词提示）；416 道语法题（42 考点，10 天）；错题本；阅读计划（按 Part 切分）；手动加句 |
-| 听力 | 6 套真题 24 个 Part；纯播放器：音频 + 随进度高亮/自动滚动的可隐藏字幕 + 0.8/0.9/1.0/1.1/1.2 五档倍速；纸质卷作答（页面不判分、无错题本） |
-| 口语 | 手动创建口语计划（选天数自动切分，新建重置打卡）；每天 5 分钟跟读 + 10 分钟造句 + 15 分钟自由对话（10 分钟对话 + 5 分钟复盘，三项都完成才打勾）；对话中 AI 即时把回答改成 PET 标准句并就地跟读（AI 点评 + 腾讯云 SOE 双引擎）；161 个真题场景独立题库，计划每天列出当天场景；练习时长按真实开口秒数在服务端累计 |
-| 管理 | AI 配置（LLM / Qwen Realtime / 腾讯 SOE，Key 掩码）、按人按天的 AI 用量与费用统计（只记录不限流） |
+| 单词 | 四词库 1680 词（必默 712 / 高频 414 / 固搭 254 / 同义 300）；任意天数计划；三题型测验；错题本按 1/2/4/7/15 天复习；手动加词（AI 补全） |
+| 阅读 | 207 句精读（解析 / 知识点 / 生词）；416 道语法题（42 考点）；阅读计划可按教材切分；错题本；手动加句 |
+| 语法 | 独立板块，10 天 / 42 考点 |
+| 听力 | 6 套真题 24 个 Part；纯播放器：音频 + 可隐藏滚动字幕 + 0.8–1.2 五档倍速；纸质卷作答 |
+| 口语 | 手动计划（1–90 天）；每天 5 分钟跟读 + 10 分钟造句 + 15 分钟自由对话（10 对话 + 5 复盘）；AI 即时改写并跟读；161 个真题场景题库；练习时长按真实开口秒数累计 |
+| 管理 | AI 配置（Key 掩码）、按人按天用量与费用、邀请码、口语权限开关 |
 
-数据默认本地保存（localStorage）并自动同步到服务端；多端登录时按「并集 / 取欠得多 / 取大」规则合并。
+学习数据默认存 localStorage，联网后增量同步；多端按「并集 / 欠得多 / 取大」合并。
 
 ## 技术栈
 
-- **前端**：Vue 3 · TypeScript · Vite · Pinia · vue-router · Naive UI · @vicons/ionicons5 · vitest（jsdom）
-- **后端**：FastAPI · SQLAlchemy 2 · SQLite(WAL) · Alembic · argon2 + bcrypt 兼容 · PyJWT
-- **AI**：阿里云百炼 Qwen（Realtime 语音对话 / 文本补全 / TTS）、腾讯云智聆口语评测（SOE 新版）
-- **部署**：Docker Compose（nginx + api 两容器）
+- **前端**：Vue 3 · TypeScript · Vite · Pinia · vue-router · Naive UI · vitest
+- **后端**：FastAPI · SQLAlchemy 2 · SQLite(WAL) · Alembic · JWT · argon2/bcrypt · pytest
+- **AI**：阿里云百炼 Qwen（Realtime / 文本 / TTS）、腾讯云 SOE
+- **部署**：Docker Compose（nginx + api）
 
-## 目录
+## 快速开始
 
-```
-backend/            FastAPI 服务
-  app/api/v1/       路由：auth / sync / words / speak / admin
-  app/models/       数据模型（learning / extra / speak / usage / user）
-  app/services/     合并、AI 补全、Qwen Realtime、腾讯 SOE、画像、复盘、用量
-  alembic/          数据库迁移
-  tests/            pytest（64+ 用例）
-frontend/           Vue 3 应用
-  src/core/         纯逻辑（merge / sync / plan / reading / listening / speak / soe / say）
-  src/views/        页面（单词 / 阅读 / 听力 / 口语 / 管理）
-  src/layouts/      布局壳 + 学科导航
-  public/data/      构建产物 JSON（banks / reading / listening / speak）
-data-src/           数据源（教材结构化后的 JSON）
-tools/              构建脚本（词库 / 阅读 / 听力 / 口语数据生成、旧数据迁移）
-deploy/             Dockerfile、compose、nginx 配置
-docs/               需求、架构、功能清单、设计规范、部署手册、走查报告
-```
-
-## 本地开发
+### Docker（推荐）
 
 ```bash
-# 后端（Python 3.11+）
-cd backend
-python -m venv .venv
-.venv/Scripts/pip install -e ".[dev]"
-.venv/Scripts/python -m alembic upgrade head
-.venv/Scripts/python -m uvicorn app.main:app --port 8000 --reload
+cd frontend && npm install && npm run build   # nginx 直接挂载 dist
+cd ../deploy
+cp .env.example .env                          # 填 PET_JWT_SECRET（openssl rand -hex 32）
+docker compose up -d --build                  # api 启动时自动迁移
+```
 
-# 前端（Node 18+）
+访问 <http://localhost:8088>。运行期数据（JSON / 音频 / 数据库）不随仓库分发，首次需从 NAS 同步，详见 [部署文档](docs/06-部署与运维.md)。
+
+空库首次用邀请码 `claim` 注册，第一个账号自动成为管理员；AI Key 部署后在 `/admin` 填写。
+
+### 本地开发
+
+```bash
+# 后端（Python 3.12+）
+cd backend
+python -m venv .venv && .venv/bin/pip install -e ".[dev]"
+.venv/bin/python -m alembic upgrade head
+.venv/bin/python -m uvicorn app.main:app --port 8000 --reload
+
+# 前端（Node 20+）
 cd frontend
 npm install
 npm run dev        # http://localhost:5173，/api 代理到 8000
 ```
 
-首次使用：数据库为空时，注册页用任意邀请码 `claim` 的第一个账号自动成为管理员；之后由管理员在「管理 → 用户」发放邀请码。
+> README 的历史版本写的是 Windows 路径 `.venv/Scripts/`；macOS/Linux 用 `.venv/bin/`。
 
-## 测试与构建
-
-```bash
-cd backend  && .venv/Scripts/python -m pytest tests/ -q     # 后端
-cd frontend && npx vitest run && npx vue-tsc --noEmit && npm run build
-```
-
-## 部署
-
-见 `docs/08-飞牛NAS部署手册.md`。要点：
+## 常用命令
 
 ```bash
-cd deploy
-cp .env.example .env         # 填 PET_JWT_SECRET（必填）
-docker compose up -d --build
+cd frontend && npm test                 # vitest
+cd frontend && npx vitest run src/core/merge.test.ts
+cd frontend && npm run build            # vue-tsc + vite build（无独立 lint）
+cd backend  && .venv/bin/python -m pytest tests/ -q
+cd backend  && .venv/bin/python -m pytest tests/test_merge.py -q
+node tools/check_overflow.js http://localhost:5178   # 20 路由 × 3 视口
+python tools/check_tokens.py                         # CSS 变量引用检查
 ```
 
-- 首次启动自动执行 Alembic 迁移；数据库落在挂载卷 `data/pet.db`
-- AI Key 在「管理 → AI 配置」页填写，**不写入代码或环境文件**；服务端只回显尾 4 位
-- 语音相关 Key（Qwen / 腾讯 SOE）全程只在服务端使用，前端拿到的是带签名的临时地址
+## 目录
 
-## 素材与体积说明
+```text
+frontend/     Vue 3 应用（src/core 纯逻辑，src/views 页面）
+backend/      FastAPI（api/v1 → services → models，Alembic 迁移）
+data-src/     学习数据源（构建产物在 frontend/public/data）
+tools/        构建、迁移、部署、检查脚本
+deploy/       Dockerfile、compose、nginx
+docs/         需求 / 架构 / 规范 / 部署 / 口语方案 / 功能开发记录
+```
 
-- `frontend/public/audio/`（听力音频约 85MB）与教材 PDF **不进版本库**，部署时单独同步
-- 词库、阅读、听力、口语的运行期数据在 `frontend/public/data/*.json`，由 `tools/build_*.js|py` 从 `data-src/` 生成
+## 文档
+
+完整索引与阅读路径见 **[docs/README.md](docs/README.md)**。
+
+| 文档 | 内容 |
+|---|---|
+| [01 需求清单](docs/01-需求清单.md) | 冻结的需求基线与决议 |
+| [02 技术架构](docs/02-技术架构.md) | 选型、API、数据模型、同步 |
+| [03 Agent 技术规范](docs/03-Agent技术规范.md) | 七阶段工作流与 DoD |
+| [04 功能清单](docs/04-功能清单.md) | 功能编号与验收口径 |
+| [05 前端设计规范](docs/05-前端设计规范.md) | Design Token 与组件模式 |
+| [06 部署与运维](docs/06-部署与运维.md) | 本地 / NAS / 备份 / 迁移 |
+| [07 口语实时对话](docs/07-口语实时对话方案.md) | 提示词、记忆、成本、复盘 |
+
+## 数据与素材
+
+- `frontend/public/audio/`（约 85 MB）与教材 PDF **不进版本库**，部署时单独同步。
+- `frontend/public/data/*.json` 由 `data-src/` 经 `tools/build_*` 生成，不手改。
+- 旧站参考代码在上级目录 `../PET/`，只读。
 
 ## 许可
 
-个人学习用途项目，教材内容版权归原出版方所有，请勿用于商业分发。
+个人学习项目；教材内容版权归原出版方，请勿用于商业分发。
