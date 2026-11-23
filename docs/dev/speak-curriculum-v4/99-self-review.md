@@ -53,3 +53,16 @@
 3. **计划节奏**：45 场景按比例铺到 1–90 天，90 天计划中相邻两天可能重复同一场景；
    如需每天不重复，可将默认计划改为 45 天或改为轮换算法。
 4. Part2 仍为文字场景，图片裁切未做（与本次目标无关）。
+
+## 6. 上线后修复（2026-11-23）
+
+生产验证时 `/speak/check` 返回 500，日志为
+`httpx.UnsupportedProtocol: Request URL is missing an 'http://' or 'https://' protocol`。
+
+- 根因：管理页保存配置时把未填字段写成**空串**（`llm.base_url`、`llm.model` 为空），
+  `get_cfg` 拿到了空串而不是默认值，URL 变成 `/chat/completions`。
+- 影响面不止造句：AI 加词、`speak.qwen` 的 model/voice 同样会拿到空串。
+- 修复：`ai_enrich.chat` 与 `qwen_speak.qwen_cfg` 把空串视同未配置、回退默认值；
+  新增 `backend/tests/test_ai_cfg.py`（2 例）。后端 95 测试通过后重新部署。
+- 复验：生产造句页输入一句话 → 真实 AI 返回「没有完全说到：缺少告诉考官名字…」
+  与优化句，标准答案同时展示。**结论维持 PASS-with-notes**，仍建议人工用麦克风试说一次。

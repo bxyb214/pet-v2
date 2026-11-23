@@ -54,8 +54,12 @@ def chat(db: Session, messages: list[dict], max_tokens: int = 300, temperature: 
     api_key = get_cfg(db, "llm.api_key")
     if not api_key:
         raise LookupError("未配置 AI Key")
-    base_url = get_cfg(db, "llm.base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-    model = get_cfg(db, "llm.model", "qwen3.8-flash")
+    # 管理页会把未填的字段存成空串：空串视同未配置，回退默认值
+    base_url = (
+        get_cfg(db, "llm.base_url").strip()
+        or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    )
+    model = get_cfg(db, "llm.model").strip() or "qwen3.8-flash"
 
     resp = httpx.post(
         f"{base_url.rstrip('/')}/chat/completions",

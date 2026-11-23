@@ -39,19 +39,25 @@ def qwen_cfg(db: Session) -> dict:
             d = {}
     except json.JSONDecodeError:
         d = {}
+
+    def pick(key: str, default: str = "") -> str:
+        """管理页会把未填项存成空串：空串视同未配置，回退默认值。"""
+        v = d.get(key)
+        return v.strip() if isinstance(v, str) and v.strip() else default
+
     return {
-        "base": d.get("base", "https://dashscope.aliyuncs.com"),
-        "workspace": d.get("workspace", ""),
-        "api_key": d.get("api_key", ""),
+        "base": pick("base", "https://dashscope.aliyuncs.com"),
+        "workspace": pick("workspace"),
+        "api_key": pick("api_key"),
         # 2026-11 最新：Qwen3.8-Omni-Flash-Realtime（支持 Function Call / MCP / semantic_vad）。
         # 注意：qwen3.8 系列必须绑定业务空间（workspace）调用；旧的 qwen3.5-omni-flash-realtime
         # 仍可用 dashscope 直连，作为回退（配置 model 即可切换）。
-        "model": d.get("model", "qwen3.8-omni-flash-realtime"),
-        "voice": d.get("voice", "Tina"),
-        "shadow_model": d.get("shadow_model", ""),
-        "voice_shadow": d.get("voice_shadow", ""),
-        "tts_model": d.get("tts_model", "qwen3-tts-flash"),
-        "tts_voice": d.get("tts_voice", "Ryan"),
+        "model": pick("model", "qwen3.8-omni-flash-realtime"),
+        "voice": pick("voice", "Tina"),
+        "shadow_model": pick("shadow_model"),
+        "voice_shadow": pick("voice_shadow"),
+        "tts_model": pick("tts_model", "qwen3-tts-flash"),
+        "tts_voice": pick("tts_voice", "Ryan"),
     }
 
 
