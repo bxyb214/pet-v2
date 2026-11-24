@@ -7,6 +7,12 @@
       <template v-if="hasPlan">今天目标 10 分钟。</template>
     </p>
 
+    <div v-if="banner" class="banner" :class="banner.tone">{{ banner.text }}</div>
+    <div v-if="lockText" class="lockbar">
+      <b>付费 AI 未启用</b>
+      <span>{{ lockText }} 仍可看标准答案，用浏览器朗读。</span>
+    </div>
+
     <div v-if="hasPlan" class="card targetbar" :class="{ over: overGoal }">
       <span class="target-label">今日造句</span>
       <b class="target-time">{{ mmss(elapsed) }}</b>
@@ -48,8 +54,11 @@
 
           <div class="saybar">
             <template v-if="!conn">
-              <n-button type="primary" size="large" :disabled="checking" @click="startSpeak">
+              <n-button type="primary" size="large" :disabled="checking || locked" @click="startSpeak">
                 {{ mine ? "🎤 再说一次" : "🎤 开始说" }}
+              </n-button>
+              <n-button v-if="locked" size="large" secondary @click="play(prompt?.answer ?? '')">
+                听标准答案
               </n-button>
             </template>
             <template v-else>
@@ -94,13 +103,17 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { NButton, NSelect, NTag } from "naive-ui";
-import { api } from "../core/api";
+import { api, apiBeacon } from "../core/api";
 import {
   loadSpeak, parseShadowReply, planDayDone, splitSpeakPlan,
   type DayCheck, type PlanDayView, type Scene, type SpeakData,
 } from "../core/speak";
 import { createSpeakConn, type SpeakConn } from "../core/speakRTC";
 import { useSpeakTime } from "../core/speakTime";
+import {
+  budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
+} from "../core/aiStatus";
+import { say, playAudioUrl } from "../core/say";
 import BackButton from "../components/BackButton.vue";
 
 const route = useRoute();
@@ -117,6 +130,10 @@ const fb = ref<{ ok: boolean; comment: string; improved: string } | null>(null);
 const status = ref("");
 const listening = ref(false);
 const conn = ref<SpeakConn | null>(null);
+const aiStatus = ref<AiStatus | null>(null);
+const banner = computed(() => budgetBanner(aiStatus.value));
+const locked = computed(() => paidBlocked(aiStatus.value));
+const lockText = computed(() => paidLockText(aiStatus.value));
 let connLocal: SpeakConn | null = null;
 let finished = false;
 
@@ -147,8 +164,10 @@ const sceneOptions = computed(() =>
 );
 
 onMounted(async () => {
+  window.addEventListener("pagehide", onPageHide);
   data.value = await loadSpeak();
   loading.value = false;
+  aiStatus.value = await loadAiStatus();
   try {
     const [p, d] = await Promise.all([
       api<{ length: number }>("/speak/plan"),
@@ -179,6 +198,7 @@ onMounted(async () => {
   }, 1000);
 });
 onBeforeUnmount(() => {
+  window.removeEventListener("pagehide", onPageHide);
   if (timer) clearInterval(timer);
   stopSpeak();
 });
@@ -189,6 +209,8 @@ function pickPart(id: number): void {
   if (first) pickScene(first.id);
 }
 function pickScene(id: string): void {
+  // 跨场景不复用语音连接：先按本次连接上报并关闭，下一场景重新握手。
+  if (id !== sceneId.value) closeConn();
   sceneId.value = id;
   pi.value = 0;
   resetAttempt();
@@ -203,7 +225,8 @@ function resetAttempt(): void {
   answerShown.value = false;
   fb.value = null;
   status.value = "";
-  stopSpeak();
+  if (listening.value) closeConn();
+  else conn.value = null;
 }
 
 function voiceInstructions(p: { prompt_cn: string }): string {
@@ -221,10 +244,21 @@ function voiceInstructions(p: { prompt_cn: string }): string {
 
 async function startSpeak(): Promise<void> {
   if (!prompt.value || conn.value) return;
+  if (locked.value) {
+    status.value = lockText.value;
+    return;
+  }
   finished = false;
   heard.value = "";
   fb.value = null;
   answerShown.value = false;
+  // P1-5：同一场景复用连接，只更新提示词，不再重复 SDP 握手
+  if (connLocal && !connLocal.closed) {
+    connLocal.updateInstructions?.(voiceInstructions(prompt.value));
+    conn.value = connLocal;
+    status.value = "可以开始说，说完点「说完了」";
+    return;
+  }
   status.value = "连接语音服务…";
   try {
     const c = await createSpeakConn({
@@ -272,7 +306,7 @@ async function finishWithTranscript(): Promise<void> {
   finished = true;
   listening.value = false;
   const said = heard.value.trim();
-  closeConn();
+  conn.value = null; // 释放界面按钮，但保留 connLocal 供下一句复用
   if (!said) {
     status.value = "没有听清，请再说一次。";
     return;
@@ -282,21 +316,48 @@ async function finishWithTranscript(): Promise<void> {
   await check();
 }
 
-function closeConn(): void {
-  const c = connLocal;
-  connLocal = null;
-  conn.value = null;
-  listening.value = false;
-  try { c?.close(); } catch { /* noop */ }
-}
 function stopSpeak(): void {
   closeConn();
   status.value = "";
 }
 
+/** 关闭连接前按服务端会话补报一次（幂等；页面关闭走 keepalive）。 */
+function reportConn(c: SpeakConn | null): void {
+  if (!c || !c.sessionId) return;
+  apiBeacon("/speak/session_end", {
+    seconds: c.elapsedSec(),
+    ai_seconds: c.speechSec(),
+    mode: "make",
+    session_id: c.sessionId,
+  });
+}
+
+function onPageHide(): void {
+  const c = connLocal;
+  connLocal = null;
+  conn.value = null;
+  reportConn(c);
+  try { c?.close(); } catch { /* noop */ }
+}
+
+function closeConn(): void {
+  const c = connLocal;
+  connLocal = null;
+  conn.value = null;
+  listening.value = false;
+  reportConn(c);
+  try { c?.close(); } catch { /* noop */ }
+}
+
 async function check(): Promise<void> {
   if (!prompt.value || !mine.value.trim()) return;
   void logMake();
+  if (locked.value) {
+    fb.value = { ok: false, comment: lockText.value, improved: "" };
+    answerShown.value = true;
+    status.value = "";
+    return;
+  }
   checking.value = true;
   fb.value = null;
   try {
@@ -332,13 +393,19 @@ async function logMake(): Promise<void> {
 
 async function play(text: string): Promise<void> {
   if (!text) return;
+  if (locked.value) {
+    say(text);
+    return;
+  }
   try {
-    const r = await api<{ b64: string; mime: string }>("/speak/tts", {
+    const r = await api<{ url: string }>("/speak/tts", {
       method: "POST",
       body: JSON.stringify({ text }),
     });
-    void new Audio(`data:${r.mime};base64,${r.b64}`).play();
-  } catch { /* 忽略播放失败 */ }
+    await playAudioUrl(r.url, text);
+  } catch {
+    say(text); // 免费降级 / TTS 失败时用浏览器朗读
+  }
 }
 function mmss(s: number): string {
   const m = Math.floor(s / 60);
@@ -353,6 +420,11 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 14px; }
 .back { margin-bottom: 8px; }
 .card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
+.banner { margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); font-size: var(--fs-sub); font-weight: 600; }
+.banner.warn { background: var(--c-accent-soft); color: var(--c-accent); border: 1px solid var(--c-accent); }
+.banner.danger { background: var(--c-danger-soft); color: var(--c-danger); border: 1px solid var(--c-danger); }
+.lockbar { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); background: var(--c-accent-soft); color: var(--c-text-2); font-size: var(--fs-sub); }
+.lockbar b { color: var(--c-accent); }
 .targetbar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 10px 14px; margin-bottom: 12px; color: var(--c-text-2); font-size: var(--fs-sub);

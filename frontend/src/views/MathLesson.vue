@@ -14,13 +14,14 @@
           <h1>{{ lesson.title }}</h1>
           <div class="meta">
             <span class="grade">{{ book.gradeName }}</span>
-            <span class="tag">{{ lesson.tag }}</span>
+            <span v-if="lesson.tag" class="tag">{{ lesson.tag }}</span>
             <span class="grp">{{ lesson.group }}</span>
           </div>
         </div>
       </header>
 
       <MathPlayer
+        v-if="src"
         ref="player"
         :key="lesson.id"
         :lesson-id="lesson.id"
@@ -28,6 +29,9 @@
         :start-at="startAt"
         @save="onSave"
       />
+      <div v-else class="card empty">
+        {{ mediaError || "视频加载中…" }}
+      </div>
 
       <p class="hint">
         <n-icon :component="TvOutline" size="16" />
@@ -67,6 +71,7 @@ import {
   findBook, isDone, lessonKey, loadMath, videoUrl,
   type MathBook, type MathData, type MathLesson,
 } from "../core/math";
+import { mediaToken } from "../core/mediaToken";
 import { useLearningStore } from "../stores/learning";
 
 const route = useRoute();
@@ -96,8 +101,13 @@ const rec = computed(() => {
 const done = computed(() => isDone(rec.value));
 /** 学完从头放；没学完从上次位置续播 */
 const startAt = computed(() => (done.value ? 0 : rec.value?.idx ?? 0));
+/** 视频必须是登录用户：先换取短时效媒体令牌，再拼进 src（AirPlay 也能取流） */
+const token = ref("");
+const mediaError = ref("");
 const src = computed(() =>
-  lesson.value && book.value ? videoUrl(book.value.mediaDir, lesson.value.file) : "",
+  lesson.value && book.value && token.value
+    ? videoUrl(book.value.mediaDir, lesson.value.file, token.value)
+    : "",
 );
 
 function onSave(id: string, seconds: number, wasDone: boolean): void {
@@ -113,6 +123,11 @@ function restart(): void {
 onMounted(async () => {
   try {
     data.value = await loadMath();
+    try {
+      token.value = await mediaToken();
+    } catch {
+      mediaError.value = "视频加载需要登录，请重新登录后再试。";
+    }
   } finally {
     loading.value = false;
   }

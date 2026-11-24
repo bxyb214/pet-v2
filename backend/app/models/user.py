@@ -24,6 +24,11 @@ class User(Base):
     data_rev: Mapped[int] = mapped_column(Integer, default=1)  # 同步乐观锁版本号
     # 当前学习的考试级别：pet / ket /（预留 fce / junior）；决定显示哪套词库与教材
     exam: Mapped[str] = mapped_column(String(16), default="pet")
+    # 付费 AI 闸门：口语模块默认可浏览，付费接口需管理员开通
+    ai_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 用户级预算覆盖（0.001 元）；NULL = 使用全局 ai.budget
+    ai_daily_budget_milli: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    ai_monthly_budget_milli: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 

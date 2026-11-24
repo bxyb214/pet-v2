@@ -1,6 +1,6 @@
-# PET v2 AI 优化与额度方案（草案）
+# PET v2 AI 优化与额度方案（已实施）
 
-> 状态：草案，2026-11-24。**未实施**，用于评审与后续拆分开发。
+> 状态：**已实施**（2026-11-24，分支 `feat/ai-budget`）。本文件保留为设计与验收基线；实现细节、测试与已知缺口见 [dev/ai-budget](dev/ai-budget/)。
 > 关联：[07 口语实时对话方案](07-口语实时对话方案.md)、[04 功能清单](04-功能清单.md)、[06 部署与运维](06-部署与运维.md)。
 > 本文件取代此前对话中的 P0–P2 口头清单；第 2 节是修订后的正式版本。
 
@@ -20,8 +20,8 @@
 | 场景 | 实现 | AI 费用 |
 |---|---|---|
 | 词库浏览（单词/例句） | 浏览器 `speechSynthesis`（`core/say.ts`，优先 en-GB） | 0 |
-| 计划学习卡（单词） | 静态 `/media/audio/<audio>`（`WordStudyCard.vue:33`） | 0，但文件缺失时静默失败 |
-| 计划测试/测验（单词） | 同上（`QuizPage.vue:843`） | 0，同上 |
+| 计划学习卡（单词） | 浏览器 `speechSynthesis`（`core/say.ts`，点击内同步调用） | 0 |
+| 计划测试/测验（单词） | 同上（`QuizPage.vue`）；w2m 答题前自动朗读，其余答后手动 | 0 |
 | 阅读精读/测验 | 浏览器 `speechSynthesis`（`core/reading.ts:128`，en-US） | 0 |
 | 口语示范 | Qwen TTS（`qwen_speak.py:191`），按句 sha1 磁盘缓存 | 按字符，未记账 |
 
@@ -104,10 +104,13 @@
 - 每个分组独立保存，避免一个全局“保存配置”误改账号。
 - 详见第 6 节。
 
-**P0-5 单词音频修复/兜底**
+**P0-5 单词音频修复/兜底**（2026-11-24 修订）
 
-- 部署时补齐 `/media/audio`，或播放失败回退到浏览器 `say(word)`。
-- 例句发音入口统一：浏览页已有，计划学习/测验按需补“听整句”。
+- ~~部署时补齐 `/media/audio`，或播放失败回退到浏览器 `say(word)`。~~
+- 旧站的 mp3 是「整组音频」，词库 `audio` 字段并不是单词发音，本站也从未托管该目录；
+  已改为单词一律走浏览器 `say(word)`，并在点击事件内**同步**调用（iOS Safari 只在手势内发声）。
+  详见 [dev/word-audio-ios](dev/word-audio-ios/)。
+- 例句发音入口统一：浏览页已有，计划学习/测验已补“听整句”。
 
 ### 2.3 P1（体验与成本）
 
@@ -434,6 +437,27 @@ else: call TTS once -> write wav -> return
 4. 计划模式是否继续按 pack 主题选句，还是完全按难度抽句。
 5. 告警渠道：先站内 + 管理端，是否还需要微信/邮件。
 6. “小淏”是唯一开通人，还是管理员角色都可以开通。
+
+### 7.4 实施回执（2026-11-24）
+
+| 优先级 | 落地内容 | 代码位置 |
+|---|---|---|
+| P0-1 | 每账号 `ai_enabled` + 日/月预算覆盖；80% 告警、100% 硬停；服务端闸门 403/429；首个 claim 管理员自动开通 | `models/user.py`、`services/budget.py`、`core/deps.py`、迁移 `e1a2b3c4d5e6` |
+| P0-2 | 跟读会话跟踪、TTS 字符/缓存计费、`enrich_word` LLM、`session_end` 幂等与超时补记、Realtime 文本 token 估算、可配置单价 | `services/usage.py`、`services/budget.py`、`api/v1/speak*.py` |
+| P0-3 | 跟读句库 `difficulty/words/focus/source/active`；按最近得分选难度、避开最近、弱词加权、稳定抖动 | `tools/build_speak_v4.js`（schema 5）、`core/sentenceBank.ts` |
+| P0-4 | 管理页拆为概览 / AI 配置 / 用户与额度 / 用量与预算；配置按组保存与连通性测试 | `views/AdminPage.vue`、`views/admin/*`、`api/v1/admin_ai.py` |
+| P0-5 | 单词音频缺失回退浏览器朗读；单词学习/测验增加「听整句」 | `core/say.ts`、`WordStudyCard.vue`、`QuizPage.vue` |
+| P1 | Realtime 主/备模型与 VAD、画像每日复用、improve ≥4 词自动调用、TTS 缓存 512MB LRU、同场景连接复用 | `qwen_speak.py`、`speak_profile.py`、`core/improve.ts`、`core/speakRTC.ts` |
+| P2 | 半双工静音、TTS 静态 URL、月末预测 + CSV、免费降级与弱词选句 | `speakRTC.ts`、`speak_media.py`、`AdminUsage.vue`、`aiStatus.ts` |
+
+**待确认项的处理**：默认预算采用日 ¥0.50 / 月 ¥10.00（可在管理页改）；免费用户保留「浏览器朗读 + 跟读可听可读但不评分」；告警先做站内与管理端；计划模式仍按 pack/场景选句，自由模式才跨库按难度抽句。
+
+**本地校验**：`speak.json` 已按 schema 5 重新生成（45 包 / 135 跟读句 / 90 造句 / 300 自由句）；
+后端 117、前端 185 测试通过，`vue-tsc`、`vite build`、`check_tokens.py`、26 条路由 × 1440/820/390 的
+`check_overflow.js` 均通过。
+
+**仍需真实环境验收**：TTS 真实合成与缓存命中、Realtime 主备切换、页面关闭时 `session_end` 的
+`sendBeacon` 补报；这些需要供应商 Key，不阻塞代码完成判定。
 
 ## 8. 参考
 

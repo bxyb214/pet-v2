@@ -16,7 +16,7 @@ def _setup_user() -> None:
     db.close()
     r = client.post(
         "/api/v1/auth/claim",
-        json={"username": "syncer", "password": "secret123", "invite_code": "SYNC-INVITE"},
+        json={"username": "syncer", "password": "pet-test-pass", "invite_code": "SYNC-INVITE"},
     )
     body = r.json()
     HEAD.clear()

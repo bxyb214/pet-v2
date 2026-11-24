@@ -73,7 +73,7 @@ type Subject = {
 const SUBJECTS: Subject[] = [
   { key: "english", name: "英语", icon: LanguageOutline, desc: "", first: "/english/words/browse", cls: "en" },
   { key: "chinese", name: "语文", icon: BookOutline, desc: "筹备中", first: "/chinese", cls: "cn" },
-  { key: "math", name: "数学", icon: CalculatorOutline, desc: "三年级已上线", first: "/math", cls: "ma" },
+  { key: "math", name: "数学", icon: CalculatorOutline, desc: "三、四年级已上线", first: "/math", cls: "ma" },
 ];
 
 const EN_MODULES: Module[] = [

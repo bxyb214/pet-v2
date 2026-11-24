@@ -1,5 +1,7 @@
 import { defineStore } from "pinia";
 import { api, getToken, setToken } from "../core/api";
+import { clearAiStatus } from "../core/aiStatus";
+import { clearMediaToken } from "../core/mediaToken";
 import { isTokenExpired } from "../core/token";
 import { useLearningStore } from "./learning";
 
@@ -40,6 +42,7 @@ export const useAuthStore = defineStore("auth", {
     },
     /** 只清登录态，不动本地学习快照（切换/失效时更安全）。 */
     clearSession(): void {
+      clearAiStatus();
       this.username = "";
       this.displayName = "";
       this.perms = "";
@@ -48,6 +51,7 @@ export const useAuthStore = defineStore("auth", {
     },
     logout(): void {
       useLearningStore().disconnect();
+      clearMediaToken();
       setToken(null);
       this.clearSession();
     },

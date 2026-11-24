@@ -81,8 +81,12 @@ def _fallback_profile(db: Session, user_id: int, stats: dict) -> str:
     return "\n".join(lines)
 
 
-def get_profile(db: Session, user_id: int, rebuild: bool = True) -> str:
-    """取当日画像；built_day 不是今天则重建（LLM 失败降级确定性文本）。"""
+def get_profile(db: Session, user_id: int, rebuild: bool = False) -> str:
+    """取当日画像；built_day 不是今天则重建（LLM 失败降级确定性文本）。
+
+    P1-2：默认复用当日缓存，不再每次 talk boot 都调用 LLM；会话摘要后由
+    `invalidate()` 清空 built_day，下一次 boot 重建。
+    """
     today = usage.today()
     row = db.get(SpeakProfile, user_id)
     if row is not None and row.built_day == today and not rebuild:
@@ -176,4 +180,13 @@ def summarize_session(db: Session, user_id: int, log: SpeakLog) -> str:
     if summary:
         log.summary = summary
         db.commit()
+        invalidate(db, user_id)
     return summary
+
+
+def invalidate(db: Session, user_id: int) -> None:
+    """会话摘要更新后让当日画像失效：下次 talk boot 重建（P1-2）。"""
+    row = db.get(SpeakProfile, user_id)
+    if row is not None:
+        row.built_day = ""
+        db.commit()

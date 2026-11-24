@@ -48,8 +48,7 @@ function fireUnauthorized(): void {
 export async function api<T>(
   path: string,
   options: RequestInit = {},
-): Promise<T> {
-  const headers = new Headers(options.headers);
+): Promise<T> {  const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -61,6 +60,10 @@ export async function api<T>(
       const body = await res.json();
       detail = body?.detail;
       if (typeof body?.detail === "string") message = body.detail;
+      // 额度/开通类错误：detail 为对象（{code, message, reset_at}）
+      else if (detail && typeof (detail as { message?: unknown }).message === "string") {
+        message = (detail as { message: string }).message;
+      }
     } catch {
       /* 保留默认消息 */
     }
@@ -74,4 +77,42 @@ export async function api<T>(
     throw err;
   }
   return (await res.json()) as T;
+}
+
+/**
+ * 带鉴权下载文件（如 AI 用量 CSV）：后端返回附件时使用。
+ */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const headers = new Headers();
+  const token = getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const res = await fetch(BASE + path, { headers });
+  if (!res.ok) throw new Error(`下载失败 (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * 页面关闭/切走时的补报：keepalive fetch（可带 Authorization），
+ * sendBeacon 无法设置鉴权头，因此不用它。仍统一走 api.ts，组件不裸 fetch。
+ */
+export function apiBeacon(path: string, body: unknown): void {
+  try {
+    const headers = new Headers({ "Content-Type": "application/json" });
+    const token = getToken();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    void fetch(BASE + path, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      keepalive: true,
+    }).catch(() => undefined);
+  } catch {
+    /* 页面正在关闭，忽略 */
+  }
 }

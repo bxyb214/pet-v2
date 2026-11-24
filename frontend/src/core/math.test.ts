@@ -25,6 +25,12 @@ describe("数学课程：地址与键", () => {
     expect(videoUrl("a/b", "x y.mp4")).toBe("/media/math/a/b/x%20y.mp4");
   });
 
+  it("拿到媒体令牌后拼 mt 参数（AirPlay 由接收端取流也要能鉴权）", () => {
+    expect(videoUrl("grade_4", "01 大数的读写.mp4", "a.b-c_d")).toBe(
+      "/media/math/grade_4/01%20%E5%A4%A7%E6%95%B0%E7%9A%84%E8%AF%BB%E5%86%99.mp4?mt=a.b-c_d",
+    );
+  });
+
   it("进度键带统一前缀", () => {
     expect(lessonKey("g3-43.1")).toBe("math:v:g3-43.1");
   });

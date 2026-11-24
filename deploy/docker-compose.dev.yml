@@ -37,6 +37,8 @@ services:
       - PET_JWT_SECRET=${PET_JWT_SECRET:?请在 deploy/.env 设置}
       # 开发环境默认 1：顶栏显示 DEV，AI/SOE 走模拟，不发起外部调用
       - PET_DEV_MODE=${PET_DEV_MODE:-1}
+      # 数学视频媒体令牌有效期（小时）；不设则默认 6
+      - PET_MEDIA_TOKEN_HOURS=${PET_MEDIA_TOKEN_HOURS:-6}
       - PET_DATABASE_URL=sqlite:///./data/pet.db
     volumes:
       # 相对 dev 项目根目录，与生产 /vol1/1000/docker/pet-v2/data 完全隔离

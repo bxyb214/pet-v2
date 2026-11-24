@@ -154,9 +154,9 @@ def test_map_speak_days():
 def _fake_old() -> dict:
     return {
         "pet_users": [
-            {"id": 1, "username": "admin", "pass_hash": _bc("secret123"), "role": "admin",
+            {"id": 1, "username": "admin", "pass_hash": _bc("pet-test-pass"), "role": "admin",
              "status": "active", "perms": "speak", "data_rev": 9, "created_at": None},
-            {"id": 2, "username": "kid1", "pass_hash": _bc("secret123"), "role": "user",
+            {"id": 2, "username": "kid1", "pass_hash": _bc("pet-test-pass"), "role": "user",
              "status": "active", "perms": "speak", "data_rev": 3, "created_at": None},
         ],
         "pet_codes": [{"code": "OPEN-1", "active": 1, "used_count": 0, "max_uses": 5}],
@@ -209,14 +209,14 @@ def test_write_new_end_to_end_and_legacy_login():
 
     # 旧 bcrypt 密码登录成功，且哈希升级为 argon2
     client = TestClient(__import__("app.main", fromlist=["app"]).app)
-    r = client.post("/api/v1/auth/login", json={"username": "kid1", "password": "secret123"})
+    r = client.post("/api/v1/auth/login", json={"username": "kid1", "password": "pet-test-pass"})
     assert r.status_code == 200, r.text
     db = SessionLocal()
     kid = db.query(User).filter(User.username == "kid1").one()
     assert kid.password_hash.startswith("$argon2")
     db.close()
     # 再登一次（argon2 路径）
-    r = client.post("/api/v1/auth/login", json={"username": "kid1", "password": "secret123"})
+    r = client.post("/api/v1/auth/login", json={"username": "kid1", "password": "pet-test-pass"})
     assert r.status_code == 200
 
 

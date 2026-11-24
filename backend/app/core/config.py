@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_hours: int = 2
     refresh_token_days: int = 60
+    # 数学课程视频的媒体令牌（放 URL 查询串，供 <video>/AirPlay 取流）
+    media_token_hours: int = 6
 
     database_url: str = "sqlite:///./data/pet.db"
 

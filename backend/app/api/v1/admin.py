@@ -161,14 +161,17 @@ def list_users(
     _admin: object = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> list[dict]:
-    return [_user_row(u) for u in db.query(User).order_by(User.id).all()]
+    return [_user_row(db, u) for u in db.query(User).order_by(User.id).all()]
 
 
 class PermIn(BaseModel):
     speak: bool
 
 
-def _user_row(u: User) -> dict:
+def _user_row(db: Session, u: User) -> dict:
+    from app.services import budget
+
+    st = budget.status(db, u)
     return {
         "id": u.id,
         "username": u.username,
@@ -176,6 +179,14 @@ def _user_row(u: User) -> dict:
         "is_admin": u.is_admin,
         "perms": effective_perms(u),
         "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None,
+        "ai_enabled": bool(u.ai_enabled),
+        "ai_daily_budget_milli": u.ai_daily_budget_milli,
+        "ai_monthly_budget_milli": u.ai_monthly_budget_milli,
+        "today_used_milli": st["daily"]["used_milli"],
+        "month_used_milli": st["monthly"]["used_milli"],
+        "daily_budget_milli": st["daily"]["budget_milli"],
+        "monthly_budget_milli": st["monthly"]["budget_milli"],
+        "alert_stage": st["alert_stage"],
     }
 
 
@@ -204,4 +215,4 @@ def set_user_perms(
     else:
         u.perms = ",".join(others)
     db.commit()
-    return _user_row(u)
+    return _user_row(db, u)

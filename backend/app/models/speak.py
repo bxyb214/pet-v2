@@ -21,10 +21,12 @@ class SpeakLog(Base):
     user_id: Mapped[int] = mapped_column(Integer, index=True)
     mode: Mapped[str] = mapped_column(String(16))  # shadow | talk
     ref: Mapped[str] = mapped_column(String(128), default="")  # pack id / scene id / 自由标记
+    sentence_id: Mapped[str] = mapped_column(String(32), default="")  # 跟读句 id（难度选句用）
     day: Mapped[int] = mapped_column(Integer, default=0)  # 90 天计划第几天，0=不在计划内
     turns: Mapped[int] = mapped_column(Integer, default=0)
     score: Mapped[int] = mapped_column(Integer, default=0)  # shadow 0-100；talk 取整轮均分
     issues: Mapped[str] = mapped_column(Text, default="[]")  # JSON 数组：问题摘要
+    words: Mapped[str] = mapped_column(Text, default="[]")  # JSON：SOE 逐词 [{"w","ok"}]
     transcript: Mapped[str] = mapped_column(Text, default="[]")  # JSON 数组：逐句
     summary: Mapped[str] = mapped_column(String(512), default="")  # LLM 会话摘要（画像用）
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

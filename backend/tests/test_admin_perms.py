@@ -15,7 +15,7 @@ def _claim(username: str) -> str:
     db.close()
     r = client.post(
         "/api/v1/auth/claim",
-        json={"username": username, "password": "secret123", "invite_code": f"INV-{username}"},
+        json={"username": username, "password": "pet-test-pass", "invite_code": f"INV-{username}"},
     )
     assert r.status_code == 201, r.text
     return r.json()["access_token"]
@@ -28,7 +28,7 @@ def _register(username: str) -> int:
     db.close()
     r = client.post(
         "/api/v1/auth/register",
-        json={"username": username, "password": "secret123", "invite_code": f"INV-{username}"},
+        json={"username": username, "password": "pet-test-pass", "invite_code": f"INV-{username}"},
     )
     assert r.status_code == 201, r.text
     db = SessionLocal()
@@ -53,7 +53,7 @@ def test_toggle_speak_perm_for_user():
     assert "speak" in r.json()["perms"].split(",")
 
     # 孩子侧立刻能用口语接口
-    login = client.post("/api/v1/auth/login", json={"username": "kid", "password": "secret123"})
+    login = client.post("/api/v1/auth/login", json={"username": "kid", "password": "pet-test-pass"})
     kidH = {"Authorization": f"Bearer {login.json()['access_token']}"}
     assert client.get("/api/v1/auth/me", headers=kidH).json()["perms"].split(",").count("speak") == 1
     assert client.post("/api/v1/speak/boot", json={"mode": "shadow"}, headers=kidH).status_code == 200
@@ -107,7 +107,7 @@ def test_toggle_requires_admin_and_existing_user():
     _claim("boss3")
     uid = _register("kid3")
     not_admin = client.post(
-        "/api/v1/auth/login", json={"username": "kid3", "password": "secret123"}
+        "/api/v1/auth/login", json={"username": "kid3", "password": "pet-test-pass"}
     ).json()["access_token"]
     r = client.put(
         f"/api/v1/admin/users/{uid}/perms",
@@ -117,7 +117,7 @@ def test_toggle_requires_admin_and_existing_user():
     assert r.status_code == 403
 
     admin = client.post(
-        "/api/v1/auth/login", json={"username": "boss3", "password": "secret123"}
+        "/api/v1/auth/login", json={"username": "boss3", "password": "pet-test-pass"}
     ).json()["access_token"]
     r = client.put(
         "/api/v1/admin/users/99999/perms",

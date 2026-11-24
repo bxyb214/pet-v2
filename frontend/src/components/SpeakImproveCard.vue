@@ -40,6 +40,7 @@ import { NButton, NTag } from "naive-ui";
 import { api } from "../core/api";
 import { dimLabel, gradePlan, MIN, PASS, type GradePlan } from "../core/review";
 import { SoeEval, type SoeResult } from "../core/soe";
+import { playAudioUrl, say } from "../core/say";
 
 const props = withDefaults(defineProps<{
   childSaid: string;
@@ -62,14 +63,14 @@ onBeforeUnmount(() => soe?.stop());
 
 async function playDemo(): Promise<void> {
   try {
-    const r = await api<{ b64: string; mime: string }>("/speak/tts", {
+    const r = await api<{ url: string }>("/speak/tts", {
       method: "POST",
       body: JSON.stringify({ text: props.improvedEn }),
     });
-    const audio = new Audio(`data:${r.mime};base64,${r.b64}`);
-    void audio.play();
-  } catch (e) {
-    status.value = "示范播放失败：" + (e as Error).message;
+    await playAudioUrl(r.url, props.improvedEn);
+  } catch {
+    // 未开通/额度用尽或 TTS 失败：浏览器朗读兜底（P2-4）
+    say(props.improvedEn);
   }
 }
 

@@ -53,12 +53,24 @@ def qwen_cfg(db: Session) -> dict:
         # 注意：qwen3.8 系列必须绑定业务空间（workspace）调用；旧的 qwen3.5-omni-flash-realtime
         # 仍可用 dashscope 直连，作为回退（配置 model 即可切换）。
         "model": pick("model", "qwen3.8-omni-flash-realtime"),
+        # A/B：主模型失败时自动回退一次；留空不启用
+        "fallback_model": pick("fallback_model"),
         "voice": pick("voice", "Tina"),
         "shadow_model": pick("shadow_model"),
         "voice_shadow": pick("voice_shadow"),
+        # 轮次检测：留空按模型默认；audio-3.1 建议 smart_turn_v2
+        "vad": pick("vad"),
+        "mcp": pick("mcp").lower() in ("1", "true", "yes", "on"),
         "tts_model": pick("tts_model", "qwen3-tts-flash"),
         "tts_voice": pick("tts_voice", "Ryan"),
     }
+
+
+def pick_vad(cfg: dict, model: str) -> str:
+    """轮次检测类型：显式配置优先；audio-3.1 默认 smart_turn_v2，其他默认 semantic_vad。"""
+    if cfg["vad"]:
+        return cfg["vad"]
+    return "smart_turn_v2" if "audio-3" in model else "semantic_vad"
 
 
 def pick_voice(cfg: dict, mode: str) -> str:
@@ -179,44 +191,130 @@ def _api_keys(db: Session, cfg: dict) -> list[str]:
 
 
 def proxy_sdp(db: Session, sdp: str, mode: str) -> dict:
-    """带 Key 换 SDP。Key 不回传。失败抛 RuntimeError(带消息)。"""
+    """带 Key 换 SDP。Key 不回传。失败抛 RuntimeError(带消息)。
+
+    P1-1：主模型失败（非 2xx / 网络错误）且配置了 fallback_model 时，自动回退一次。
+    """
     cfg = qwen_cfg(db)
     keys = _api_keys(db, cfg)
     if not keys:
         raise PermissionError("管理员还没有配置 Qwen API Key")
-    model = pick_model(cfg, mode)
-    url = webrtc_url(cfg, model)
-    body = ""
-    status_code = 0
-    for key in keys:
-        resp = httpx.post(
-            url,
-            content=sdp,
-            headers={"Content-Type": "application/sdp", "Authorization": f"Bearer {key}"},
-            timeout=_TIMEOUT,
-        )
-        body = resp.text
-        status_code = resp.status_code
-        if 200 <= status_code < 300 and body.lstrip().startswith("v="):
-            return {"sdp": body, "model": model, "voice": pick_voice(cfg, mode), "url": url}
-        if status_code not in (401, 403):
-            break  # 不是 Key 的问题，不再换 Key 重试
+    primary = pick_model(cfg, mode)
+    models = [primary]
+    if cfg["fallback_model"] and cfg["fallback_model"] != primary:
+        models.append(cfg["fallback_model"])
+
+    last_error = ""
+    for model in models:
+        url = webrtc_url(cfg, model)
+        body = ""
+        status_code = 0
+        for key in keys:
+            try:
+                resp = httpx.post(
+                    url,
+                    content=sdp,
+                    headers={"Content-Type": "application/sdp", "Authorization": f"Bearer {key}"},
+                    timeout=_TIMEOUT,
+                )
+            except httpx.HTTPError as e:
+                status_code = 0
+                body = str(e)
+                break
+            body = resp.text
+            status_code = resp.status_code
+            if 200 <= status_code < 300 and body.lstrip().startswith("v="):
+                return {
+                    "sdp": body,
+                    "model": model,
+                    "voice": pick_voice(cfg, mode),
+                    "vad": pick_vad(cfg, model),
+                    "url": url,
+                }
+            if status_code not in (401, 403):
+                break  # 不是 Key 的问题，不再换 Key 重试
+        last_error = _sdp_error_message(body, status_code, model)
+        if len(models) > 1:
+            continue  # 主模型失败 → 试回退模型
+    raise RuntimeError(last_error)
+
+
+def _sdp_error_message(body: str, status_code: int, model: str) -> str:
     msg = ""
     try:
         j = json.loads(body)
         msg = j.get("error", {}).get("message") or j.get("message", "")
-    except (json.JSONDecodeError, AttributeError):
+    except (json.JSONDecodeError, AttributeError, TypeError):
         pass
     if not msg:
-        msg = body[:200] or str(status_code)
+        msg = (body or str(status_code))[:200]
     if status_code == 403:
         msg += "（请在管理页确认：Key 属于已配置的业务空间，且该空间已开通此模型）"
-    raise RuntimeError(f"连接语音服务失败（HTTP {status_code}，{model}）：{msg}")
+    return f"连接语音服务失败（HTTP {status_code}，{model}）：{msg}"
+
+
+def tts_cache_cfg(db: Session) -> int:
+    """TTS 缓存上限（MB），存 app_cfg 'speak.tts_cache'，默认 512。"""
+    from app.services.ai_enrich import get_cfg
+
+    raw = get_cfg(db, "speak.tts_cache", "")
+    try:
+        d = json.loads(raw) if raw else {}
+        return max(16, int(d.get("max_mb", 512)))
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return 512
+
+
+def _wav_files(cache_dir: str) -> list:
+    from pathlib import Path
+
+    d = Path(cache_dir)
+    if not d.is_dir():
+        return []
+    return [p for p in d.glob("*.wav") if p.is_file()]
+
+
+def tts_cache_stats(cache_dir: str, max_mb: int) -> dict:
+    files = _wav_files(cache_dir)
+    total = sum(p.stat().st_size for p in files)
+    return {"files": len(files), "bytes": total, "max_mb": max_mb}
+
+
+def clear_tts_cache(cache_dir: str) -> int:
+    n = 0
+    for p in _wav_files(cache_dir):
+        try:
+            p.unlink()
+            n += 1
+        except OSError:
+            continue
+    return n
+
+
+def enforce_tts_cache(cache_dir: str, max_mb: int) -> int:
+    """按 mtime 做 LRU：超过上限时删最久未用的文件，直到回到上限内。"""
+    limit = max_mb * 1024 * 1024
+    files = sorted(_wav_files(cache_dir), key=lambda p: p.stat().st_mtime)
+    total = sum(p.stat().st_size for p in files)
+    removed = 0
+    for p in files:
+        if total <= limit:
+            break
+        try:
+            size = p.stat().st_size
+            p.unlink()
+            total -= size
+            removed += 1
+        except OSError:
+            continue
+    return removed
 
 
 def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
-    """TTS + sha1 磁盘缓存。返回 base64 wav。"""
-    import base64
+    """TTS + sha1 磁盘缓存。返回可缓存的静态 URL（不再回传 base64）。
+
+    未命中才调用模型并写缓存；失败不写缓存，避免把错误音频固化。
+    """
     import hashlib
     from pathlib import Path
 
@@ -238,10 +336,10 @@ def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
     if not cached:
         audio_url = ""
         status_code, detail = 0, ""
-        for key in keys:
+        for api_key in keys:
             resp = httpx.post(
                 "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
-                headers={"Content-Type": "application/json", "Authorization": f"Bearer {key}"},
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
                 json={"model": model, "input": {"text": text, "voice": voice, "language_type": "English"}},
                 timeout=40.0,
             )
@@ -261,4 +359,10 @@ def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
         if len(audio) < 1000:
             raise RuntimeError("下载合成音频失败")
         f.write_bytes(audio)
-    return {"mime": "audio/wav", "b64": base64.b64encode(f.read_bytes()).decode(), "cached": cached}
+        enforce_tts_cache(cache_dir, tts_cache_cfg(db))
+    return {
+        "url": f"/api/v1/speak/tts/file/{f.name}",
+        "mime": "audio/wav",
+        "cached": cached,
+        "chars": len(text),
+    }

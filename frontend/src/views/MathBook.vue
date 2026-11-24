@@ -46,7 +46,7 @@
             <span class="no tnum">{{ l.no }}</span>
             <span class="lt">
               <b>{{ l.title }}</b>
-              <i class="tag">{{ l.tag }}</i>
+              <i v-if="l.tag" class="tag">{{ l.tag }}</i>
             </span>
             <span class="state" :class="statusOf(recOf(l.id))">{{ stateText(l.id) }}</span>
             <n-icon :component="ChevronForwardOutline" size="18" class="chev" />

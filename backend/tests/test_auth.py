@@ -26,7 +26,7 @@ def test_claim_creates_admin():
     _add_invite("TEST-INVITE-1")
     r = client.post(
         "/api/v1/auth/claim",
-        json={"username": "admin", "password": "secret123", "invite_code": "TEST-INVITE-1"},
+        json={"username": "admin", "password": "pet-test-pass", "invite_code": "TEST-INVITE-1"},
     )
     assert r.status_code == 201
     assert r.json()["is_admin"] is True
@@ -36,11 +36,11 @@ def test_claim_blocked_when_initialized():
     _add_invite("TEST-INVITE-2")
     client.post(
         "/api/v1/auth/claim",
-        json={"username": "admin0", "password": "secret123", "invite_code": "TEST-INVITE-2"},
+        json={"username": "admin0", "password": "pet-test-pass", "invite_code": "TEST-INVITE-2"},
     )
     r = client.post(
         "/api/v1/auth/claim",
-        json={"username": "x", "password": "secret123", "invite_code": "TEST-INVITE-2"},
+        json={"username": "x", "password": "pet-test-pass", "invite_code": "TEST-INVITE-2"},
     )
     assert r.status_code == 403
 
@@ -59,7 +59,7 @@ def test_register_with_invite_and_me():
     _add_invite("TEST-INVITE-3")
     r = client.post(
         "/api/v1/auth/register",
-        json={"username": "kid", "password": "secret123", "invite_code": "TEST-INVITE-3"},
+        json={"username": "kid", "password": "pet-test-pass", "invite_code": "TEST-INVITE-3"},
     )
     assert r.status_code == 201
     token = r.json()["access_token"]
@@ -73,11 +73,11 @@ def test_register_reused_invite_rejected():
     _add_invite("TEST-INVITE-4")
     client.post(
         "/api/v1/auth/register",
-        json={"username": "kid2", "password": "secret123", "invite_code": "TEST-INVITE-4"},
+        json={"username": "kid2", "password": "pet-test-pass", "invite_code": "TEST-INVITE-4"},
     )
     r = client.post(
         "/api/v1/auth/register",
-        json={"username": "kid3", "password": "secret123", "invite_code": "TEST-INVITE-4"},
+        json={"username": "kid3", "password": "pet-test-pass", "invite_code": "TEST-INVITE-4"},
     )
     assert r.status_code == 400
 
@@ -86,9 +86,9 @@ def test_refresh_flow():
     _add_invite("TEST-INVITE-5")
     client.post(
         "/api/v1/auth/claim",
-        json={"username": "admin", "password": "secret123", "invite_code": "TEST-INVITE-5"},
+        json={"username": "admin", "password": "pet-test-pass", "invite_code": "TEST-INVITE-5"},
     )
-    r = client.post("/api/v1/auth/login", json={"username": "admin", "password": "secret123"})
+    r = client.post("/api/v1/auth/login", json={"username": "admin", "password": "pet-test-pass"})
     refresh_token = r.json()["refresh_token"]
     r2 = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert r2.status_code == 200

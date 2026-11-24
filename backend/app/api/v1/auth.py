@@ -29,6 +29,7 @@ def _token_out(user: User) -> TokenOut:
         perms=effective_perms(user),
         is_admin=user.is_admin,
         exam=user.exam or "pet",
+        ai_enabled=bool(user.ai_enabled),
     )
 
 
@@ -115,6 +116,7 @@ def claim(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
         password_hash=hash_password(body.password),
         display_name=body.display_name or body.username,
         is_admin=True,
+        ai_enabled=True,  # 首个管理员直接开通付费 AI（迁移时同样处理）
     )
     db.add(user)
     db.commit()
