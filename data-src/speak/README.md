@@ -18,10 +18,10 @@
 ## 构建链
 
 ```
-data-src/speak/*.json ──→ node tools/build_speak_v4.js [--dry] ──→ frontend/public/data/speak.json (schema v4)
+data-src/speak/*.json ──→ node tools/build_speak_v4.js [--dry] ──→ frontend/public/data/speak.json (schema 5)
 ```
 
-speak.json v4：
+speak.json schema 5：
 
 - `scenes`(45) / `packs`(45) / `shadow`(135) 全部来自 `curriculum_v4.json`；
 - `scenes[].make`(90) 提供中文提示、标准答案与句型标签；
