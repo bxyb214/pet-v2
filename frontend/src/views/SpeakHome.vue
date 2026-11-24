@@ -4,7 +4,7 @@
     <p class="sub">每天 5 分钟跟读 + 10 分钟造句 + 15 分钟自由对话（10 分钟对话 + 5 分钟复盘）</p>
     <div v-if="banner" class="aibanner" :class="banner.tone">{{ banner.text }}</div>
 
-    <div v-if="!authReady" class="locked card">加载中…</div>
+    <LoadingBlock v-if="!authReady" />
     <template v-else>
       <!-- 今日已用（只记录不限流）：放在日历上方 -->
       <PaidAiNotice v-if="loaded" :status="aiStatus" prominent />
@@ -45,7 +45,7 @@
           <span v-if="hasPlan" class="done">已完成 {{ doneDays }}/{{ planLength }} 天</span>
         </div>
 
-        <div v-if="!loaded" class="muted">加载中…</div>
+        <LoadingBlock v-if="!loaded" plain />
         <template v-else-if="hasPlan">
           <p class="plan-hint">共 {{ planLength }} 天，每天完成「跟读 + 造句 + 对话」自动打勾；点日期切换上方练习日，想换天数请先删除计划。</p>
 
@@ -93,11 +93,15 @@
           </div>
         </template>
         <template v-else>
-          <div class="plan-empty">
-            <p class="pe-t">还没有口语计划</p>
-            <p class="pe-s">创建计划后才会出现 5 / 10 / 15 分钟入口。<br />没有计划时，可到「跟读 / 造句 / 对话」选择题库内容自由练习，不计时、不打卡。</p>
-            <n-button type="primary" @click="creating = true">创建计划</n-button>
-          </div>
+          <EmptyState
+            plain
+            title="还没有口语计划"
+            desc="创建计划后才会出现 5 / 10 / 15 分钟入口。没有计划时，可到「跟读 / 造句 / 对话」选择题库内容自由练习，不计时、不打卡。"
+          >
+            <template #action>
+              <n-button type="primary" @click="creating = true">创建计划</n-button>
+            </template>
+          </EmptyState>
           <div v-if="creating" class="create">
             <div class="genrow">
               <span class="lbl">计划天数</span>
@@ -134,6 +138,8 @@ import {
   budgetBanner, loadAiStatus, type AiStatus,
 } from "../core/aiStatus";
 import PaidAiNotice from "../components/PaidAiNotice.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
+import EmptyState from "../components/EmptyState.vue";
 import {
   loadSpeak, planDayDone, sourceRangeText, splitSpeakPlan,
   type DayCheck, type PlanDayView, type SpeakData,
@@ -335,9 +341,6 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 /* 删除计划：填充红 + 图标 + 投影，避免被当成普通文字按钮 */
 .del-plan { min-height: 42px; padding: 0 18px; box-shadow: 0 6px 14px rgba(220, 38, 38, 0.18); }
 .del-plan:hover { box-shadow: 0 8px 18px rgba(220, 38, 38, 0.26); }
-.plan-empty { text-align: center; padding: 22px 8px 10px; }
-.pe-t { margin: 0 0 4px; font-weight: 700; font-size: 17px; color: var(--c-text); }
-.pe-s { margin: 0 0 16px; font-size: 13.5px; color: var(--c-text-2); }
 .today-scenes { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
 .ts-label { color: var(--c-text-2); font-size: 13px; font-weight: 600; }
 .create { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--c-line); }

@@ -1,6 +1,6 @@
 <template>
   <main class="page">
-    <BackButton />
+    <BackButton to="/english/speak" label="返回口语" />
     <h1>造句练习</h1>
     <p class="sub">
       看中文，用英文说出来。说完可以看标准答案，AI 会告诉你怎么说得更好。
@@ -19,7 +19,7 @@
       </span>
     </div>
 
-    <div v-if="loading" class="card empty">加载中…</div>
+    <LoadingBlock v-if="loading" />
     <template v-else>
       <div class="filters">
         <button
@@ -112,6 +112,7 @@ import {
 } from "../core/aiStatus";
 import { say, playAudioUrl } from "../core/say";
 import BackButton from "../components/BackButton.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
 import PaidActionButton from "../components/PaidActionButton.vue";
 import PaidAiNotice from "../components/PaidAiNotice.vue";
 

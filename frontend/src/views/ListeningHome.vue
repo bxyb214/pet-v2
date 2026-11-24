@@ -3,7 +3,7 @@
     <h1>听力</h1>
     <p class="sub">官方真题 · 听音频 · 对照字幕（可隐藏）· 0.8–1.2 倍速</p>
 
-    <div v-if="!data" class="empty card">加载中…</div>
+    <LoadingBlock v-if="!data" />
     <template v-else>
       <section v-for="b in data.books" :key="b.id" class="book">
         <button class="book-head" :aria-expanded="!!openMap[b.id]" @click="toggle(b.id)">
@@ -42,6 +42,7 @@
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { loadListening, type ListeningData, type LTest } from "../core/listening";
+import LoadingBlock from "../components/LoadingBlock.vue";
 
 const router = useRouter();
 const data = ref<ListeningData | null>(null);

@@ -53,7 +53,7 @@
           <n-button v-if="previewDays.length && validateOk" type="primary" @click="confirmPlan">确认生成</n-button>
           <n-button v-if="!hasPlan" quaternary @click="cancelCreate">取消</n-button>
         </div>
-        <p v-if="!banksReady" class="muted">词库加载中…</p>
+        <LoadingBlock v-if="!banksReady" plain text="词库加载中…" />
         <p v-if="previewDays.length" class="muted">
           共 {{ previewDays.length }} 天，每种词库各自平均分到各天，每天约 {{ avgTotal }} 词（{{ bankNames }}）。
           <n-tag v-if="!validateOk" type="error" size="small">切分校验未通过，请重试</n-tag>
@@ -75,6 +75,7 @@ import { useRouter } from "vue-router";
 import { NButton, NCard, NInputNumber, NPopconfirm, NTag } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
 import PlanWall from "../components/PlanWall.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
 import { availableBankKeys, loadBanks, EMPTY_BANKS, type BankMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import { splitPlan, validatePlan, type PlanDay, type WordBanks } from "../core/plan";

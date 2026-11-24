@@ -12,7 +12,7 @@
         </p>
         <div class="actions">
           <button class="btn" @click="restart">再来一轮</button>
-          <button class="ghost" @click="back">返回阅读</button>
+          <BackButton to="/english/reading/home" label="返回阅读" variant="text" />
         </div>
       </section>
     </template>
@@ -20,7 +20,12 @@
     <!-- 答题页 -->
     <template v-else-if="q">
       <div class="topbar">
-        <button class="ghost" @click="back">退出</button>
+        <BackButton
+          to="/english/reading/home"
+          label="退出"
+          variant="text"
+          confirm="已答题目会计入错题本，本轮进度会保留，下次可以继续。"
+        />
         <p class="label">{{ label }}</p>
         <span class="pos tnum">{{ idx + 1 }} / {{ items.length }}</span>
       </div>
@@ -101,6 +106,11 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useLearningStore } from "../stores/learning";
+import { useAuthStore } from "../stores/auth";
+import BackButton from "../components/BackButton.vue";
+import {
+  clearReadingSession, loadReadingSession, saveReadingSession,
+} from "../core/readingQuizSession";
 import {
   buildQuizItems, grammarIndex, itemForDim, loadReading, speak, withCustomSentences,
   type QuizItem, type RSentence,
@@ -112,6 +122,13 @@ const TYPE_LABEL: Record<string, string> = { meaning: "读懂句意", blank: "�
 const route = useRoute();
 const router = useRouter();
 const learning = useLearningStore();
+const auth = useAuthStore();
+
+/** 续做按「用户 + 测验范围」隔离；范围优先用计划进度键，复习/语法用完整路径 */
+const owner = computed(() => learning.owner || auth.username || "-");
+const scope = computed(() => progressKey.value || route.fullPath);
+/** 题目指纹：题目集合变了就不恢复，避免错位 */
+const itemSig = computed(() => items.value.map((i) => `${i.s.id}:${i.type}:${i.prompt}`).join("|"));
 
 const ready = ref(false);
 const items = ref<QuizItem[]>([]);
@@ -186,8 +203,37 @@ onMounted(async () => {
     progressKey.value = `read:${t.book || "t2"}:${t.no}:${partQ || "all"}`;
     if (partQ) partRef.value = { book: t.book || "t2", testNo: t.no, part: partQ };
   }
+  if (results.value.length !== items.value.length) {
+    results.value = new Array(items.value.length).fill(null);
+  }
+  restoreSession();
   ready.value = true;
 });
+
+/** 从上次离开的位置继续；题目集合变了就从头开始 */
+function restoreSession(): void {
+  if (!items.value.length) return;
+  const saved = loadReadingSession(owner.value, scope.value, itemSig.value);
+  if (!saved || saved.results.length !== items.value.length) return;
+  idx.value = Math.min(saved.idx, items.value.length - 1);
+  results.value = saved.results;
+  correct.value = saved.correct_count;
+  answered.value = saved.answered && results.value[idx.value] != null;
+  picked.value = answered.value ? saved.picked : -1;
+  lastCorrect.value = answered.value ? results.value[idx.value] === true : false;
+}
+
+function persistSession(): void {
+  if (!items.value.length || finished.value) return;
+  saveReadingSession(owner.value, scope.value, {
+    sig: itemSig.value,
+    idx: idx.value,
+    results: results.value.map((v) => (v === true ? true : v === false ? false : null)),
+    correct_count: correct.value,
+    answered: answered.value,
+    picked: picked.value,
+  });
+}
 
 /** 当前题对应句子上的错题维度键 */
 function dimOf(item: QuizItem): string {
@@ -217,6 +263,7 @@ function submit(i: number): void {
   } else {
     learning.recordWrong(q.value.s.id, [dim]); // 该维度重欠 + 回 1 天间隔（R8）
   }
+  persistSession();
 }
 
 function next(): void {
@@ -228,9 +275,11 @@ function next(): void {
   idx.value += 1;
   answered.value = false;
   picked.value = -1;
+  persistSession();
 }
 
 function finishBookkeeping(): void {
+  clearReadingSession(owner.value, scope.value);
   if (correct.value < items.value.length * 0.6) return;
   // R6 测验完成进度
   if (progressKey.value) learning.recordProgress(progressKey.value);
@@ -247,11 +296,13 @@ function finishBookkeeping(): void {
 }
 
 function restart(): void {
+  clearReadingSession(owner.value, scope.value);
   idx.value = 0;
   correct.value = 0;
   answered.value = false;
   picked.value = -1;
-  results.value = [];
+  lastCorrect.value = false;
+  results.value = new Array(items.value.length).fill(null);
   finished.value = false;
 }
 
@@ -444,18 +495,6 @@ function back(): void {
 .rrate b { color: var(--c-primary-strong); font-weight: 800; }
 .dotsep { margin: 0 6px; color: var(--c-line-strong); }
 .actions { display: flex; gap: 10px; justify-content: center; align-items: center; margin-top: 20px; }
-.ghost {
-  background: none;
-  border: 0;
-  color: var(--c-text-2);
-  font-size: 14px;
-  font-weight: 600;
-  min-height: 40px;
-  cursor: pointer;
-  padding: 0 10px;
-  border-radius: var(--r-sm);
-}
-.ghost:hover { color: var(--c-primary-strong); background: var(--c-primary-soft); }
 
 .fb-enter-active { transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
 .fb-enter-from { opacity: 0; transform: translateY(6px); }

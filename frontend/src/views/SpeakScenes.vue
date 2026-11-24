@@ -1,6 +1,6 @@
 <template>
   <main class="page">
-    <BackButton />
+    <BackButton to="/english/speak" label="返回口语" />
     <h1>场景题库</h1>
     <p class="sub">PET 真题场景共 {{ total }} 个，按 Part 分类；每日计划里也会列出当天的场景。</p>
 
@@ -13,7 +13,7 @@
       <input v-model="q" class="search" type="search" placeholder="搜索场景 / 中文" />
     </div>
 
-    <div v-if="loading" class="card empty">加载中…</div>
+    <LoadingBlock v-if="loading" />
     <template v-else>
       <section v-for="grp in groups" :key="grp.part" class="group">
         <div class="ghead">Part {{ grp.part }} · {{ grp.title }} <span class="gcount">{{ grp.items.length }}</span></div>
@@ -37,6 +37,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { loadSpeak, type Scene, type SpeakData } from "../core/speak";
 import BackButton from "../components/BackButton.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
 
 const router = useRouter();
 const data = ref<SpeakData | null>(null);

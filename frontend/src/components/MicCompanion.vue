@@ -68,20 +68,27 @@
       </p>
     </div>
 
-    <button class="mic-off" type="button" @click="stopMic">
-      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <button class="mic-off" :class="{ submit: isSubmit }" type="button" :aria-label="label" @click="stopMic">
+      <svg v-if="isSubmit" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="m5 12.5 4.5 4.5L19 7" />
+      </svg>
+      <svg v-else viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M9 9v3a3 3 0 0 0 5.1 2.1M15 10V6a3 3 0 0 0-5.7-1.3" />
         <path d="M5 11a7 7 0 0 0 10.4 6.2M19 11a7 7 0 0 1-.6 2.8M12 18.5V21M8.5 21h7" />
         <path d="M4 4l16 16" />
       </svg>
-      <span>关闭麦克风</span>
+      <span>{{ label }}</span>
     </button>
   </aside>
 </template>
 
 <script setup lang="ts">
+import { computed } from "vue";
 import { devMode } from "../core/devMode";
-import { stopMic } from "../core/micPresence";
+import { micAction, stopMic } from "../core/micPresence";
+
+const label = computed(() => micAction.value.label ?? "关闭麦克风");
+const isSubmit = computed(() => micAction.value.tone === "submit");
 </script>
 
 <style scoped>
@@ -229,6 +236,13 @@ import { stopMic } from "../core/micPresence";
 .mic-off:hover { background: #b91c1c; box-shadow: 0 12px 24px rgba(220, 38, 38, 0.3); }
 .mic-off:active { transform: scale(0.985); }
 .mic-off:focus-visible { outline: 3px solid var(--c-accent, #d97706); outline-offset: 3px; }
+/* 跟读评分：同一个按钮变成主操作「提交」，用主色而不是红色 */
+.mic-off.submit {
+  background: var(--c-primary-strong, #15803d);
+  box-shadow: 0 10px 20px rgba(21, 128, 61, 0.24);
+}
+.mic-off.submit:hover { background: var(--c-primary-strong, #15803d); filter: brightness(1.06); box-shadow: 0 12px 24px rgba(21, 128, 61, 0.3); }
+.mic-off.submit:focus-visible { outline-color: var(--c-primary, #16a34a); }
 
 @keyframes mc-in {
   from { opacity: 0; transform: translateY(-50%) translateX(16px) scale(0.98); }

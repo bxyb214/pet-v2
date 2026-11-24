@@ -1,51 +1,68 @@
 <template>
   <nav class="nav">
+    <router-link
+      to="/"
+      class="nav-item home"
+      :class="{ active: route.path === '/' }"
+      title="首页"
+      :aria-current="route.path === '/' ? 'page' : undefined"
+      @click="emit('go')"
+    >
+      <span class="n-ico"><n-icon :component="HomeOutline" size="19" /></span>
+      <span class="n-name">首页</span>
+    </router-link>
     <div class="sider-title">学科</div>
-    <button
+    <router-link
       v-for="s in subjects"
       :key="s.key"
+      :to="s.first"
       class="subj"
       :class="[s.cls, { active: subject === s.key }]"
       :title="s.name"
-      @click="pick(s)"
+      :aria-current="subject === s.key ? 'true' : undefined"
+      @click="emit('go')"
     >
       <span class="s-ico"><n-icon :component="s.icon" size="20" /></span>
       <span class="s-txt">
         <b class="s-name">{{ s.name }}</b>
         <i class="s-sub">{{ s.desc }}</i>
       </span>
-    </button>
+    </router-link>
 
     <template v-if="subject === 'english'">
       <div class="divider"></div>
       <div class="sider-title">英语 · 板块</div>
-      <button
+      <router-link
         v-for="m in EN_MODULES"
         :key="m.key"
+        :to="m.first"
         class="nav-item"
         :class="{ active: module === m.key }"
         :title="m.name"
-        @click="goModule(m)"
+        :aria-current="module === m.key ? 'true' : undefined"
+        @click="emit('go')"
       >
         <span class="n-ico"><n-icon :component="m.icon" size="19" /></span>
         <span class="n-name">{{ m.name }}</span>
-      </button>
+      </router-link>
     </template>
 
     <template v-if="subject === 'math'">
       <div class="divider"></div>
       <div class="sider-title">数学 · 板块</div>
-      <button
+      <router-link
         v-for="m in MATH_MODULES"
         :key="m.key"
+        :to="m.first"
         class="nav-item"
         :class="{ active: module === m.key }"
         :title="m.name"
-        @click="goModule(m)"
+        :aria-current="module === m.key ? 'true' : undefined"
+        @click="emit('go')"
       >
         <span class="n-ico"><n-icon :component="m.icon" size="19" /></span>
         <span class="n-name">{{ m.name }}</span>
-      </button>
+      </router-link>
     </template>
 
     <div class="sider-foot">火焰学习 · 每天进步一点点</div>
@@ -53,11 +70,11 @@
 </template>
 
 <script setup lang="ts">
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { computed } from "vue";
 import { NIcon } from "naive-ui";
 import {
-  LanguageOutline, BookOutline, CalculatorOutline,
+  LanguageOutline, BookOutline, CalculatorOutline, HomeOutline,
   ReaderOutline, LibraryOutline, HeadsetOutline, MicOutline, CreateOutline,
   PlayCircleOutline, StatsChartOutline,
 } from "@vicons/ionicons5";
@@ -91,7 +108,6 @@ const MATH_MODULES: Module[] = [
 
 const emit = defineEmits<{ (e: "go"): void }>();
 const route = useRoute();
-const router = useRouter();
 const auth = useAuthStore();
 
 /** 侧栏副标题跟随「我在备考」的级别 */
@@ -107,17 +123,8 @@ const subjects = computed(() =>
   ),
 );
 
-const subject = computed(() => (route.meta.subject as string | undefined) ?? "english");
+const subject = computed(() => (route.meta.subject as string | undefined) ?? "");
 const module = computed(() => (route.meta.module as string | undefined) ?? "");
-
-function pick(s: Subject): void {
-  void router.push(s.first);
-  emit("go");
-}
-function goModule(m: Module): void {
-  void router.push(m.first);
-  emit("go");
-}
 </script>
 
 <style scoped>
@@ -126,7 +133,8 @@ function goModule(m: Module): void {
 .subj {
   display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
   cursor: pointer; border: 1.5px solid transparent; background: none; font: inherit;
-  text-align: left; width: 100%; transition: background 0.15s, border-color 0.15s;
+  text-align: left; width: 100%; text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
 }
 .subj .s-ico {
   width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center;
@@ -149,7 +157,7 @@ function goModule(m: Module): void {
   display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px;
   cursor: pointer; color: var(--c-text-2, #6b7f74); font-weight: 600; transition: all 0.12s;
   border: 1.5px solid transparent; background: none; font: inherit; width: 100%; text-align: left;
-  font-size: 15px; min-height: 46px;
+  font-size: 15px; min-height: 46px; text-decoration: none;
 }
 .nav-item .n-ico { display: inline-flex; align-items: center; flex-shrink: 0; }
 .nav-item:hover { background: var(--c-mint-bg, #f2faf5); color: var(--c-text, #1f2d26); }

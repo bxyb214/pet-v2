@@ -3,8 +3,12 @@
     <h1>{{ course?.title ?? "李永乐 · 一课通关" }}</h1>
     <p class="sub">{{ course?.desc ?? "小学数学思维课，按年级分册。" }}</p>
 
-    <div v-if="loading" class="card empty">加载中…</div>
-    <div v-else-if="!available.length" class="card empty">暂时没有已上线的教材</div>
+    <LoadingBlock v-if="loading" />
+    <EmptyState
+      v-else-if="!available.length"
+      title="暂时没有已上线的教材"
+      desc="新年级上线后会自动出现在这里。"
+    />
     <template v-else>
       <section v-for="b in available" :key="b.id" class="featured card">
         <div class="f-main">
@@ -63,6 +67,8 @@ import {
   type MathBook, type MathData, type VideoRec,
 } from "../core/math";
 import { useLearningStore } from "../stores/learning";
+import LoadingBlock from "../components/LoadingBlock.vue";
+import EmptyState from "../components/EmptyState.vue";
 
 const router = useRouter();
 const learning = useLearningStore();

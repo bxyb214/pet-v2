@@ -1,6 +1,6 @@
 <template>
   <main class="page">
-    <BackButton @click="back" />
+    <BackButton to="/english/speak" label="返回口语" />
     <h1>
       跟读纠音
       <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天 · {{ sourceRangeText(planDay) }}</span>
@@ -25,7 +25,7 @@
     </div>
 
     <!-- 无计划：智能选句（跨库）或指定句子组 -->
-    <div v-if="!hasPlan && freePacks.length" class="card freebar">
+    <div v-if="!hasPlan && freePacks.length && !busy" class="card freebar">
       <div class="free-head">
         <b>选择题库</b>
         <span>目标难度 {{ diffLabel(target) }} · 自由练习不计时</span>
@@ -43,11 +43,17 @@
       </div>
     </div>
 
-    <div v-if="!loaded" class="empty card">加载中…</div>
-    <div v-else-if="!item" class="empty card">
-      {{ hasPlan ? "今天的跟读内容为空" : "题库内容为空" }}
-      <div class="mt"><n-button @click="router.push('/english/speak')">返回口语</n-button></div>
-    </div>
+    <LoadingBlock v-if="!loaded" />
+    <EmptyState
+      v-else-if="!item"
+      :title="hasPlan ? '今天的跟读内容为空' : '题库内容为空'"
+      desc="可以回到口语首页重新选择内容。"
+      plain
+    >
+      <template #action>
+        <n-button @click="router.push('/english/speak')">返回口语</n-button>
+      </template>
+    </EmptyState>
     <template v-else>
       <div class="sent card">
         <div class="en">{{ item.en }}</div>
@@ -58,7 +64,7 @@
           <span>{{ item.packName }}</span>
         </div>
         <div v-if="item.tip" class="tip">{{ item.tip }}</div>
-        <div class="sent-actions">
+        <div v-if="!busy" class="sent-actions">
           <n-button size="small" secondary @click="tts">
             {{ browserTts ? "听示范（浏览器朗读）" : "听示范（AI 朗读）" }}
           </n-button>
@@ -69,7 +75,7 @@
 
       <div class="ctrl card">
         <div class="status">{{ status }}</div>
-        <div class="ctrlbtns">
+        <div v-if="!busy" class="ctrlbtns">
           <template v-if="!soe">
             <PaidActionButton :status="aiStatus" @click="start">
               跟读评分
@@ -113,6 +119,7 @@ import {
   type PlanDayView, type ShadowItem, type SpeakData,
 } from "../core/speak";
 import { SoeEval, type SoeWord } from "../core/soe";
+import { micBlockedReason } from "../core/micSupport";
 import { useSpeakTime } from "../core/speakTime";
 import {
   pickSentences, sortSentences, targetDifficulty, weakWordsFromRecent,
@@ -123,6 +130,8 @@ import {
 } from "../core/aiStatus";
 import { say, playAudioUrl } from "../core/say";
 import BackButton from "../components/BackButton.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
+import EmptyState from "../components/EmptyState.vue";
 import PaidActionButton from "../components/PaidActionButton.vue";
 import PaidAiNotice from "../components/PaidAiNotice.vue";
 
@@ -227,6 +236,8 @@ const item = computed<ShadowItem | null>(() => {
 const soe = ref<SoeEval | null>(null);
 const status = ref("");
 const result = ref<ShadowResult | null>(null);
+/** 提交后上传/评分期间：隐藏所有操作按钮，避免误触或打断 */
+const busy = ref(false);
 const banner = computed(() => budgetBanner(aiStatus.value));
 const locked = computed(() => paidBlocked(aiStatus.value));
 const lockText = computed(() => paidLockText(aiStatus.value));
@@ -261,7 +272,7 @@ onMounted(async () => {
   }
   status.value = locked.value
     ? "跟读评分需要开通付费 AI；可以先点「听示范（浏览器朗读）」听句子。"
-    : "点「跟读评分」，允许麦克风后朗读，读完点「提交」";
+    : micBlockedReason() || "点「跟读评分」，允许麦克风后朗读，读完点「提交」";
 });
 onBeforeUnmount(() => {
   soe.value?.stop();
@@ -275,10 +286,12 @@ function start(): void {
     return;
   }
   result.value = null;
+  busy.value = false;
   settleSpeech();
   const ev = new SoeEval({
     refText: item.value.en,
     onStatus: (s) => (status.value = s),
+    onBusy: (b) => (busy.value = b),
     onResult: (r) => {
       const bad = r.words.filter((w) => !w.ok).map((w) => w.w);
       result.value = {
@@ -297,6 +310,7 @@ function start(): void {
     },
     onStopped: () => {
       settleSpeech();
+      busy.value = false;
       soe.value = null;
     },
   });
@@ -395,10 +409,6 @@ function mmss(s: number): string {
   const r = s % 60;
   return `${m}:${String(r).padStart(2, "0")}`;
 }
-function back(): void {
-  soe.value?.stop();
-  soe.value = null;
-}
 </script>
 
 <style scoped>
@@ -407,8 +417,6 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .daychip { font-size: var(--fs-sub); color: var(--c-primary); font-weight: 600; margin-left: 6px; }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 14px; }
 .back { margin-bottom: 8px; }
-.empty { padding: 40px; text-align: center; color: var(--c-text-2); }
-.mt { margin-top: 14px; }
 .card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
 .banner { margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); font-size: var(--fs-sub); font-weight: 600; }
 .banner.warn { background: var(--c-accent-soft); color: var(--c-accent); border: 1px solid var(--c-accent); }

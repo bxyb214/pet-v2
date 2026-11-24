@@ -8,10 +8,15 @@
         </svg>
       </button>
       <router-link to="/" class="logo">
-        <span class="leaf">🔥</span>
+        <span class="leaf" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" />
+          </svg>
+        </span>
         <span class="logo-txt">火焰学习</span>
       </router-link>
       <div class="spacer"></div>
+      <PwaInstallHint />
       <n-dropdown
         v-if="auth.username"
         trigger="click"
@@ -53,22 +58,24 @@
       <!-- 内容区：面包屑 + 页签 + 页面，统一同一宽度容器 -->
       <main class="main" :class="[widthClass, { 'mic-on': micActive }]">
         <div class="stack">
-          <div v-if="crumbs.length" class="crumb">
+          <nav v-if="!immersive && crumbs.length" class="crumb" aria-label="面包屑">
             <template v-for="(c, i) in crumbs" :key="i">
-              <span v-if="i" class="sep">/</span>
-              <b v-if="i === crumbs.length - 1">{{ c }}</b>
-              <span v-else>{{ c }}</span>
+              <span v-if="i" class="sep" aria-hidden="true">/</span>
+              <b v-if="c.current" aria-current="page">{{ c.label }}</b>
+              <router-link v-else-if="c.to" :to="c.to">{{ c.label }}</router-link>
+              <span v-else>{{ c.label }}</span>
             </template>
-          </div>
+          </nav>
 
-          <div v-if="route.meta.tabs?.length" class="tabs-wrap">
-            <nav class="tabs3">
+          <div v-if="!immersive && showTabs" class="tabs-wrap">
+            <nav class="tabs3" aria-label="页面分区">
               <router-link
-                v-for="t in route.meta.tabs"
+                v-for="t in tabs"
                 :key="t.to"
                 :to="t.to"
                 class="t"
                 :class="{ active: isActiveTab(t.to) }"
+                :aria-current="isActiveTab(t.to) ? 'page' : undefined"
               >{{ t.label }}</router-link>
             </nav>
           </div>
@@ -100,8 +107,10 @@ import {
 } from "@vicons/ionicons5";
 import SiderNav from "./SiderNav.vue";
 import MicCompanion from "../components/MicCompanion.vue";
+import PwaInstallHint from "../components/PwaInstallHint.vue";
 import { useAuthStore } from "../stores/auth";
 import { devMode, ensureDevMode } from "../core/devMode";
+import { immersive } from "../core/immersive";
 import { micActive } from "../core/micPresence";
 import { isSiderCollapsed, parseSiderPref, type SiderPref } from "../core/siderPref";
 
@@ -156,14 +165,35 @@ const widthClass = computed(() => {
 });
 
 /** 有页签的页面，当前页已由页签表达，面包屑只保留学科/板块两级，避免同一信息占两行 */
+const tabs = computed(() => route.meta.tabs ?? []);
+/** 前缀匹配会同时命中父级页签（如 /english/speak 与 /english/speak/shadow），取最长的那一个 */
+const activeTabTo = computed(() => {
+  let best = "";
+  for (const t of tabs.value) {
+    const hit = route.path === t.to || route.path.startsWith(t.to + "/");
+    if (hit && t.to.length > best.length) best = t.to;
+  }
+  return best;
+});
+const hasActiveTab = computed(() => activeTabTo.value !== "");
+/** 页签条只在有命中项时渲染，避免「页签都在、谁都不亮」 */
+const showTabs = computed(() => tabs.value.length > 0 && hasActiveTab.value);
+
 const crumbs = computed(() => {
   const c = route.meta.crumbs;
   if (!c?.length) return [];
-  return route.meta.tabs?.length && c.length > 2 ? c.slice(0, -1) : c;
+  const list = showTabs.value && c.length > 2 ? c.slice(0, -1) : c;
+  return list.map((item, i) => {
+    const label = typeof item === "string" ? item : item.label;
+    const to = typeof item === "string" ? "" : item.to;
+    const current = i === list.length - 1;
+    // 当前页只做标记，不再渲染成可点的链接
+    return { label, to: current ? "" : to, current };
+  });
 });
 
 function isActiveTab(to: string): boolean {
-  return route.path === to || route.path.startsWith(to + "/");
+  return activeTabTo.value === to;
 }
 
 function renderIcon(icon: Component) {
@@ -213,15 +243,18 @@ function logout(): void {
 </script>
 
 <style scoped>
-.shell { min-height: 100vh; display: flex; flex-direction: column; background: var(--c-bg, #f7faf8); }
+.shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: var(--c-bg, #f7faf8); }
 .topbar {
-  height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 20px;
+  height: calc(56px + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) max(20px, env(safe-area-inset-right, 0px)) 0 max(20px, env(safe-area-inset-left, 0px));
+  display: flex; align-items: center; gap: 12px;
   background: var(--c-surface, #fff); border-bottom: 1px solid var(--c-line, #e5efe9);
   position: sticky; top: 0; z-index: 20;
 }
 .menu-btn { display: none; border: 1px solid var(--c-line, #e5efe9); background: #fff; border-radius: 10px; width: 38px; height: 38px; align-items: center; justify-content: center; color: var(--c-text, #1f2d26); cursor: pointer; flex: none; }
 .logo { font-weight: 800; font-size: 18px; color: var(--c-primary-strong, #15803d); display: flex; align-items: center; gap: 8px; text-decoration: none; white-space: nowrap; }
-.leaf { width: 30px; height: 30px; border-radius: 10px; background: linear-gradient(135deg, #22c55e, #16a34a); display: flex; align-items: center; justify-content: center; font-size: 16px; flex: none; }
+.leaf { width: 30px; height: 30px; border-radius: 10px; background: linear-gradient(135deg, #22c55e, #16a34a); display: flex; align-items: center; justify-content: center; color: #fff; flex: none; }
+.leaf svg { display: block; }
 .spacer { flex: 1; }
 .userbtn {
   display: inline-flex; align-items: center; gap: 8px;
@@ -281,7 +314,10 @@ function logout(): void {
 .sider.collapsed :deep(.divider) { width: 100%; }
 
 /* 内容区：外框负责内边距，.stack 负责宽度 */
-.main { flex: 1; min-width: 0; padding: 22px 28px 56px; display: flex; justify-content: center; }
+.main {
+  flex: 1; min-width: 0; display: flex; justify-content: center;
+  padding: 22px max(28px, env(safe-area-inset-right, 0px)) calc(56px + env(safe-area-inset-bottom, 0px)) max(28px, env(safe-area-inset-left, 0px));
+}
 .stack { width: 100%; max-width: 960px; min-width: 0; }
 .main.w-narrow .stack { max-width: 720px; }
 
@@ -291,9 +327,17 @@ function logout(): void {
 
 .crumb { font-size: 13px; color: var(--c-text-2, #6b7f74); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .crumb b { color: var(--c-primary-strong, #15803d); }
+.crumb a { color: var(--c-text-2, #6b7f74); text-decoration: none; border-radius: 4px; }
+.crumb a:hover { color: var(--c-primary-strong, #15803d); text-decoration: underline; }
+.crumb a:focus-visible { outline: 3px solid var(--c-primary, #16a34a); outline-offset: 2px; }
 .sep { color: var(--c-line, #cfe0d5); }
 
-.tabs-wrap { margin-bottom: 18px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.tabs-wrap {
+  position: sticky; top: calc(56px + env(safe-area-inset-top, 0px)); z-index: 12;
+  margin-bottom: 18px; padding: 4px 0;
+  background: var(--c-bg);
+  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
+}
 .tabs-wrap::-webkit-scrollbar { display: none; }
 .tabs3 {
   display: inline-flex; background: var(--c-surface, #fff); border: 1px solid var(--c-line, #e5efe9);
@@ -308,18 +352,11 @@ function logout(): void {
 .tabs3 .t:hover { color: var(--c-text, #1f2d26); background: var(--c-mint-bg, #f2faf5); }
 .tabs3 .t.active { background: var(--c-primary-strong, #15803d); color: #fff; }
 
-/* ---------- 平板：侧栏固定为图标条（折叠按钮隐藏） ---------- */
+/* ---------- 平板：允许手动展开（默认按 900px 阈值收起），只收紧内容内边距 ---------- */
 @media (max-width: 1023px) {
-  .sider-toggle { display: none; }
-  .sider { width: 74px; padding: 14px 8px; align-items: center; }
-  .sider :deep(.sider-title),
-  .sider :deep(.sider-foot),
-  .sider :deep(.s-txt),
-  .sider :deep(.n-name) { display: none; }
-  .sider :deep(.subj) { justify-content: center; padding: 8px; }
-  .sider :deep(.nav-item) { justify-content: center; padding: 10px 0; }
-  .sider :deep(.divider) { width: 100%; }
-  .main { padding: 18px 20px 48px; }
+  .main {
+    padding: 18px max(20px, env(safe-area-inset-right, 0px)) calc(48px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+  }
   .main.mic-on { padding-right: 324px; }
 }
 
@@ -332,14 +369,21 @@ function logout(): void {
 @media (max-width: 767px) {
   .sider { display: none; }
   .menu-btn { display: inline-flex; }
-  .topbar { padding: 0 12px; gap: 8px; height: 52px; }
+  .topbar {
+    height: calc(52px + env(safe-area-inset-top, 0px));
+    padding: env(safe-area-inset-top, 0px) max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px));
+    gap: 8px;
+  }
   .logo { font-size: 16px; }
   .logo-txt { display: none; }
   .uname { display: none; }
   .userbtn { padding-right: 8px; gap: 5px; }
   .userbtn.dev { padding-left: 5px; gap: 7px; }
-  .main { padding: 14px 14px 40px; }
+  .main {
+    padding: 14px max(14px, env(safe-area-inset-right, 0px)) calc(40px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+  }
   .crumb { font-size: 12.5px; }
+  .tabs-wrap { top: calc(52px + env(safe-area-inset-top, 0px)); }
   .tabs3 .t { padding: 8px 16px; font-size: 14px; }
 }
 </style>

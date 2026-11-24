@@ -76,6 +76,10 @@
 
     <!-- ========== 答题中 ========== -->
     <template v-else-if="q && !finished">
+      <div class="quizbar">
+        <BackButton :to="exitTo" label="退出" variant="text" />
+        <span class="quizbar-tip">进度自动保存</span>
+      </div>
       <!-- 进度：可数的分段，已答的分段会变成绿/橙，能看出这一轮走到哪、对了几题 -->
       <header class="qhead">
         <div v-if="round.length <= 80" class="segs" :class="{ dense: round.length > 40 }" aria-hidden="true">
@@ -234,7 +238,7 @@
             </n-button>
             <n-button secondary size="large" @click="restart">重做本库</n-button>
           </template>
-          <router-link to="/english/words/plan" class="linkbtn">返回计划</router-link>
+          <BackButton to="/english/words/plan" label="返回计划" variant="text" />
         </template>
         <template v-else>
           <n-button type="primary" size="large" @click="restart">再来一轮</n-button>
@@ -255,6 +259,8 @@ import {
 } from "naive-ui";
 import { useRoute } from "vue-router";
 import { useLearningStore } from "../stores/learning";
+import BackButton from "../components/BackButton.vue";
+import { useImmersive } from "../core/immersive";
 import { availableBankKeys, loadBanks, type BankMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import {
@@ -388,6 +394,12 @@ let freeRestoreTried = false;
 
 const q = computed(() => round.value[qIndex.value] ?? null);
 const isLast = computed(() => qIndex.value >= round.value.length - 1);
+
+/** 答题轮次进行中：隐藏布局层面包屑与页签，只留本页退出与进度 */
+const testActive = computed(() => round.value.length > 0 && !finished.value);
+useImmersive(testActive);
+/** 退出目标：计划测试回计划页，随机学习回词库 */
+const exitTo = computed(() => (roundMode.value === "plan" ? "/english/words/plan" : "/english/words/browse"));
 
 /** 当天所有有词的词库都完成测试 */
 const allBanksDone = computed(
@@ -955,6 +967,8 @@ watch(
 
 /* ---------- 顶部分段进度 ---------- */
 .qhead { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.quizbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.quizbar-tip { font-size: 12.5px; color: var(--c-text-3); }
 .segs { display: flex; gap: 4px; flex: 1; min-width: 0; }
 .segs.dense { gap: 2px; }
 .seg {

@@ -2,11 +2,16 @@
   <main class="page">
     <BackButton to="/math" label="返回课程" />
 
-    <div v-if="loading" class="card empty">加载中…</div>
-    <div v-else-if="!book || book.comingSoon || !book.lessons.length" class="card empty">
-      <p>这个年级的课程还没上线。</p>
-      <n-button type="primary" @click="router.push('/math')">返回课程</n-button>
-    </div>
+    <LoadingBlock v-if="loading" />
+    <EmptyState
+      v-else-if="!book || book.comingSoon || !book.lessons.length"
+      title="这个年级的课程还没上线"
+      desc="上线后会自动出现在课程首页。"
+    >
+      <template #action>
+        <n-button type="primary" @click="router.push('/math')">返回课程</n-button>
+      </template>
+    </EmptyState>
     <template v-else>
       <header class="head">
         <span class="grade tnum">{{ book.gradeName }}</span>
@@ -63,6 +68,8 @@ import { useRoute, useRouter } from "vue-router";
 import { NButton, NIcon } from "naive-ui";
 import { ChevronForwardOutline } from "@vicons/ionicons5";
 import BackButton from "../components/BackButton.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
+import EmptyState from "../components/EmptyState.vue";
 import {
   bookProgress, findBook, formatTime, groupsOf, lessonKey, loadMath, nextLesson, statusOf,
   type MathBook, type MathData, type MathLesson, type VideoRec,

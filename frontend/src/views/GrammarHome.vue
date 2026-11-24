@@ -54,7 +54,7 @@
       </div>
     </section>
 
-    <p v-else class="loading">正在加载语法要点…</p>
+    <LoadingBlock v-else plain text="正在加载语法要点…" />
   </main>
 </template>
 
@@ -62,6 +62,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useLearningStore } from "../stores/learning";
+import LoadingBlock from "../components/LoadingBlock.vue";
 import {
   grammarIndex, loadReading, withCustomSentences, type ReadingData,
 } from "../core/reading";
