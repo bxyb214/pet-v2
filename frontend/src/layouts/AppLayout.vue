@@ -35,8 +35,18 @@
     </header>
 
     <div class="body-wrap">
-      <!-- 桌面/平板侧栏 -->
-      <aside class="sider">
+      <!-- 桌面/平板侧栏：默认按宽度收起，用户可手动切换 -->
+      <aside class="sider" :class="{ collapsed: siderCollapsed }">
+        <button
+          class="sider-toggle" type="button"
+          :aria-expanded="!siderCollapsed"
+          :aria-label="siderCollapsed ? '展开侧栏' : '收起侧栏'"
+          :title="siderCollapsed ? '展开侧栏' : '收起侧栏'"
+          @click="toggleSider"
+        >
+          <n-icon :component="siderCollapsed ? ChevronForwardOutline : ChevronBackOutline" size="18" />
+          <span v-if="!siderCollapsed">收起</span>
+        </button>
         <SiderNav />
       </aside>
 
@@ -81,23 +91,62 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref, type Component } from "vue";
+import { computed, h, onBeforeUnmount, onMounted, ref, type Component } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { NDrawer, NDrawerContent, NDropdown, NIcon, type DropdownOption } from "naive-ui";
-import { LogOutOutline, SettingsOutline, ShieldCheckmarkOutline } from "@vicons/ionicons5";
+import {
+  ChevronBackOutline, ChevronForwardOutline,
+  LogOutOutline, SettingsOutline, ShieldCheckmarkOutline,
+} from "@vicons/ionicons5";
 import SiderNav from "./SiderNav.vue";
 import MicCompanion from "../components/MicCompanion.vue";
 import { useAuthStore } from "../stores/auth";
 import { devMode, ensureDevMode } from "../core/devMode";
 import { micActive } from "../core/micPresence";
+import { isSiderCollapsed, parseSiderPref, type SiderPref } from "../core/siderPref";
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const drawer = ref(false);
 
+/** 侧栏折叠：没手动切换过就跟随窗口宽度（<1280 收起），切换后记住选择 */
+const SIDER_KEY = "pet_sider";
+
+function readSiderPref(): SiderPref {
+  try {
+    return parseSiderPref(localStorage.getItem(SIDER_KEY));
+  } catch {
+    return null;
+  }
+}
+
+const siderPref = ref<SiderPref>(readSiderPref());
+const siderCollapsed = ref(isSiderCollapsed(window.innerWidth, siderPref.value));
+
+function toggleSider(): void {
+  const next: Exclude<SiderPref, null> = siderCollapsed.value ? "open" : "closed";
+  siderPref.value = next;
+  siderCollapsed.value = next === "closed";
+  try {
+    localStorage.setItem(SIDER_KEY, next);
+  } catch {
+    /* 隐私模式等无法持久化时，仅本次会话生效 */
+  }
+}
+
+function onResize(): void {
+  // 手动选择优先；只有「自动」模式才随宽度变化
+  if (!siderPref.value) siderCollapsed.value = isSiderCollapsed(window.innerWidth, null);
+}
+
 onMounted(() => {
   void ensureDevMode();
+  window.addEventListener("resize", onResize);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", onResize);
 });
 
 /** 内容宽度三档（唯一来源，页面内不再自己设宽） */
@@ -200,8 +249,36 @@ function logout(): void {
 .avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--c-primary-soft, #e7f6ec); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: var(--c-primary-strong, #15803d); flex: none; }
 
 .body-wrap { display: flex; flex: 1; align-items: stretch; min-width: 0; }
-.sider { width: 240px; flex-shrink: 0; background: var(--c-surface, #fff); border-right: 1px solid var(--c-line, #e5efe9); padding: 16px 12px; display: flex; flex-direction: column; }
+.sider {
+  width: 240px; flex-shrink: 0; background: var(--c-surface, #fff);
+  border-right: 1px solid var(--c-line, #e5efe9); padding: 16px 12px;
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: width 0.18s ease, padding 0.18s ease;
+}
 .sider :deep(.nav) { flex: 1; }
+.sider-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  align-self: flex-end; flex: none; margin: 0 0 10px;
+  min-height: 32px; padding: 4px 10px;
+  background: var(--c-surface, #fff); color: var(--c-text-2, #6b7f74);
+  border: 1px solid var(--c-line, #e5efe9); border-radius: 10px;
+  font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.sider-toggle:hover {
+  background: var(--c-mint-bg, #f2faf5); color: var(--c-text, #1f2d26);
+  border-color: var(--c-line-strong, #d3e0d8);
+}
+.sider-toggle:focus-visible { outline: 3px solid var(--c-primary, #16a34a); outline-offset: 2px; }
+.sider.collapsed { width: 74px; padding: 14px 8px; align-items: center; }
+.sider.collapsed .sider-toggle { align-self: center; padding: 6px; }
+.sider.collapsed :deep(.sider-title),
+.sider.collapsed :deep(.sider-foot),
+.sider.collapsed :deep(.s-txt),
+.sider.collapsed :deep(.n-name) { display: none; }
+.sider.collapsed :deep(.subj) { justify-content: center; padding: 8px; }
+.sider.collapsed :deep(.nav-item) { justify-content: center; padding: 10px 0; }
+.sider.collapsed :deep(.divider) { width: 100%; }
 
 /* 内容区：外框负责内边距，.stack 负责宽度 */
 .main { flex: 1; min-width: 0; padding: 22px 28px 56px; display: flex; justify-content: center; }
@@ -231,8 +308,9 @@ function logout(): void {
 .tabs3 .t:hover { color: var(--c-text, #1f2d26); background: var(--c-mint-bg, #f2faf5); }
 .tabs3 .t.active { background: var(--c-primary-strong, #15803d); color: #fff; }
 
-/* ---------- 平板：侧栏收成图标条 ---------- */
+/* ---------- 平板：侧栏固定为图标条（折叠按钮隐藏） ---------- */
 @media (max-width: 1023px) {
+  .sider-toggle { display: none; }
   .sider { width: 74px; padding: 14px 8px; align-items: center; }
   .sider :deep(.sider-title),
   .sider :deep(.sider-foot),
