@@ -3,6 +3,7 @@ import {
   budgetBanner,
   fmtMilliYuan,
   paidBlocked,
+  paidClickHint,
   paidLockText,
   type AiStatus,
 } from "./aiStatus";
@@ -62,6 +63,21 @@ describe("paidLockText", () => {
     expect(paidLockText(st({ ai_enabled: false }))).toContain("需要找小淏开通");
     expect(paidLockText(st({ blocked: true, message: "今日 AI 额度已用完" }))).toBe("今日 AI 额度已用完");
     expect(paidLockText(st({ blocked: true }))).toBe("AI 额度已用完，免费功能仍可用。");
+  });
+});
+
+describe("paidClickHint", () => {
+  it("未开通时给完整费用与免费功能提示", () => {
+    expect(paidClickHint(st({ ai_enabled: false }))).toBe(
+      "此功能调用外部 AI 接口，有费用，需要找小淏开通。免费功能：题库浏览、浏览器朗读、看标准答案。",
+    );
+  });
+
+  it("额度用尽沿用服务端原因；可用时为空", () => {
+    expect(paidClickHint(st())).toBe("");
+    expect(paidClickHint(st({ blocked: true, message: "今日 AI 额度已用完" }))).toBe("今日 AI 额度已用完");
+    expect(paidClickHint(st({ blocked: true }))).toBe("AI 额度已用完，免费功能仍可用。");
+    expect(paidClickHint(null)).toBe("");
   });
 });
 

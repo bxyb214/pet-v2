@@ -1,13 +1,12 @@
-"""speak API 测试：权限 / boot 提示词 / log→days 打卡 / 无 Key 503。
+"""speak API 测试：登录即可用 / AI 闸门 / boot 提示词 / log→days 打卡 / 无 Key 503。
 
 conftest 每个测试后清空数据，因此每个测试用 _fresh_user() 独立建号。
 """
-import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.db import SessionLocal
-from app.models.user import InviteCode, User
+from app.models.user import InviteCode
 
 client = TestClient(app)
 
@@ -22,47 +21,45 @@ def _fresh_user(username: str = "speaker") -> str:
         json={"username": username, "password": "pet-test-pass", "invite_code": f"INV-{username}"},
     )
     assert r.status_code == 201, r.text
-    token = r.json()["access_token"]
-    db = SessionLocal()
-    u = db.query(User).filter(User.username == username).one()
-    u.perms = "speak"
-    db.commit()
-    db.close()
-    return token
+    return r.json()["access_token"]
 
 
-def test_requires_speak_perm():
-    # 未开通 speak 的用户 → 403
+def _register(username: str) -> str:
     db = SessionLocal()
-    db.add(InviteCode(code="INV-nospeak"))
+    db.add(InviteCode(code=f"INV-{username}"))
     db.commit()
     db.close()
     r = client.post(
         "/api/v1/auth/register",
-        json={"username": "nospeak", "password": "pet-test-pass", "invite_code": "INV-nospeak"},
+        json={"username": username, "password": "pet-test-pass", "invite_code": f"INV-{username}"},
     )
-    assert r.status_code == 201
-    token = r.json()["access_token"]
-    r = client.post("/api/v1/speak/boot", json={"mode": "talk"}, headers={"Authorization": f"Bearer {token}"})
-    assert r.status_code == 403
+    assert r.status_code == 201, r.text
+    return r.json()["access_token"]
 
 
-def test_admin_has_speak_by_default():
-    """管理员即使 perms 为空也视为已开通口语（/auth/me 回显 + 接口放行）。"""
-    token = _fresh_user("boss")
-    db = SessionLocal()
-    u = db.query(User).filter(User.username == "boss").one()
-    u.perms = ""
-    db.commit()
-    db.close()
+def test_speak_free_endpoints_open_without_perm():
+    """口语不再按人限制：没有 perms、未开 AI 的普通账号也能用免费接口。"""
+    token = _register("nospeak")
     H = {"Authorization": f"Bearer {token}"}
 
+    assert client.post("/api/v1/speak/boot", json={"mode": "shadow"}, headers=H).status_code == 200
+    assert client.get("/api/v1/speak/days", headers=H).status_code == 200
+    assert client.get("/api/v1/speak/plan", headers=H).status_code == 200
+    assert client.get("/api/v1/speak/ai_status", headers=H).status_code == 200
+
+    # 付费 AI 仍受 ai_enabled 控制
+    r = client.post("/api/v1/speak/boot", json={"mode": "talk"}, headers=H)
+    assert r.status_code == 403
+    assert r.json()["detail"]["code"] == "AI_NOT_ENABLED"
+
+
+def test_auth_me_has_no_perms_field():
+    token = _fresh_user("boss")
+    H = {"Authorization": f"Bearer {token}"}
     me = client.get("/api/v1/auth/me", headers=H)
     assert me.status_code == 200
-    assert "speak" in me.json()["perms"].split(",")
-
-    r = client.post("/api/v1/speak/boot", json={"mode": "shadow"}, headers=H)
-    assert r.status_code == 200
+    assert "perms" not in me.json()
+    assert client.post("/api/v1/speak/boot", json={"mode": "shadow"}, headers=H).status_code == 200
 
 
 def test_boot_shadow_instructions():

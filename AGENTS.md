@@ -39,6 +39,7 @@
 ## 环境约定
 
 - 目标部署：飞牛 NAS Docker（nginx + FastAPI + SQLite），见 [docs/06](docs/06-部署与运维.md)。
+- 本地开发/预发布：`python tools/dev_local.py`（localhost:8088，无 Docker）；热更新用 vite 5173 + uvicorn 8000。
 - Monorepo：`frontend/`（Vue 3）、`backend/`（FastAPI）、`data-src/`（学习数据源）、`tools/`（构建/迁移）。
 - 媒体文件沿用 ASCII slug 命名；音频/图片与数据库不进 git。
 - 旧站参考代码在上级目录 `../PET/`，只读。

@@ -1,5 +1,8 @@
 # NAS 开发环境 — 自省报告
 
+> **已归档（2026-11-24）**：NAS `8089` 开发环境已删除，改由
+> [本地开发环境](../../dev/local-dev-env/02-design.md)（`localhost:8088`，Windows 原生进程）替代。
+>
 > 日期：2026-11-23；提交：`chore/nas-dev-env` → `main`（含 `seed-db` 追加）
 
 ## 逐项自查
@@ -20,8 +23,8 @@
 
 | 项 | 结果 |
 |---|---|
-| 开发环境 | `http://192.168.1.10:8089`，`dev_mode: true`，容器 `pet-v2-dev-api-1` / `pet-v2-dev-nginx-1` |
-| 生产环境 | `http://192.168.1.10:8088`，`dev_mode: false`，容器 `deploy-api-1` / `deploy-nginx-1` |
+| 开发环境 | `http://<NAS-IP>:8089`，`dev_mode: true`，容器 `pet-v2-dev-api-1` / `pet-v2-dev-nginx-1` |
+| 生产环境 | `http://<NAS-IP>:8088`，`dev_mode: false`，容器 `deploy-api-1` / `deploy-nginx-1` |
 | 静态资源 | 两端 `/`、`/data/banks.json`、`/audio/listen/t1-p1.mp3`、`/admin` 均 200 |
 | 新构建生效 | 生产 `/` 引用的 `assets/index-eWKvUqTw.js` 与本机 `frontend/dist/index.html` 一致 |
 | 数据隔离 | dev 与 prod 各自 `data/pet.db`；生产迁移后 `rev=c9d1e2f3a4b5`、`users=4`、`mastery=1289` 不变 |

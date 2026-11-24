@@ -62,10 +62,22 @@ export function budgetBanner(st: AiStatus | null | undefined): { tone: "warn" | 
   return null;
 }
 
+export const PAID_AI_NOT_ENABLED_TITLE = "付费 AI 未启用";
+export const PAID_AI_NOT_ENABLED_BODY = "此功能调用外部 AI 接口，有费用，需要找小淏开通。";
+export const PAID_AI_FREE_TEXT = "免费功能：题库浏览、浏览器朗读、看标准答案。";
+
 /** 锁定态文案：区分「没开通」与「额度用完」。 */
 export function paidLockText(st: AiStatus | null | undefined): string {
   if (!st) return "";
-  if (!st.ai_enabled) return "此功能调用外部 AI 接口，有费用，需要找小淏开通。";
+  if (!st.ai_enabled) return PAID_AI_NOT_ENABLED_BODY;
+  if (st.blocked) return st.message || "AI 额度已用完，免费功能仍可用。";
+  return "";
+}
+
+/** 点击置灰的付费按钮时展示：未开通给完整提示，额度用尽给服务端原因。 */
+export function paidClickHint(st: AiStatus | null | undefined): string {
+  if (!st) return "";
+  if (!st.ai_enabled) return `${PAID_AI_NOT_ENABLED_BODY}${PAID_AI_FREE_TEXT}`;
   if (st.blocked) return st.message || "AI 额度已用完，免费功能仍可用。";
   return "";
 }

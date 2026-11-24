@@ -8,10 +8,7 @@
     </p>
 
     <div v-if="banner" class="banner" :class="banner.tone">{{ banner.text }}</div>
-    <div v-if="lockText" class="lockbar">
-      <b>付费 AI 未启用</b>
-      <span>{{ lockText }} 仍可看标准答案，用浏览器朗读。</span>
-    </div>
+    <PaidAiNotice :status="aiStatus" />
 
     <div v-if="hasPlan" class="card targetbar" :class="{ over: overGoal }">
       <span class="target-label">今日造句</span>
@@ -54,11 +51,11 @@
 
           <div class="saybar">
             <template v-if="!conn">
-              <n-button type="primary" size="large" :disabled="checking || locked" @click="startSpeak">
+              <PaidActionButton :status="aiStatus" :disabled="checking" @click="startSpeak">
                 {{ mine ? "🎤 再说一次" : "🎤 开始说" }}
-              </n-button>
+              </PaidActionButton>
               <n-button v-if="locked" size="large" secondary @click="play(prompt?.answer ?? '')">
-                听标准答案
+                听标准答案（浏览器朗读）
               </n-button>
             </template>
             <template v-else>
@@ -115,6 +112,8 @@ import {
 } from "../core/aiStatus";
 import { say, playAudioUrl } from "../core/say";
 import BackButton from "../components/BackButton.vue";
+import PaidActionButton from "../components/PaidActionButton.vue";
+import PaidAiNotice from "../components/PaidAiNotice.vue";
 
 const route = useRoute();
 const data = ref<SpeakData | null>(null);
@@ -393,7 +392,8 @@ async function logMake(): Promise<void> {
 
 async function play(text: string): Promise<void> {
   if (!text) return;
-  if (locked.value) {
+  // 未开通或状态未知都不请求付费 TTS，避免产生费用 / 读到服务端缓存。
+  if (!aiStatus.value || locked.value) {
     say(text);
     return;
   }
@@ -423,8 +423,6 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .banner { margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); font-size: var(--fs-sub); font-weight: 600; }
 .banner.warn { background: var(--c-accent-soft); color: var(--c-accent); border: 1px solid var(--c-accent); }
 .banner.danger { background: var(--c-danger-soft); color: var(--c-danger); border: 1px solid var(--c-danger); }
-.lockbar { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); background: var(--c-accent-soft); color: var(--c-text-2); font-size: var(--fs-sub); }
-.lockbar b { color: var(--c-accent); }
 .targetbar {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 10px 14px; margin-bottom: 12px; color: var(--c-text-2); font-size: var(--fs-sub);

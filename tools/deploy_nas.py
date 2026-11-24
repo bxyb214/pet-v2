@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
-"""飞牛 NAS 一键部署（paramiko over SSH）
+"""飞牛 NAS 生产部署（paramiko over SSH）
 
 用法（在 pet-v2 根目录执行）：
 
-    # 生产（默认 profile=prod，8088，/vol1/1000/docker/pet-v2）
     python tools/deploy_nas.py check   --host <NAS-IP>
     python tools/deploy_nas.py deploy  --host <NAS-IP>
     python tools/deploy_nas.py ps      --host <NAS-IP>
     python tools/deploy_nas.py restart --host <NAS-IP>
     python tools/deploy_nas.py logs    --host <NAS-IP> -n 200
 
-    # 开发/预发布（8089，/vol1/1000/docker/pet-v2-dev，PET_DEV_MODE=1）
-    python tools/deploy_nas.py deploy  --host <NAS-IP> --profile dev
-    python tools/deploy_nas.py ps      --host <NAS-IP> --profile dev
-
-    # 用生产库快照重置开发库（覆盖 dev 数据，不影响生产）
-    python tools/deploy_nas.py seed-db --host <NAS-IP> --profile dev
+只部署生产环境：8088，/vol1/1000/docker/pet-v2，deploy/docker-compose.yml。
+本地开发/预发布环境改用 `python tools/dev_local.py`（localhost:8088，无需 Docker）。
 
 密码来源优先级：--password > 环境变量 NAS_PASS > 交互输入（不回显）。
 凭据绝不写进本文件、也不进 git；本机存在 ../nas-credentials.md（仓库外）。
@@ -38,9 +33,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent  # pet-v2/
 DEFAULT_REMOTE = "/vol1/1000/docker/pet-v2"
-DEFAULT_REMOTE_DEV = "/vol1/1000/docker/pet-v2-dev"
 DEFAULT_PORT = 8088
-DEFAULT_PORT_DEV = 8089
 
 EXCLUDE_DIRS = {
     ".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache",
@@ -111,7 +104,7 @@ class Runner:
             try:
                 stdin.write(self.password + "\n")
                 stdin.flush()
-            except Exception:  # noqa: BLE001
+            except Exception:  # noqa: BLE001,S110 - 密码写入失败不阻断，后续命令会暴露问题
                 pass
 
         # 非流式：先等退出码，再读缓冲（实测这样读最可靠，直接 recv 轮询会漏数据）
@@ -185,12 +178,10 @@ class Runner:
             return self.sudo(f"docker {sub}", timeout, stream)
         return self.sh(f"docker {sub}", timeout, stream)
 
-    def compose(self, sub: str, timeout: int = 1800, stream: bool = True,
-                remote: str | None = None, compose_file: str | None = None) -> tuple[int, str]:
+    def compose(self, sub: str, timeout: int = 1800, stream: bool = True) -> tuple[int, str]:
         self.detect_docker()
-        remote = shlex.quote(remote or getattr(self, "remote", DEFAULT_REMOTE))
-        compose_file = compose_file or self.compose_file
-        inner = f"cd {remote}/deploy && docker compose -f {compose_file} {sub}"
+        remote = shlex.quote(getattr(self, "remote", DEFAULT_REMOTE))
+        inner = f"cd {remote}/deploy && docker compose -f {self.compose_file} {sub}"
         # sudo() 内部已用 sh -c 包了一层，cd 这类内建命令可以直接用
         if self.docker_as_sudo:
             return self.sudo(inner, timeout, stream)
@@ -278,7 +269,7 @@ def cmd_check(args, R: Runner) -> None:
         print(f"{'✓' if good else '×'} {name:<12} {detail}")
     print("=" * 72)
     if all(g for _, g, _ in checks):
-        print(f"全部就绪 → python tools/deploy_nas.py deploy --host {args.host} --profile {args.profile}")
+        print(f"全部就绪 → python tools/deploy_nas.py deploy --host {args.host}")
     else:
         print("有未通过项，先补齐再 deploy。")
 
@@ -337,14 +328,13 @@ def cmd_deploy(args, R: Runner, cli) -> None:
         info(f"{args.remote} 需 sudo 写入")
 
     # 1. 打包 + 上传 + 解包（--skip-upload 时跳过，用于只重启/重建镜像）
-    profile_tag = "" if args.profile == "prod" else f"-{args.profile}"
     if args.skip_upload:
         info("--skip-upload：跳过打包上传，直接用 NAS 上已有代码")
     else:
-        tar_local = ROOT / "_work" / f"pet-v2-deploy{profile_tag}.tar.gz"
+        tar_local = ROOT / "_work" / "pet-v2-deploy.tar.gz"
         tar_local.parent.mkdir(parents=True, exist_ok=True)
         pack(tar_local)
-        remote_tar = f"/tmp/pet-v2-deploy{profile_tag}.tar.gz"
+        remote_tar = "/tmp/pet-v2-deploy.tar.gz"
         upload(cli, tar_local, remote_tar)
 
         info("远端解包 …")
@@ -363,14 +353,8 @@ def cmd_deploy(args, R: Runner, cli) -> None:
     _, out = R.sh(f"test -f {shlex.quote(env_path)} && echo EXISTS")
     if "EXISTS" not in out:
         secret = secrets.token_urlsafe(48)
-        if args.profile == "dev":
-            content = (f"PET_JWT_SECRET={secret}\n"
-                       "PET_DEV_MODE=1\n"
-                       f"PET_DEV_PORT={args.http_port}\n")
-            backup = ROOT / "_work" / "nas-dev-jwt-secret.txt"
-        else:
-            content = f"PET_JWT_SECRET={secret}\n"
-            backup = ROOT / "_work" / "nas-jwt-secret.txt"
+        content = f"PET_JWT_SECRET={secret}\n"
+        backup = ROOT / "_work" / "nas-jwt-secret.txt"
         py = ("import pathlib,sys;"
               f"p=pathlib.Path({env_path!r});"
               "p.write_text(sys.argv[1]);p.chmod(0o600)")
@@ -384,7 +368,7 @@ def cmd_deploy(args, R: Runner, cli) -> None:
         ok("deploy/.env 已存在，保持不变")
 
     # 4. 构建 + 启动
-    info(f"docker compose -f {args.compose_file} up -d --build（首次 3~8 分钟）…")
+    info(f"docker compose -f {R.compose_file} up -d --build（首次 3~8 分钟）…")
     code, _ = R.compose("up -d --build", timeout=2400, stream=True)
     if code != 0:
         die("compose 构建/启动失败，看上面日志")
@@ -407,65 +391,8 @@ def cmd_deploy(args, R: Runner, cli) -> None:
 
     _, out = R.compose("ps", timeout=60, stream=False)
     print("\n容器状态：\n" + out)
-    env_label = "开发环境" if args.profile == "dev" else "生产环境"
-    print(f"\n{env_label}（{args.profile}）局域网访问：http://{args.host}:{args.http_port}")
+    print(f"\n生产环境局域网访问：http://{args.host}:{args.http_port}")
     print(f"管理页：    http://{args.host}:{args.http_port}/admin")
-
-
-def cmd_seed_db(args, R: Runner) -> None:
-    """用生产库的一致快照覆盖开发库（仅 --profile dev）。"""
-    if args.profile != "dev":
-        die("seed-db 只用于 --profile dev（避免覆盖生产数据）")
-    prod = DEFAULT_REMOTE
-    dev = args.remote
-    stamp = time.strftime("%Y%m%d-%H%M%S")
-    snap_name = f"pet-seed-{stamp}.db"
-    snap_host = f"{prod}/data/backup/{snap_name}"
-
-    info("1/4 生产库一致快照 …")
-    snap_py = (
-        "import sqlite3;"
-        "s=sqlite3.connect('/app/data/pet.db');"
-        f"d=sqlite3.connect('/app/data/backup/{snap_name}');"
-        "s.backup(d);d.close();s.close();print('snapshot ok')"
-    )
-    code, out = R.compose(f"exec -T api python -c {shlex.quote(snap_py)}",
-                          remote=prod, compose_file="docker-compose.yml", timeout=300)
-    if code != 0 or "snapshot ok" not in out:
-        die(f"生产快照失败：{out[:400]}")
-
-    info("2/4 停止开发 api …")
-    code, out = R.compose("stop api", remote=dev,
-                          compose_file="docker-compose.dev.yml", timeout=180)
-    if code != 0:
-        die(f"停止 dev api 失败：{out[:300]}")
-
-    info("3/4 覆盖开发库（保留生产快照备份）…")
-    install = (
-        f"install -m 600 {shlex.quote(snap_host)} {shlex.quote(dev + '/data/pet.db')}"
-        f" && rm -f {shlex.quote(dev + '/data/pet.db-wal')}"
-        f" {shlex.quote(dev + '/data/pet.db-shm')}"
-    )
-    code, out = R.sudo(install)
-    if code != 0:
-        die(f"复制开发库失败：{out[:300]}")
-
-    info("4/4 启动开发 api …")
-    code, out = R.compose("start api", remote=dev,
-                          compose_file="docker-compose.dev.yml", timeout=180)
-    if code != 0:
-        die(f"启动 dev api 失败：{out[:300]}")
-
-    for _ in range(40):
-        _, out = R.sh(f"curl -fsS http://127.0.0.1:{args.http_port}/api/v1/healthz 2>/dev/null || true")
-        if "ok" in out.lower():
-            ok(f"开发库已就绪：{out.strip()}")
-            ok(f"生产快照保留于 {snap_host}")
-            return
-        time.sleep(3)
-    R.compose("logs --tail 40 api", remote=dev,
-              compose_file="docker-compose.dev.yml", timeout=120, stream=True)
-    die("开发环境健康检查超时")
 
 
 def cmd_ps(args, R: Runner) -> None:
@@ -492,41 +419,27 @@ def cmd_logs(args, R: Runner) -> None:
 
 # ---------------------------------------------------------------- main
 def main() -> None:
-    ap = argparse.ArgumentParser(description="飞牛 NAS 部署工具")
-    ap.add_argument("action", choices=["check", "deploy", "seed-db", "ps", "restart", "logs"])
+    ap = argparse.ArgumentParser(description="飞牛 NAS 生产部署工具")
+    ap.add_argument("action", choices=["check", "deploy", "ps", "restart", "logs"])
     ap.add_argument("--host", required=True, help="NAS 内网 IP")
     ap.add_argument("--port", type=int, default=22, help="SSH 端口")
     ap.add_argument("--user", default="admin")
     ap.add_argument("--password", help="不推荐明文；优先 NAS_PASS 环境变量或交互输入")
     ap.add_argument("--key", help="改用私钥登录")
-    ap.add_argument("--profile", choices=["prod", "dev"], default="prod",
-                    help="prod=生产（8088，目录 pet-v2）；dev=开发（8089，目录 pet-v2-dev）")
-    ap.add_argument("--remote", default=None, help="远端项目目录（默认按 profile 推断）")
-    ap.add_argument("--http-port", type=int, default=None,
-                    help="宿主机 HTTP 端口（默认 prod=8088 / dev=8089）")
+    ap.add_argument("--remote", default=DEFAULT_REMOTE, help="远端项目目录")
+    ap.add_argument("--http-port", type=int, default=DEFAULT_PORT,
+                    help="宿主机 HTTP 端口（默认 8088）")
     ap.add_argument("--skip-upload", action="store_true",
                     help="跳过打包上传解包（NAS 上代码已就位，只重建/重启容器）")
     ap.add_argument("-n", type=int, default=200, help="logs 行数")
     args = ap.parse_args()
 
-    # profile 决定目录、compose 文件、端口；显式参数优先
-    if args.profile == "dev":
-        args.remote = args.remote or DEFAULT_REMOTE_DEV
-        args.compose_file = "docker-compose.dev.yml"
-        args.http_port = args.http_port or DEFAULT_PORT_DEV
-    else:
-        args.remote = args.remote or DEFAULT_REMOTE
-        args.compose_file = "docker-compose.yml"
-        args.http_port = args.http_port or DEFAULT_PORT
-
     cli, password = connect(args)
     R = Runner(cli, password)
     R.remote = args.remote
-    R.compose_file = args.compose_file
     try:
         {"check": lambda: cmd_check(args, R),
          "deploy": lambda: cmd_deploy(args, R, cli),
-         "seed-db": lambda: cmd_seed_db(args, R),
          "ps": lambda: cmd_ps(args, R),
          "restart": lambda: cmd_restart(args, R),
          "logs": lambda: cmd_logs(args, R)}[args.action]()

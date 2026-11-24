@@ -12,10 +12,7 @@
     </p>
 
     <div v-if="banner" class="banner" :class="banner.tone">{{ banner.text }}</div>
-    <div v-if="lockText" class="lockbar">
-      <b>付费 AI 未启用</b>
-      <span>{{ lockText }}</span>
-    </div>
+    <PaidAiNotice :status="aiStatus" />
 
     <!-- 5 分钟目标：只提示，不强制；有计划才计时 -->
     <div v-if="hasPlan" class="card targetbar" :class="{ over: overGoal }">
@@ -63,7 +60,7 @@
         <div v-if="item.tip" class="tip">{{ item.tip }}</div>
         <div class="sent-actions">
           <n-button size="small" secondary @click="tts">
-            {{ locked ? "听示范（浏览器朗读）" : "听示范（AI 朗读）" }}
+            {{ browserTts ? "听示范（浏览器朗读）" : "听示范（AI 朗读）" }}
           </n-button>
           <n-button size="small" quaternary @click="next">换一句 →</n-button>
           <span class="idx">{{ itemIdx + 1 }} / {{ orderedItems.length }}</span>
@@ -74,12 +71,9 @@
         <div class="status">{{ status }}</div>
         <div class="ctrlbtns">
           <template v-if="!soe">
-            <n-button type="primary" size="large" :disabled="locked" @click="start">
+            <PaidActionButton :status="aiStatus" @click="start">
               跟读评分
-            </n-button>
-            <n-button v-if="locked" size="large" secondary @click="listenAndRepeat">
-              自己读一遍
-            </n-button>
+            </PaidActionButton>
           </template>
           <template v-else>
             <n-button type="primary" size="large" @click="submit">提交</n-button>
@@ -129,6 +123,8 @@ import {
 } from "../core/aiStatus";
 import { say, playAudioUrl } from "../core/say";
 import BackButton from "../components/BackButton.vue";
+import PaidActionButton from "../components/PaidActionButton.vue";
+import PaidAiNotice from "../components/PaidAiNotice.vue";
 
 type ShadowResult = { score: number; words: SoeWord[]; tips: string[] };
 
@@ -234,6 +230,8 @@ const result = ref<ShadowResult | null>(null);
 const banner = computed(() => budgetBanner(aiStatus.value));
 const locked = computed(() => paidBlocked(aiStatus.value));
 const lockText = computed(() => paidLockText(aiStatus.value));
+// 状态未知时不冒险调用付费 TTS，和按钮文案保持一致。
+const browserTts = computed(() => !aiStatus.value || locked.value);
 
 const speechBase = ref(0);
 const clock = useSpeakTime("shadow", currentSpeech, () => hasPlan.value);
@@ -262,7 +260,7 @@ onMounted(async () => {
     loaded.value = true;
   }
   status.value = locked.value
-    ? "跟读评分需要开通付费 AI；现在可以先听示范自己读。"
+    ? "跟读评分需要开通付费 AI；可以先点「听示范（浏览器朗读）」听句子。"
     : "点「跟读评分」，允许麦克风后朗读，读完点「提交」";
 });
 onBeforeUnmount(() => {
@@ -310,12 +308,6 @@ function start(): void {
 }
 function submit(): void {
   soe.value?.submit();
-}
-
-/** 无付费 AI：只播放示范，孩子自己跟读（P2-4 免费降级）。 */
-function listenAndRepeat(): void {
-  if (item.value) say(item.value.en);
-  status.value = "听完示范，自己大声读一遍即可；跟读评分需要开通付费 AI。";
 }
 
 function stop(): void {
@@ -379,7 +371,8 @@ function next(): void {
 async function tts(): Promise<void> {
   const text = item.value?.en ?? "";
   if (!text) return;
-  if (locked.value) {
+  // 未开通或状态未知：浏览器直读，不请求 TTS、不读服务端缓存。
+  if (browserTts.value) {
     say(text);
     return;
   }
@@ -420,8 +413,6 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .banner { margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); font-size: var(--fs-sub); font-weight: 600; }
 .banner.warn { background: var(--c-accent-soft); color: var(--c-accent); border: 1px solid var(--c-accent); }
 .banner.danger { background: var(--c-danger-soft); color: var(--c-danger); border: 1px solid var(--c-danger); }
-.lockbar { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); background: var(--c-accent-soft); color: var(--c-text-2); font-size: var(--fs-sub); }
-.lockbar b { color: var(--c-accent); }
 .targetbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; color: var(--c-text-2); font-size: var(--fs-sub); }
 .target-label { font-weight: 700; color: var(--c-text); }
 .target-time { color: var(--c-primary); font-variant-numeric: tabular-nums; font-size: 16px; }
