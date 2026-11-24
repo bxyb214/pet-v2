@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
+from app.core.deps import check_paid_or_raise, get_current_user, require_paid_ai
 from app.db import get_db
 from app.models.extra import CustomWord
 from app.models.user import User
@@ -53,10 +53,12 @@ def add_word(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
-    # 四项全空且配置了 Key → 服务端自动 enrich
+    # 四项全空且配置了 Key → 服务端自动 enrich（付费 AI，走闸门）
     if not (body.pos or body.definition or body.example_en or body.example_cn):
+        if not ai_enrich.dev_mock.is_dev():
+            check_paid_or_raise(db, user)
         try:
-            filled = ai_enrich.enrich_word(db, body.word)
+            filled = ai_enrich.enrich_word(db, body.word, user.id)
         except LookupError:
             raise HTTPException(503, "未配置 AI Key，请先在管理页配置或手动填写")
         except Exception:
@@ -103,11 +105,11 @@ def delete_word(
 @router.post("/enrich")
 def enrich(
     body: EnrichIn,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_paid_ai),
     db: Session = Depends(get_db),
 ) -> dict:
     try:
-        return ai_enrich.enrich_word(db, body.word)
+        return ai_enrich.enrich_word(db, body.word, user.id)
     except LookupError:
         raise HTTPException(503, "未配置 AI Key")
     except Exception:

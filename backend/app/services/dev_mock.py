@@ -119,4 +119,11 @@ def _beep_wav_b64() -> str:
 
 
 def tts_payload() -> dict:
-    return {"mime": "audio/wav", "b64": _beep_wav_b64(), "cached": False, "dev": True}
+    """开发环境：直接返回 data URL（不落盘、不调用外部 TTS）。"""
+    return {
+        "url": f"data:audio/wav;base64,{_beep_wav_b64()}",
+        "mime": "audio/wav",
+        "cached": False,
+        "chars": 0,
+        "dev": True,
+    }

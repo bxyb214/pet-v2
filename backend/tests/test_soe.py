@@ -30,7 +30,7 @@ def _fresh_user(username: str, perm: str = "speak") -> str:
     db.close()
     r = client.post(
         "/api/v1/auth/claim",
-        json={"username": username, "password": "secret123", "invite_code": f"INV-{username}"},
+        json={"username": username, "password": "pet-test-pass", "invite_code": f"INV-{username}"},
     )
     assert r.status_code == 201, r.text
     db = SessionLocal()

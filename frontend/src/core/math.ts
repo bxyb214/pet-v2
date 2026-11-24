@@ -47,8 +47,9 @@ export function encodePath(p: string): string {
   return p.split("/").map(encodeURIComponent).join("/");
 }
 
-export function videoUrl(mediaDir: string, file: string): string {
-  return `${MEDIA_BASE}/${encodePath(mediaDir)}/${encodePath(file)}`;
+export function videoUrl(mediaDir: string, file: string, token = ""): string {
+  const path = `${MEDIA_BASE}/${encodePath(mediaDir)}/${encodePath(file)}`;
+  return token ? `${path}?mt=${encodeURIComponent(token)}` : path;
 }
 
 export function isDone(rec: VideoRec | null | undefined): boolean {

@@ -32,11 +32,18 @@ def set_cfg(db: Session, key: str, value: str) -> None:
     db.commit()
 
 
-def enrich_word(db: Session, word: str) -> dict:
-    """调用 LLM 生成词性/释义/例句。未配 Key 抛 LookupError，调用方转 503。"""
+def enrich_word(db: Session, word: str, user_id: int | None = None) -> dict:
+    """调用 LLM 生成词性/释义/例句。未配 Key 抛 LookupError，调用方转 503。
+
+    P0-2：传入 user_id 时记录 LLM 用量（AI 加词同样产生费用）。
+    """
     if dev_mock.is_dev():
         return dev_mock.enrich_word(word)
-    data = chat(db, [{"role": "user", "content": _PROMPT.format(word=word)}], max_tokens=200)
+    data, llm_usage = chat(db, [{"role": "user", "content": _PROMPT.format(word=word)}], max_tokens=200)
+    if user_id is not None:
+        from app.services import usage as usage_svc
+
+        usage_svc.record_llm(db, user_id, llm_usage)
     return {
         "pos": str(data.get("pos", "")),
         "definition": str(data.get("definition", "")),

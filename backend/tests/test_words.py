@@ -16,7 +16,7 @@ def _setup_admin() -> None:
     db.close()
     r = client.post(
         "/api/v1/auth/claim",
-        json={"username": "admin", "password": "secret123", "invite_code": "V-INVITE"},
+        json={"username": "admin", "password": "pet-test-pass", "invite_code": "V-INVITE"},
     )
     HEAD.update({"Authorization": f"Bearer {r.json()['access_token']}"})
 

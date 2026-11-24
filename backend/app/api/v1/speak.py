@@ -1,16 +1,19 @@
-"""口语路由（S 组）：boot / sdp / log / days / tts / 用量 / 复盘 / 求助。密钥不出服务端。"""
+"""口语路由（S 组）：boot / sdp / log / days / 复盘 / 求助。密钥不出服务端。
+
+付费接口统一走 `require_paid_ai`（P0-1）；免费接口只查口语权限。
+TTS 已拆到 `speak_media.py`（静态 URL + 缓存治理）。
+"""
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
-from app.core.deps import require_speak
+from app.core.deps import check_paid_or_raise, require_paid_ai, require_speak
 from app.db import get_db
 from app.models.speak import SpeakDay, SpeakLog, SpeakPlan, SpeakTime
 from app.models.user import User
-from app.services import ai_enrich, dev_mock, qwen_speak, speak_profile, speak_review, tencent_soe, usage
+from app.services import budget, dev_mock, qwen_speak, speak_profile, speak_review, tencent_soe, usage
 
 router = APIRouter(prefix="/speak", tags=["speak"])
 
@@ -26,7 +29,12 @@ class BootIn(BaseModel):
 
 @router.post("/boot")
 def boot(body: BootIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
-    """拼会话提示词（talk 附带历史问题摘要 + 当日画像 + 到期复盘热身句）。"""
+    """拼会话提示词（talk 附带历史问题摘要 + 当日画像 + 到期复盘热身句）。
+
+    shadow 只拼评测提示词，不产生外部费用；talk 会生成/复用画像，走付费闸门。
+    """
+    if body.mode == "talk":
+        check_paid_or_raise(db, user)
     issues = qwen_speak.recent_issues(db, user.id) if body.mode == "talk" else []
     scores = (
         db.query(SpeakLog.score)
@@ -55,33 +63,46 @@ def boot(body: BootIn, user: User = Depends(require_speak), db: Session = Depend
 class SdpIn(BaseModel):
     sdp: str = Field(min_length=20, max_length=200_000)
     mode: str = Field(pattern="^(shadow|talk)$")
+    instructions_chars: int = Field(default=1200, ge=0, le=20_000)
 
 
 @router.post("/sdp")
-def sdp(body: SdpIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def sdp(
+    body: SdpIn,
+    user: User = Depends(require_paid_ai),
+    db: Session = Depends(get_db),
+) -> dict:
     if dev_mock.is_dev():
         raise HTTPException(503, "开发环境不连接语音服务（前端使用模拟对话）")
+    # 建会话跟踪 + 计算本次可用时长（P0-1 / P0-2）
+    sess = budget.session_start(db, user, body.mode, body.instructions_chars)
     try:
-        return qwen_speak.proxy_sdp(db, body.sdp, body.mode)
+        out = qwen_speak.proxy_sdp(db, body.sdp, body.mode)
+        return {**out, **sess}
     except PermissionError as e:
+        budget.session_abort(db, sess["session_id"])
         raise HTTPException(503, str(e))
     except RuntimeError as e:
+        budget.session_abort(db, sess["session_id"])
         raise HTTPException(502, str(e))
 
 
 class SessionEndIn(BaseModel):
     seconds: int = Field(ge=0, le=7200)
     ai_seconds: int = Field(default=0, ge=0, le=7200)
-    mode: str = Field(default="talk", pattern="^(shadow|talk)$")
+    mode: str = Field(default="talk", pattern="^(shadow|make|talk)$")
+    session_id: int = Field(default=0, ge=0)
 
 
 @router.post("/session_end")
 def session_end(body: SessionEndIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
-    """会话关闭记账（不限流，只记录）：服务端按官方换算率折算音频 token。"""
+    """会话关闭记账（免费接口，只记录）：服务端按官方换算率折算音频 token。
+
+    P0-2：`sdp` 创建会话；正常结束或 `sendBeacon` 补报都走这里，幂等关闭。
+    """
     if dev_mock.is_dev():
         return {"est_cost_milli": 0, "dev": True}
-    row = usage.record_session(db, user.id, body.seconds, body.ai_seconds)
-    return {"est_cost_milli": row.est_cost_milli}
+    return budget.session_end(db, user, body.seconds, body.ai_seconds, body.session_id)
 
 
 class SoeUrlIn(BaseModel):
@@ -91,7 +112,7 @@ class SoeUrlIn(BaseModel):
 
 
 @router.post("/soe_url")
-def soe_url(body: SoeUrlIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def soe_url(body: SoeUrlIn, user: User = Depends(require_paid_ai), db: Session = Depends(get_db)) -> dict:
     """生成一次腾讯 SOE（口语评测新版）带签名的 WSS 地址。SecretKey 不回传。签发即记账。"""
     if dev_mock.is_dev():
         raise HTTPException(503, "开发环境不调用 SOE（前端使用模拟评分）")
@@ -111,19 +132,22 @@ def soe_url(body: SoeUrlIn, user: User = Depends(require_speak), db: Session = D
 class LogIn(BaseModel):
     mode: str = Field(pattern="^(shadow|make|talk)$")
     ref: str = Field(default="", max_length=128)
+    sentence_id: str = Field(default="", max_length=32)
     day: int = Field(default=0, ge=0, le=365)
     turns: int = Field(default=0, ge=0, le=200)
     score: int = Field(default=0, ge=0, le=100)
     issues: list[str] = Field(default_factory=list, max_length=20)
+    words: list[dict] = Field(default_factory=list, max_length=100)
     transcript: list[dict] = Field(default_factory=list, max_length=100)
 
 
 @router.post("/log")
 def log(body: LogIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
     row = SpeakLog(
-        user_id=user.id, mode=body.mode, ref=body.ref, day=body.day,
+        user_id=user.id, mode=body.mode, ref=body.ref, sentence_id=body.sentence_id, day=body.day,
         turns=body.turns, score=body.score,
         issues=json.dumps(body.issues, ensure_ascii=False),
+        words=json.dumps(body.words, ensure_ascii=False),
         transcript=json.dumps(body.transcript, ensure_ascii=False),
     )
     db.add(row)
@@ -212,6 +236,54 @@ def usage_today(user: User = Depends(require_speak), db: Session = Depends(get_d
     return usage.day_row(db, user.id)
 
 
+@router.get("/ai_status")
+def ai_status(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+    """付费 AI 状态：开关、日/月预算、剩余额度、单次会话上限（前端横幅与锁定用）。"""
+    return budget.status(db, user)
+
+
+@router.get("/shadow/recent")
+def shadow_recent(
+    limit: int = 10,
+    user: User = Depends(require_speak),
+    db: Session = Depends(get_db),
+) -> dict:
+    """最近跟读记录：供难度选句与弱音素加权（P0-3 / P2-5）。"""
+    limit = max(1, min(int(limit), 50))
+    rows = (
+        db.query(SpeakLog)
+        .filter(SpeakLog.user_id == user.id, SpeakLog.mode == "shadow")
+        .order_by(SpeakLog.id.desc())
+        .limit(limit * 6)
+        .all()
+    )
+    items = []
+    seen: set[str] = set()
+    for r in rows:
+        # 计划日会为同一句写多条日志（day=0 + 来源日）：按句子去重，保证选句样本多样
+        key = r.sentence_id or f"log-{r.id}"
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            words = json.loads(r.words or "[]")
+        except json.JSONDecodeError:
+            words = []
+        items.append(
+            {
+                "id": r.id,
+                "ref": r.ref,
+                "sentence_id": r.sentence_id,
+                "score": r.score,
+                "weak_words": [str(w.get("w", "")) for w in words if isinstance(w, dict) and not w.get("ok")],
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+        )
+        if len(items) >= limit:
+            break
+    return {"items": items}
+
+
 # ---------- 今日练习时长（真实说话秒数，服务端累计，刷新不丢） ----------
 
 
@@ -272,7 +344,7 @@ _IMPROVE_PROMPT = (
 
 @router.post("/improve")
 def improve(
-    body: ImproveIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
+    body: ImproveIn, user: User = Depends(require_paid_ai), db: Session = Depends(get_db)
 ) -> dict:
     """自由对话中：把孩子刚说的一句改写成 PET B1 版本（穿插显示并跟读）。"""
     if dev_mock.is_dev():
@@ -305,7 +377,7 @@ class ReviewIn(BaseModel):
 
 
 @router.post("/review")
-def review(body: ReviewIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def review(body: ReviewIn, user: User = Depends(require_paid_ai), db: Session = Depends(get_db)) -> dict:
     """会话结束 → LLM 挑句按 PET 改写（幂等）。"""
     row = db.get(SpeakLog, body.log_id)
     if row is None or row.user_id != user.id:
@@ -354,7 +426,7 @@ class ReviewImportIn(BaseModel):
 
 @router.post("/review/import")
 def review_import(
-    body: ReviewImportIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
+    body: ReviewImportIn, user: User = Depends(require_paid_ai), db: Session = Depends(get_db)
 ) -> dict:
     """把对话中即时生成的优化句落库为复盘句（同一 log 幂等），返回带 id 的条目供评分。"""
     row = db.get(SpeakLog, body.log_id)
@@ -374,7 +446,7 @@ class HelpIn(BaseModel):
 
 
 @router.post("/help")
-def help_(body: HelpIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def help_(body: HelpIn, user: User = Depends(require_paid_ai), db: Session = Depends(get_db)) -> dict:
     """「怎么说？」：中文解释 + 简单英文示范句（气泡展示，不打断语音流）。"""
     from app.services import ai_enrich
 
@@ -412,7 +484,7 @@ class CheckIn(BaseModel):
 
 
 @router.post("/check")
-def check(body: CheckIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def check(body: CheckIn, user: User = Depends(require_paid_ai), db: Session = Depends(get_db)) -> dict:
     """造句判定：孩子按中文提示说英文，LLM 判意 + 给 PET 级优化。"""
     from app.services import ai_enrich
 
@@ -444,27 +516,3 @@ def check(body: CheckIn, user: User = Depends(require_speak), db: Session = Depe
         "improved": str(data.get("improved", "")),
     }
 
-
-class TtsIn(BaseModel):
-    text: str = Field(min_length=1, max_length=300)
-    voice: str = Field(default="", max_length=64)
-
-
-@router.post("/tts")
-def tts(body: TtsIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
-    if dev_mock.is_dev():
-        return dev_mock.tts_payload()
-    # 缓存目录与 sqlite 同级（./data/tts），生产 compose 挂卷即可持久化
-    settings = get_settings()
-    db_path = settings.database_url.replace("sqlite:///", "", 1)
-    from pathlib import Path
-
-    cache_dir = str(Path(db_path).parent / "tts")
-    try:
-        return qwen_speak.tts(db, cache_dir, body.text, body.voice)
-    except PermissionError as e:
-        raise HTTPException(503, str(e))
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    except RuntimeError as e:
-        raise HTTPException(502, str(e))

@@ -21,6 +21,7 @@ class TokenOut(BaseModel):
     perms: str
     is_admin: bool
     exam: str = "pet"
+    ai_enabled: bool = False
 
 
 class RefreshIn(BaseModel):
@@ -34,6 +35,7 @@ class UserOut(BaseModel):
     perms: str
     is_admin: bool
     exam: str = "pet"
+    ai_enabled: bool = False
 
     model_config = {"from_attributes": True}
 

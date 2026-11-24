@@ -1,6 +1,15 @@
 /** 口语数据加载（speak.json）+ 90 天计划视图纯函数。 */
 
-export type ShadowItem = { id: string; pack: string; packName: string; en: string; cn: string; tip: string };
+export type ShadowItem = {
+  id: string; pack: string; packName: string; en: string; cn: string; tip: string;
+  /** 选句字段（schema 5；旧数据缺失时前端按默认值处理） */
+  part?: number;
+  difficulty?: number;
+  words?: number;
+  focus?: string[];
+  source?: string;
+  active?: boolean;
+};
 export type SpeakPack = { id: string; name: string; part: number; ids: string[]; order: number };
 export type FreeItem = { id: string; pack: string; en: string; cn: string };
 /** 造句题：中文提示 → 用户说英文 → 标准答案 + AI 点评 */

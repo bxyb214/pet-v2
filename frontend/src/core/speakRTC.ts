@@ -13,6 +13,10 @@ export type SpeakConnOpts = {
   mode: "shadow" | "talk";
   instructions: string;
   turnDetection: "manual" | "vad";
+  /** 服务端配置的轮次检测类型；manual 模式忽略 */
+  vad?: string;
+  /** AI 说话时暂停麦克风轨道（P2-1），默认开启 */
+  halfDuplex?: boolean;
   onStatus: (s: string) => void;
   onUserTranscript: (t: string) => void;
   /** shadow：评测 JSON 文本；talk：AI 回复文本 */
@@ -31,12 +35,17 @@ export type SpeakConn = {
   close: () => void;
   /** 手动提交缓冲（shadow 模式），instr 为评测提示词 */
   commitAndRespond: (instr?: string) => void;
+  /** 复用连接时更新提示词（P1-5：不再重新 SDP 握手） */
+  updateInstructions?: (instr: string) => void;
   ready: boolean;
   closed: boolean;
   /** 会话已持续秒数（记账上报用） */
   elapsedSec: () => number;
   /** 孩子真正开口的累计秒数（本地麦克风能量检测） */
   speechSec: () => number;
+  /** 服务端返回的会话上限与剩余额度（P0-1） */
+  sessionId?: number;
+  maxSessionSec?: number;
 };
 
 // talk 模式客户端工具：屏幕提示卡 + 奖励（§5 屏幕辅助区）
@@ -81,6 +90,15 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
   const startedAt = Date.now();
   let speechMs = 0;
   let meter: ReturnType<typeof setInterval> | null = null;
+  /** AI 说话期间暂停的本地麦克风轨道（P2-1 半双工） */
+  let micTracks: MediaStreamTrack[] = [];
+  const halfDuplex = opts.halfDuplex !== false;
+  const setMicEnabled = (on: boolean): void => {
+    if (!halfDuplex) return;
+    for (const tr of micTracks) {
+      try { tr.enabled = on; } catch { /* noop */ }
+    }
+  };
   let meterCtx: AudioContext | null = null;
   /** 麦克风占用登记；关闭连接时释放，数字人随之消失 */
   let releaseMic: (() => void) | null = null;
@@ -91,6 +109,12 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
     lastReply: "",
     elapsedSec: () => Math.max(0, Math.round((Date.now() - startedAt) / 1000)),
     speechSec: () => Math.round(speechMs / 1000),
+    updateInstructions(instr: string) {
+      opts.instructions = instr;
+      applySession(instr);
+      // 复用连接时清掉上一轮残留音频，避免带入下一句
+      conn.send({ type: "input_audio_buffer.clear" });
+    },
     send(m) {
       if (dc.readyState === "open") dc.send(JSON.stringify(m));
     },
@@ -135,7 +159,12 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
       if (opts.mode === "talk") opts.onStatus("在听你说…");
       return;
     }
-    if (t === "response.created") { conn.text = ""; if (opts.mode === "talk") opts.onStatus("AI 正在想…"); return; }
+    if (t === "response.created") {
+      conn.text = "";
+      setMicEnabled(false); // AI 开始说话 → 暂停输入，减少回声与输入音频
+      if (opts.mode === "talk") opts.onStatus("AI 正在想…");
+      return;
+    }
     if (t === "response.text.delta" || t === "response.audio_transcript.delta") {
       conn.text += String((d as { delta?: string }).delta ?? "");
       return;
@@ -172,12 +201,14 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
       return;
     }
     if (t === "response.done") {
+      setMicEnabled(true);
       if (conn.text && opts.mode === "talk") opts.onReply(conn.text);
       if (opts.mode === "talk") opts.onStatus("轮到你了");
       conn.text = "";
       return;
     }
     if (t === "error") {
+      setMicEnabled(true);
       const em = (d as { error?: { message?: string; code?: string } }).error ?? {};
       const msg = em.message || em.code || "语音服务返回错误";
       if (/buffer|duration|exceed/i.test(msg)) {
@@ -196,18 +227,42 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
   let answer: string;
   let gotVoice = "";
   try {
-    const r = await api<{ sdp: string; voice: string }>("/speak/sdp", {
+    const r = await api<{
+      sdp: string; voice: string; vad?: string; session_id?: number; max_session_sec?: number;
+    }>("/speak/sdp", {
       method: "POST",
-      body: JSON.stringify({ sdp: offer.sdp, mode: opts.mode }),
+      body: JSON.stringify({
+        sdp: offer.sdp,
+        mode: opts.mode,
+        instructions_chars: opts.instructions.length,
+      }),
     });
     answer = r.sdp;
     gotVoice = r.voice;
+    conn.sessionId = r.session_id;
+    conn.maxSessionSec = r.max_session_sec;
+    if (r.vad) opts.vad = r.vad;
   } catch (err) {
     const e = err as { message?: string; status?: number };
     pc.close();
     throw new Error(parseSdpError(e.message ?? "连接失败"));
   }
   await pc.setRemoteDescription({ type: "answer", sdp: answer });
+
+  /** 下发/更新会话配置；同一连接切换句子时只改 instructions（P1-5） */
+  const applySession = (instructions: string): void => {
+    const vad = opts.vad || "semantic_vad";
+    conn.send({
+      type: "session.update",
+      session: {
+        voice: gotVoice,
+        instructions,
+        turn_detection:
+          opts.turnDetection === "vad" && opts.vad !== "none" ? { type: vad } : null,
+        ...(opts.mode === "talk" ? { tools: TALK_TOOLS, tool_choice: "auto" } : {}),
+      },
+    });
+  };
 
   // session.updated 后挂麦克风并下发 session 配置
   const attach = async () => {
@@ -216,6 +271,7 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       stream.getTracks().forEach((tr) => pc.addTrack(tr, stream));
+      micTracks = stream.getAudioTracks();
       // 麦克风真正拿到后才登记：数字人只在采集期间出现
       releaseMic = holdMic(() => {
         opts.onMicClosed?.();
@@ -241,17 +297,7 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
           if (Math.sqrt(sum / buf.length) > 0.02) speechMs += 200;
         }, 200);
       } catch { /* 环境不支持能量检测时只记 0 秒 */ }
-      conn.send({
-        type: "session.update",
-        session: {
-          voice: gotVoice,
-          instructions: opts.instructions,
-          // qwen3.8 Realtime 支持 semantic_vad：过滤附和声/背景音，减少误触发
-          turn_detection:
-            opts.turnDetection === "vad" ? { type: "semantic_vad" } : null,
-          ...(opts.mode === "talk" ? { tools: TALK_TOOLS, tool_choice: "auto" } : {}),
-        },
-      });
+      applySession(opts.instructions);
       opts.onStatus(opts.mode === "talk" ? "准备好就开口吧" : "点「开始朗读」");
     } catch {
       releaseMic?.();

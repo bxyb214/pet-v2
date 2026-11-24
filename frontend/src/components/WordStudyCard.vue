@@ -11,11 +11,14 @@
         <span v-if="word.pos" class="pos">{{ word.pos }}</span>
         <span class="en">{{ word.en }}</span>
       </p>
-      <p v-if="word.example" class="ex">{{ word.example }}</p>
+      <p v-if="word.example" class="ex">
+        {{ word.example }}
+        <button type="button" class="exsay" aria-label="听整句" @click.stop="sayExample">听整句</button>
+      </p>
       <p class="hint">点击翻回英文</p>
     </template>
 
-    <button v-if="audio" type="button" class="audio" aria-label="听发音" @click.stop="play">
+    <button v-if="word.en" type="button" class="audio" aria-label="听发音" @click.stop="play">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
         <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
@@ -25,15 +28,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref } from "vue";
 import type { PlanWord } from "../core/plan";
+import { englishOnly, playWordAudio, say } from "../core/say";
 
 const props = defineProps<{ word: PlanWord }>();
 const flipped = ref(false);
-const audio = computed(() => String(props.word.audio ?? ""));
 
 function play(): void {
-  if (audio.value) void new Audio(`/media/audio/${audio.value}`).play().catch(() => {});
+  // 必须在点击事件里同步朗读：iOS Safari 只认手势内的 speechSynthesis 调用
+  playWordAudio(props.word.en);
+}
+function sayExample(): void {
+  const text = englishOnly(String(props.word.example ?? ""));
+  if (text) say(text);
 }
 </script>
 
@@ -104,6 +112,8 @@ function play(): void {
   cursor: pointer;
 }
 .audio:hover { background: var(--c-primary-soft); border-color: #cfeadd; }
+.exsay { margin-left: 8px; border: 1px solid var(--c-line); background: #fff; color: var(--c-primary-strong); border-radius: var(--r-pill); padding: 3px 10px; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.exsay:hover { background: var(--c-primary-soft); }
 @media (prefers-reduced-motion: reduce) {
   .card { transition: none; }
 }

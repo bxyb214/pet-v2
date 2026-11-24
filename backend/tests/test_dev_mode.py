@@ -28,7 +28,7 @@ def _fresh_user(username: str = "devkid") -> str:
     db.close()
     r = client.post(
         "/api/v1/auth/claim",
-        json={"username": username, "password": "secret123", "invite_code": f"INV-{username}"},
+        json={"username": username, "password": "pet-test-pass", "invite_code": f"INV-{username}"},
     )
     assert r.status_code == 201, r.text
     token = r.json()["access_token"]
@@ -114,7 +114,8 @@ def test_dev_tts_returns_playable_wav(dev):
     body = r.json()
     assert body["mime"] == "audio/wav"
     assert body["dev"] is True
-    raw = base64.b64decode(body["b64"])
+    assert body["url"].startswith("data:audio/wav;base64,")
+    raw = base64.b64decode(body["url"].split(",", 1)[1])
     assert raw.startswith(b"RIFF")
     assert len(raw) > 1000
 

@@ -29,14 +29,16 @@ export function say(text: string, rate = 0.9): void {
   const clean = englishOnly(text);
   if (!clean) return;
   try {
-    window.speechSynthesis.cancel();
+    const synth = window.speechSynthesis;
+    // iOS Safari 上「cancel() 后立即 speak()」偶发被吞；空闲时不要多调一次 cancel
+    if (synth.speaking || synth.pending) synth.cancel();
     const u = new SpeechSynthesisUtterance(clean);
     u.lang = "en-GB";
     u.rate = rate;
     u.pitch = 1;
     const v = pickVoice();
     if (v) u.voice = v;
-    window.speechSynthesis.speak(u);
+    synth.speak(u);
   } catch {
     /* 静默失败，不打断学习 */
   }
@@ -44,6 +46,37 @@ export function say(text: string, rate = 0.9): void {
 
 export function stopSpeaking(): void {
   if (ttsSupported()) window.speechSynthesis.cancel();
+}
+
+/**
+ * 朗读单词：直接用浏览器内置语音，且必须在点击事件里同步调用。
+ *
+ * 不再先尝试 `/media/audio/<audio>`：该目录本站从未托管（旧站的 mp3 是「整组音频」，
+ * 词库里每个词拿到的都是整组文件名），请求会命中 nginx 的 index.html 回退，
+ * 播放失败后再异步调 say()。桌面 Chrome 允许异步朗读，iOS Safari 只允许在
+ * 用户手势的同步调用栈里发声——异步回退会被静默丢弃，表现为 iPad 按播放没声音。
+ */
+export function playWordAudio(word: string): void {
+  say(word);
+}
+
+/**
+ * 播放服务端 TTS 返回的 URL；失败时回退浏览器朗读（免费降级 / 网络失败）。
+ * 返回是否由服务端音频播放成功。
+ */
+export async function playAudioUrl(url: string, fallbackText = ""): Promise<boolean> {
+  if (!url || typeof Audio === "undefined") {
+    if (fallbackText) say(fallbackText);
+    return false;
+  }
+  try {
+    const el = new Audio(url);
+    await el.play();
+    return true;
+  } catch {
+    if (fallbackText) say(fallbackText);
+    return false;
+  }
 }
 
 /** 只保留英文部分（词库数据里 example 常把中英混在一个字段） */

@@ -2,6 +2,7 @@
   <main class="page">
     <h1>口语</h1>
     <p class="sub">每天 5 分钟跟读 + 10 分钟造句 + 15 分钟自由对话（10 分钟对话 + 5 分钟复盘）</p>
+    <div v-if="banner" class="aibanner" :class="banner.tone">{{ banner.text }}</div>
 
     <div v-if="!authReady" class="locked card">加载中…</div>
     <!-- 未开通口语：占位 + 弹框提示（AI 调用有费用） -->
@@ -24,10 +25,16 @@
     </template>
     <template v-else>
       <!-- 今日已用（只记录不限流）：放在日历上方 -->
+      <div v-if="loaded && paidLocked" class="paidhint card">
+        <b>付费 AI 未启用</b>
+        <span>{{ paidLock }}</span>
+        <span class="muted">免费功能：题库浏览、浏览器朗读、看标准答案。</span>
+      </div>
       <div v-if="loaded && hasPlan && (usage || timeTotals)" class="card usage">
         <span v-if="timeTotals">今日开口：跟读 <b>{{ fmtSec(timeTotals.shadow) }}</b> · 造句 <b>{{ fmtSec(timeTotals.make) }}</b> · 对话 <b>{{ fmtSec(timeTotals.talk) }}</b></span>
         <span v-if="usage">跟读评测 <b>{{ usage.soe_calls }}</b> 次</span>
         <span v-if="usage" class="cost">预估 {{ (usage.est_cost_milli / 1000).toFixed(2) }} 元</span>
+        <span v-if="aiStatus" class="cost">AI 额度剩余 {{ (aiStatus.remaining_milli / 1000).toFixed(2) }} 元</span>
       </div>
 
       <!-- 每日入口：5 + 10 + 15；作用于日历中选中的那天 -->
@@ -146,6 +153,9 @@ import { MicOutline, ChatbubblesOutline, CreateOutline } from "@vicons/ionicons5
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
 import {
+  budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
+} from "../core/aiStatus";
+import {
   loadSpeak, planDayDone, sourceRangeText, splitSpeakPlan,
   type DayCheck, type PlanDayView, type SpeakData,
 } from "../core/speak";
@@ -163,6 +173,10 @@ const usage = ref<{ rt_seconds: number; soe_calls: number; est_cost_milli: numbe
 const timeTotals = ref<{ shadow: number; make: number; talk: number } | null>(null);
 const authReady = ref(false);
 const showLocked = ref(route.query.locked === "1");
+const aiStatus = ref<AiStatus | null>(null);
+const banner = computed(() => budgetBanner(aiStatus.value));
+const paidLocked = computed(() => paidBlocked(aiStatus.value));
+const paidLock = computed(() => paidLockText(aiStatus.value));
 
 const locked = computed(
   () => localStorage.getItem("pet_local_only") !== "true" && !auth.perms.includes("speak"),
@@ -227,6 +241,7 @@ onMounted(async () => {
   }
   planData.value = await loadSpeak();
   await refresh();
+  aiStatus.value = await loadAiStatus(true);
   loaded.value = true;
 });
 

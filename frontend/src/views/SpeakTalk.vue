@@ -4,11 +4,18 @@
     <h1>{{ title }}</h1>
     <p class="sub">{{ subtitle }}</p>
 
+    <div v-if="banner" class="banner" :class="banner.tone">{{ banner.text }}</div>
+    <div v-if="lockText" class="lockbar">
+      <b>付费 AI 未启用</b>
+      <span>{{ lockText }}</span>
+    </div>
+
     <div class="ctrl card">
       <div class="status">{{ status }}</div>
       <div v-if="hasPlan && phase !== 'idle'" class="timer" :class="{ warn: overTalk || overReview }">
         <template v-if="phase === 'talk'">
           对话 {{ mmss(elapsed) }} / 10:00
+          <span v-if="maxSessionSec > 0"> · AI 额度剩 {{ mmss(sessionLeftSec) }}</span>
           <span v-if="overTalk"> · 可以进入 5 分钟复盘啦</span>
         </template>
         <template v-else>
@@ -18,7 +25,7 @@
       </div>
       <div class="ctrlbtns">
         <template v-if="phase === 'idle'">
-          <n-button v-if="hasPlan || scene" type="primary" size="large" @click="start">开始对话</n-button>
+          <n-button v-if="hasPlan || scene" type="primary" size="large" :disabled="locked" @click="start">开始对话</n-button>
           <n-button v-if="!hasPlan && scene" size="large" quaternary @click="clearScene">换一个场景</n-button>
         </template>
         <template v-else-if="phase === 'talk'">
@@ -65,7 +72,7 @@
         <span class="who">{{ m.who === "me" ? "我" : "AI" }}</span>
         <div class="bubble">
           <span class="txt">{{ m.text }}</span>
-          <div v-if="m.who === 'me' && (m.improving || m.improved)" class="improve">
+          <div v-if="m.who === 'me'" class="improve">
             <span v-if="m.improving" class="improving">AI 正在帮你把这句话说得更好…</span>
             <SpeakImproveCard
               v-else-if="m.improved"
@@ -75,6 +82,9 @@
               :dims="m.improved.dims"
               @scored="onInlineScored(m, $event)"
             />
+            <button v-else type="button" class="improve-btn" @click="requestImprove(m.text, true)">
+              帮我改
+            </button>
           </div>
         </div>
       </div>
@@ -110,11 +120,15 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { NAlert, NButton } from "naive-ui";
-import { api } from "../core/api";
+import { api, apiBeacon } from "../core/api";
 import { loadSpeak, splitSpeakPlan, type PlanDayView, type Scene, type SpeakData } from "../core/speak";
 import { createSpeakConn, type SpeakConn } from "../core/speakRTC";
 import type { ReviewItem } from "../core/review";
 import { useSpeakTime } from "../core/speakTime";
+import { createImproveGuard, shouldAutoImprove } from "../core/improve";
+import {
+  budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
+} from "../core/aiStatus";
 import BackButton from "../components/BackButton.vue";
 import SpeakImproveCard from "../components/SpeakImproveCard.vue";
 
@@ -165,6 +179,16 @@ const freeScenes = computed<Scene[]>(() => {
 });
 
 const conn = ref<SpeakConn | null>(null);
+const aiStatus = ref<AiStatus | null>(null);
+const banner = computed(() => budgetBanner(aiStatus.value));
+const locked = computed(() => paidBlocked(aiStatus.value));
+const lockText = computed(() => paidLockText(aiStatus.value));
+const sessionId = ref(0);
+const maxSessionSec = ref(0);
+const sessionLeftSec = ref(0);
+const improveGuard = createImproveGuard();
+let wallTimer = 0;
+let sessionReported = false;
 const status = ref("");
 const lines = ref<Line[]>([]);
 const chatBox = ref<HTMLElement | null>(null);
@@ -208,6 +232,8 @@ const subtitle = computed(() => {
 
 onMounted(async () => {
   data.value = await loadSpeak();
+  aiStatus.value = await loadAiStatus();
+  window.addEventListener("pagehide", onPageHide);
   try {
     const r = await api<{ length: number }>("/speak/plan");
     planLength.value = r.length ?? 0;
@@ -218,11 +244,20 @@ onMounted(async () => {
 });
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer);
+  if (wallTimer) clearInterval(wallTimer);
+  window.removeEventListener("pagehide", onPageHide);
+  reportSession(); // 路由离开/关闭页：留一条补报（幂等）
   settleTalk();
   conn.value?.close();
 });
 
 async function start(): Promise<void> {
+  if (locked.value) {
+    status.value = lockText.value;
+    if (!aiStatus.value) aiStatus.value = await loadAiStatus(true);
+    if (locked.value) return;
+  }
+  if (!aiStatus.value) aiStatus.value = await loadAiStatus(true);
   const patterns = recentPatterns();
   try {
     const boot = await api<{ instructions: string }>("/speak/boot", {
@@ -272,6 +307,12 @@ async function start(): Promise<void> {
     status.value = "连接中…";
     phase.value = "talk";
     reviewElapsed.value = 0;
+    sessionId.value = conn.value?.sessionId ?? 0;
+    maxSessionSec.value = conn.value?.maxSessionSec ?? 0;
+    sessionLeftSec.value = maxSessionSec.value;
+    sessionReported = false;
+    void loadAiStatus(true).then((s) => (aiStatus.value = s));
+    if (maxSessionSec.value > 0) startWallTimer();
     if (hasPlan.value) startTimer(); // 自由练习不计时
   } catch (e) {
     status.value = (e as Error).message;
@@ -301,10 +342,11 @@ function pushLine(who: "me" | "ai", text: string): void {
 }
 
 /** 每轮孩子说完 → 立即请求 PET 优化句，穿插在对话里 */
-async function requestImprove(text: string): Promise<void> {
-  if (text.trim().length < 3) return;
+async function requestImprove(text: string, force = false): Promise<void> {
+  if (!force && !shouldAutoImprove(text)) return; // P1-3：少于 4 个词不自动调用
+  if (!improveGuard.take(text)) return;
   const line = [...lines.value].reverse().find((l) => l.who === "me" && l.text === text);
-  if (!line) return;
+  if (!line || line.improved || line.improving) return;
   line.improving = true;
   try {
     const lastAi = [...lines.value].reverse().find((l) => l.who === "ai")?.text ?? "";
@@ -345,14 +387,23 @@ async function endTalk(): Promise<void> {
   if (phase.value !== "talk") return;
   phase.value = "review";
   reviewElapsed.value = 0;
+  if (wallTimer) clearInterval(wallTimer);
+  wallTimer = 0;
   // 计费/用量按真实会话时长；界面计时按开口时长
   const sessionSec = conn.value?.elapsedSec() ?? 0;
+  const speechSec = conn.value?.speechSec() ?? 0;
   settleTalk();
   conn.value?.close();
   conn.value = null;
 
   try {
-    await api("/speak/session_end", { method: "POST", body: JSON.stringify({ seconds: sessionSec, mode: "talk" }) });
+    sessionReported = true;
+    await api("/speak/session_end", {
+      method: "POST",
+      body: JSON.stringify({
+        seconds: sessionSec, mode: "talk", ai_seconds: speechSec, session_id: sessionId.value,
+      }),
+    });
   } catch { /* 离线不阻塞 */ }
 
   let logId = 0;
@@ -472,6 +523,40 @@ function finishSession(): void {
   status.value = "";
 }
 
+/** 页面关闭/切走：用 keepalive 补报会话秒数（P0-2；带 Authorization，sendBeacon 无法带）。 */
+function reportSession(): void {
+  if (phase.value !== "talk" || sessionReported || !conn.value) return;
+  sessionReported = true;
+  const c = conn.value;
+  void apiBeacon("/speak/session_end", {
+    seconds: c.elapsedSec(),
+    ai_seconds: c.speechSec(),
+    mode: "talk",
+    session_id: sessionId.value,
+  });
+}
+
+function onPageHide(): void {
+  reportSession();
+}
+
+/** AI 可用时长到点：自动收尾进入复盘（P0-1 硬停用）。 */
+function startWallTimer(): void {
+  if (wallTimer) clearInterval(wallTimer);
+  wallTimer = window.setInterval(() => {
+    if (phase.value !== "talk" || !conn.value) return;
+    const used = conn.value.elapsedSec();
+    sessionLeftSec.value = Math.max(0, maxSessionSec.value - used);
+    if (maxSessionSec.value > 0 && used >= maxSessionSec.value) {
+      hintKind.value = "hint";
+      hint.value = "本次 AI 额度用完了，先进入复盘；免费功能仍可用。";
+      void endTalk();
+    } else if (maxSessionSec.value > 0 && used >= maxSessionSec.value * 0.8) {
+      status.value = `AI 额度快用完了，约剩 ${Math.max(0, maxSessionSec.value - used)} 秒`;
+    }
+  }, 5000);
+}
+
 async function scroll(): Promise<void> {
   await nextTick();
   chatBox.value?.scrollTo({ top: chatBox.value.scrollHeight });
@@ -493,6 +578,11 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 14px; }
 .back { margin-bottom: 8px; }
 .card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
+.banner { margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); font-size: var(--fs-sub); font-weight: 600; }
+.banner.warn { background: var(--c-accent-soft); color: var(--c-accent); border: 1px solid var(--c-accent); }
+.banner.danger { background: var(--c-danger-soft); color: var(--c-danger); border: 1px solid var(--c-danger); }
+.lockbar { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); background: var(--c-accent-soft); color: var(--c-text-2); font-size: var(--fs-sub); }
+.lockbar b { color: var(--c-accent); }
 .ctrl { padding: 16px; margin-bottom: 12px; text-align: center; }
 .ctrlbtns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .status { color: var(--c-text-2); margin-bottom: 10px; min-height: 20px; }
@@ -542,6 +632,8 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .line.me .txt { background: var(--c-primary-soft); }
 .improve { width: 100%; }
 .improving { display: inline-block; color: var(--c-text-2); font-size: var(--fs-sub); padding: 4px 2px; }
+.improve-btn { border: 1px dashed var(--c-line); background: var(--c-surface); color: var(--c-primary-strong); border-radius: var(--r-pill); padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.improve-btn:hover { background: var(--c-primary-soft); }
 .review { margin-top: 18px; padding: 16px; }
 .review-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; color: var(--c-text); }
 .review-time { color: var(--c-primary); font-variant-numeric: tabular-nums; font-weight: 700; }

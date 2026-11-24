@@ -28,5 +28,8 @@ class Usage(Base):
     soe_calls: Mapped[int] = mapped_column(Integer, default=0)  # SOE 评测次数（20 词 1 次）
     llm_in_tok: Mapped[int] = mapped_column(Integer, default=0)
     llm_out_tok: Mapped[int] = mapped_column(Integer, default=0)
+    tts_calls: Mapped[int] = mapped_column(Integer, default=0)  # TTS 未命中（真正调用模型）次数
+    tts_chars: Mapped[int] = mapped_column(Integer, default=0)  # TTS 计费字符数
+    tts_cache_hits: Mapped[int] = mapped_column(Integer, default=0)  # 缓存命中次数（不计费）
     est_cost_milli: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)

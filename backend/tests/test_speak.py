@@ -19,7 +19,7 @@ def _fresh_user(username: str = "speaker") -> str:
     db.close()
     r = client.post(
         "/api/v1/auth/claim",
-        json={"username": username, "password": "secret123", "invite_code": f"INV-{username}"},
+        json={"username": username, "password": "pet-test-pass", "invite_code": f"INV-{username}"},
     )
     assert r.status_code == 201, r.text
     token = r.json()["access_token"]
@@ -39,7 +39,7 @@ def test_requires_speak_perm():
     db.close()
     r = client.post(
         "/api/v1/auth/register",
-        json={"username": "nospeak", "password": "secret123", "invite_code": "INV-nospeak"},
+        json={"username": "nospeak", "password": "pet-test-pass", "invite_code": "INV-nospeak"},
     )
     assert r.status_code == 201
     token = r.json()["access_token"]
@@ -217,3 +217,32 @@ def test_new_plan_resets_day_checks():
     assert client.get("/api/v1/speak/days", headers=H).json()["days"]
     client.put("/api/v1/speak/plan", json={"length": 30}, headers=H)
     assert client.get("/api/v1/speak/days", headers=H).json()["days"] == []
+
+
+def test_shadow_recent_dedupes_sentence_ids():
+    """计划日会为同一句写多条日志；最近记录按 sentence_id 去重。"""
+    token = _fresh_user("shadowu")
+    H = {"Authorization": f"Bearer {token}"}
+    for day in (0, 1, 2):
+        r = client.post(
+            "/api/v1/speak/log",
+            json={
+                "mode": "shadow", "ref": "p1", "day": day, "score": 80,
+                "sentence_id": "s1", "words": [{"w": "this", "ok": False}],
+            },
+            headers=H,
+        )
+        assert r.status_code == 200
+    client.post(
+        "/api/v1/speak/log",
+        json={
+            "mode": "shadow", "ref": "p1", "day": 0, "score": 90,
+            "sentence_id": "s2", "words": [{"w": "that", "ok": True}],
+        },
+        headers=H,
+    )
+    r = client.get("/api/v1/speak/shadow/recent?limit=10", headers=H)
+    assert r.status_code == 200
+    items = r.json()["items"]
+    assert [i["sentence_id"] for i in items] == ["s2", "s1"]
+    assert items[1]["weak_words"] == ["this"]

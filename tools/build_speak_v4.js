@@ -42,6 +42,44 @@ const plan = S.plan || { title: "90 天 PET 口语计划", phases: [] };
 
 const errors = [];
 const SENT_END = /[.?!]$/;
+// 选句用的停用词：只保留有信息量的词作为 focus，便于与最近读错的词匹配
+const STOP = new Set(
+  ("a an the and or but so because if when while which who whom whose that this these those " +
+    "i you he she it we they me him her us them my your his its our their " +
+    "is am are was were be been being do does did can could will would shall should may might " +
+    "to of in on at for from with by about into over under than then there here very really " +
+    "not no yes have has had too also just some any all one two three").split(" "),
+);
+
+function wordCount(en) {
+  return en.split(/\s+/).filter(Boolean).length;
+}
+
+/** 难度规则：1=A1 … 5=B2；句长为主，连接词/从句加分，图片描述类减分。 */
+function difficultyOf(en, words) {
+  let d = 3;
+  if (words >= 12) d = 4;
+  if (words >= 17) d = 5;
+  if (words <= 8) d = 2;
+  const lower = en.toLowerCase();
+  if (/\b(because|although|however|whereas|which|while|unless|since|instead)\b/.test(lower)) d += 1;
+  if (/\b(there (is|are)|in this (photo|picture)|i can see)\b/.test(lower)) d -= 1;
+  return Math.max(1, Math.min(5, d));
+}
+
+/** focus：句中的实义词（供弱音素/弱词加权），最多 6 个。 */
+function focusOf(en) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of en.toLowerCase().match(/[a-z']+/g) || []) {
+    const w = raw.replace(/'/g, "");
+    if (w.length < 4 || STOP.has(w) || seen.has(w)) continue;
+    seen.add(w);
+    out.push(w);
+    if (out.length >= 6) break;
+  }
+  return out;
+}
 
 const packs = [];
 const shadow = [];
@@ -68,8 +106,18 @@ curriculum.scenes.forEach((s, idx) => {
     const id = `${sid}-${i + 1}`;
     if (!en || !cn) { errors.push(`${id} 缺 en/cn`); return; }
     if (!SENT_END.test(en)) errors.push(`${id} 不是完整句：${en}`);
-    if (en.split(/\s+/).length < 8) errors.push(`${id} 句子过短：${en}`);
-    shadow.push({ id, pack: sid, packName: pack.name, part: s.part, en, cn, tip });
+    const words = wordCount(en);
+    if (words < 8) errors.push(`${id} 句子过短：${en}`);
+    const difficulty = Number.isInteger(it.difficulty) ? it.difficulty : difficultyOf(en, words);
+    if (difficulty < 1 || difficulty > 5) errors.push(`${id} difficulty 应为 1-5`);
+    shadow.push({
+      id, pack: sid, packName: pack.name, part: s.part, en, cn, tip,
+      difficulty,
+      words,
+      focus: Array.isArray(it.focus) ? it.focus.map(String) : focusOf(en),
+      source: String(it.source || "v4-curriculum"),
+      active: it.active !== false,
+    });
     shadowIds.push(id);
     pack.ids.push(id);
   });
@@ -123,7 +171,7 @@ if (zhen34.items.length !== 55) errors.push(`zhen34=${zhen34.items.length} ≠ 5
 const out = {
   meta: {
     built: new Date().toISOString().slice(0, 10),
-    schema: 4,
+    schema: 5,
     sources: {
       curriculum: "curriculum_v4.json（45 场景，跟读 B1+ 完整句 + 造句题）",
       part1: p85.source, essays: p130.source, patterns: patterns.source,

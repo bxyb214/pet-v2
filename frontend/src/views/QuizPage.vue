@@ -183,6 +183,9 @@
                 </template>
                 听发音
               </n-button>
+              <n-button v-if="q.word.example" quaternary secondary @click="playExample(q.word)">
+                听整句
+              </n-button>
               <n-button type="primary" @click="next">{{ isLast ? "看结果" : "下一题" }}</n-button>
             </div>
           </div>
@@ -259,6 +262,7 @@ import {
   checkAnswer, DIM_LABEL, type QuizDim, type QuizQuestion,
 } from "../core/quiz";
 import { splitPlan, type WordBanks, type BankKey, type PlanWord } from "../core/plan";
+import { englishOnly, playWordAudio, say } from "../core/say";
 import {
   clearQuizSession, freeScope, loadQuizSession, planScope, pruneQuizSessions,
   resumePosition, saveQuizSession, sessionMatches,
@@ -841,7 +845,13 @@ function playIfW2M(): void {
 }
 
 function playAudio(word: PlanWord): void {
-  if (word.audio) void new Audio(`/media/audio/${word.audio}`).play().catch(() => {});
+  // 浏览器朗读；点击内同步调用，iOS Safari 才会发声（P0-5）
+  playWordAudio(word.en);
+}
+
+function playExample(word: PlanWord): void {
+  const text = englishOnly(String(word.example ?? ""));
+  if (text) say(text);
 }
 
 /** 键盘：数字键选选项，Enter 下一题 */

@@ -51,3 +51,35 @@ def require_speak(user: User = Depends(get_current_user)) -> User:
     if not _has_perm(user, "speak"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "由于 AI 调用产生费用，请联系小淏开通口语功能")
     return user
+
+
+def check_paid_or_raise(db: Session, user: User) -> dict:
+    """手动版付费闸门：用于同一路由内只有部分模式计费的场景（如 /speak/boot）。"""
+    from app.services import budget
+
+    ok, st = budget.check_access(db, user)
+    if ok:
+        return st
+    if not st["ai_enabled"]:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            {"code": "AI_NOT_ENABLED", "message": st["message"]},
+        )
+    reset_at = st["daily"]["reset_at"] if st["reason"] == "daily_exhausted" else st["monthly"]["reset_at"]
+    raise HTTPException(
+        status.HTTP_429_TOO_MANY_REQUESTS,
+        {"code": "AI_BUDGET_EXHAUSTED", "message": st["message"], "reset_at": reset_at},
+    )
+
+
+def require_paid_ai(
+    user: User = Depends(require_speak),
+    db: Session = Depends(get_db),
+) -> User:
+    """付费 AI 闸门（P0-1）：口语权限 + 管理员开通 + 日/月预算未用尽。
+
+    未开通 → 403 AI_NOT_ENABLED；额度用尽 → 429 AI_BUDGET_EXHAUSTED。
+    detail 为对象，前端统一读取 code/message。
+    """
+    check_paid_or_raise(db, user)
+    return user

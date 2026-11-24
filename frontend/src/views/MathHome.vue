@@ -4,20 +4,20 @@
     <p class="sub">{{ course?.desc ?? "小学数学思维课，按年级分册。" }}</p>
 
     <div v-if="loading" class="card empty">加载中…</div>
-    <div v-else-if="!primary" class="card empty">暂时没有已上线的教材</div>
+    <div v-else-if="!available.length" class="card empty">暂时没有已上线的教材</div>
     <template v-else>
-      <section class="featured card">
+      <section v-for="b in available" :key="b.id" class="featured card">
         <div class="f-main">
           <n-tag type="success" size="small" round :bordered="false">已上线</n-tag>
           <div class="f-grade">
-            <b>{{ primary.gradeName }}</b>
+            <b>{{ b.gradeName }}</b>
             <span>数学思维</span>
           </div>
           <p class="f-desc">
-            {{ primary.lessons.length }} 节课 · {{ groups.length }} 个主题 · 看完整节才算学完
+            {{ b.lessons.length }} 节课 · {{ groupsOf(b.lessons).length }} 个主题 · 看完整节才算学完
           </p>
           <div class="chips">
-            <span v-for="g in groups" :key="g.name" class="chip">
+            <span v-for="g in groupsOf(b.lessons)" :key="g.name" class="chip">
               {{ g.name }} <i class="tnum">{{ g.lessons.length }}</i>
             </span>
           </div>
@@ -25,17 +25,17 @@
 
         <div class="f-side">
           <div class="f-stat tnum">
-            <b>{{ stat.done }}</b><span>/ {{ stat.total }} 节已学完</span>
+            <b>{{ statOf(b).done }}</b><span>/ {{ statOf(b).total }} 节已学完</span>
           </div>
-          <div class="bar" role="progressbar" :aria-valuenow="stat.percent" aria-valuemin="0" aria-valuemax="100">
-            <i :style="{ width: stat.percent + '%' }"></i>
+          <div class="bar" role="progressbar" :aria-valuenow="statOf(b).percent" aria-valuemin="0" aria-valuemax="100">
+            <i :style="{ width: statOf(b).percent + '%' }"></i>
           </div>
-          <p class="f-meta">学习中 {{ stat.watching }} 节 · 还没开始 {{ stat.todo }} 节</p>
-          <n-button type="primary" size="large" block class="f-go" @click="continueLearn">
-            {{ goLabel }}
+          <p class="f-meta">学习中 {{ statOf(b).watching }} 节 · 还没开始 {{ statOf(b).todo }} 节</p>
+          <n-button type="primary" size="large" block class="f-go" @click="continueLearn(b)">
+            {{ goLabel(b) }}
           </n-button>
-          <n-button secondary size="large" block @click="openBook">
-            查看 {{ primary.lessons.length }} 节课
+          <n-button secondary size="large" block @click="openBook(b)">
+            查看 {{ b.lessons.length }} 节课
           </n-button>
         </div>
       </section>
@@ -59,7 +59,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { NButton, NTag } from "naive-ui";
 import {
-  bookProgress, firstBook, groupsOf, lessonKey, loadMath, nextLesson,
+  availableBooks, bookProgress, groupsOf, lessonKey, loadMath, nextLesson,
   type MathBook, type MathData, type VideoRec,
 } from "../core/math";
 import { useLearningStore } from "../stores/learning";
@@ -71,32 +71,29 @@ const loading = ref(true);
 
 const course = computed(() => data.value?.course ?? null);
 const books = computed<MathBook[]>(() => data.value?.books ?? []);
-/** 当前有内容的教材（现在只有三年级；四年级/五年级上线后自动切换顺序） */
-const primary = computed(() => firstBook(books.value));
+/** 每个已上线年级一张大卡（三、四年级都上线后并排展示，五年级仍为占位） */
+const available = computed(() => availableBooks(books.value));
 const soon = computed(() => books.value.filter((b) => b.comingSoon));
-const groups = computed(() => groupsOf(primary.value?.lessons ?? []));
 
 function recOf(id: string): VideoRec | null {
   return learning.progressOf(lessonKey(id));
 }
-const stat = computed(() =>
-  primary.value ? bookProgress(primary.value, recOf) : { total: 0, done: 0, watching: 0, todo: 0, percent: 0 },
-);
-const next = computed(() => (primary.value ? nextLesson(primary.value.lessons, recOf) : null));
-const goLabel = computed(() => {
-  if (!stat.value.total || stat.value.done === stat.value.total) return "再学一遍";
-  return stat.value.done || stat.value.watching ? "继续学习" : "开始学习";
-});
-
-function openBook(): void {
-  if (!primary.value) return;
-  void router.push(`/math/books/${encodeURIComponent(primary.value.id)}`);
+function statOf(b: MathBook) {
+  return bookProgress(b, recOf);
 }
-function continueLearn(): void {
-  if (!primary.value) return;
-  const l = next.value;
-  if (l) void router.push(`/math/books/${encodeURIComponent(primary.value.id)}/${encodeURIComponent(l.id)}`);
-  else openBook();
+function goLabel(b: MathBook): string {
+  const stat = statOf(b);
+  if (!stat.total || stat.done === stat.total) return "再学一遍";
+  return stat.done || stat.watching ? "继续学习" : "开始学习";
+}
+
+function openBook(b: MathBook): void {
+  void router.push(`/math/books/${encodeURIComponent(b.id)}`);
+}
+function continueLearn(b: MathBook): void {
+  const l = nextLesson(b.lessons, recOf);
+  if (l) void router.push(`/math/books/${encodeURIComponent(b.id)}/${encodeURIComponent(l.id)}`);
+  else openBook(b);
 }
 
 onMounted(async () => {
