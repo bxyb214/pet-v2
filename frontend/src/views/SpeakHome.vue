@@ -7,11 +7,7 @@
     <div v-if="!authReady" class="locked card">加载中…</div>
     <template v-else>
       <!-- 今日已用（只记录不限流）：放在日历上方 -->
-      <div v-if="loaded && paidLocked" class="paidhint card">
-        <b>付费 AI 未启用</b>
-        <span>{{ paidLock }}</span>
-        <span class="muted">免费功能：题库浏览、浏览器朗读、看标准答案。</span>
-      </div>
+      <PaidAiNotice v-if="loaded" :status="aiStatus" prominent />
       <div v-if="loaded && hasPlan && (usage || timeTotals)" class="card usage">
         <span v-if="timeTotals">今日开口：跟读 <b>{{ fmtSec(timeTotals.shadow) }}</b> · 造句 <b>{{ fmtSec(timeTotals.make) }}</b> · 对话 <b>{{ fmtSec(timeTotals.talk) }}</b></span>
         <span v-if="usage">跟读评测 <b>{{ usage.soe_calls }}</b> 次</span>
@@ -135,8 +131,9 @@ import { MicOutline, ChatbubblesOutline, CreateOutline } from "@vicons/ionicons5
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
 import {
-  budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
+  budgetBanner, loadAiStatus, type AiStatus,
 } from "../core/aiStatus";
+import PaidAiNotice from "../components/PaidAiNotice.vue";
 import {
   loadSpeak, planDayDone, sourceRangeText, splitSpeakPlan,
   type DayCheck, type PlanDayView, type SpeakData,
@@ -155,8 +152,6 @@ const timeTotals = ref<{ shadow: number; make: number; talk: number } | null>(nu
 const authReady = ref(false);
 const aiStatus = ref<AiStatus | null>(null);
 const banner = computed(() => budgetBanner(aiStatus.value));
-const paidLocked = computed(() => paidBlocked(aiStatus.value));
-const paidLock = computed(() => paidLockText(aiStatus.value));
 
 const hasPlan = computed(() => planLength.value > 0);
 const effectiveLength = computed(() => planLength.value || (planData.value?.plan.days?.length ?? 90));

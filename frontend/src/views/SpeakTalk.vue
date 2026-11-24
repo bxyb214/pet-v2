@@ -5,10 +5,7 @@
     <p class="sub">{{ subtitle }}</p>
 
     <div v-if="banner" class="banner" :class="banner.tone">{{ banner.text }}</div>
-    <div v-if="lockText" class="lockbar">
-      <b>付费 AI 未启用</b>
-      <span>{{ lockText }}</span>
-    </div>
+    <PaidAiNotice :status="aiStatus" />
 
     <div class="ctrl card">
       <div class="status">{{ status }}</div>
@@ -25,7 +22,9 @@
       </div>
       <div class="ctrlbtns">
         <template v-if="phase === 'idle'">
-          <n-button v-if="hasPlan || scene" type="primary" size="large" :disabled="locked" @click="start">开始对话</n-button>
+          <PaidActionButton v-if="hasPlan || scene" :status="aiStatus" @click="start">
+            开始对话
+          </PaidActionButton>
           <n-button v-if="!hasPlan && scene" size="large" quaternary @click="clearScene">换一个场景</n-button>
         </template>
         <template v-else-if="phase === 'talk'">
@@ -130,6 +129,8 @@ import {
   budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
 } from "../core/aiStatus";
 import BackButton from "../components/BackButton.vue";
+import PaidActionButton from "../components/PaidActionButton.vue";
+import PaidAiNotice from "../components/PaidAiNotice.vue";
 import SpeakImproveCard from "../components/SpeakImproveCard.vue";
 
 type Improvement = {
@@ -581,8 +582,6 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .banner { margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); font-size: var(--fs-sub); font-weight: 600; }
 .banner.warn { background: var(--c-accent-soft); color: var(--c-accent); border: 1px solid var(--c-accent); }
 .banner.danger { background: var(--c-danger-soft); color: var(--c-danger); border: 1px solid var(--c-danger); }
-.lockbar { display: flex; flex-direction: column; gap: 2px; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); background: var(--c-accent-soft); color: var(--c-text-2); font-size: var(--fs-sub); }
-.lockbar b { color: var(--c-accent); }
 .ctrl { padding: 16px; margin-bottom: 12px; text-align: center; }
 .ctrlbtns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .status { color: var(--c-text-2); margin-bottom: 10px; min-height: 20px; }
