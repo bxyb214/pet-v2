@@ -50,12 +50,14 @@
 
 <script setup lang="ts">
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { NButton, NForm, NFormItem, NInput } from "naive-ui";
 import { useAuthStore } from "../stores/auth";
+import { safeRedirect } from "../core/redirect";
 import AuthShell from "../components/AuthShell.vue";
 
 const auth = useAuthStore();
+const route = useRoute();
 const router = useRouter();
 const username = ref("");
 const password = ref("");
@@ -72,7 +74,7 @@ async function submit(): Promise<void> {
   busy.value = true;
   try {
     await auth.login(username.value, password.value);
-    await router.push("/");
+    await router.push(safeRedirect(route.query.redirect));
   } catch (e) {
     error.value = e instanceof Error ? e.message : "登录失败";
   } finally {

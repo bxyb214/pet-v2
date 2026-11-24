@@ -76,6 +76,15 @@ def test_build_url_ref_text_limit():
         assert "30" in str(e)
 
 
+def test_build_url_rejects_unknown_engine():
+    # 引擎拼错时给中文提示，而不是等腾讯回「not support this engine」
+    try:
+        tencent_soe.build_soe_url({**_CFG, "engine": "16k-jp"}, "hi", 1)
+        raise AssertionError("should raise")
+    except ValueError as e:
+        assert "16k_en" in str(e)
+
+
 def test_build_url_not_configured():
     try:
         tencent_soe.build_soe_url(
@@ -124,6 +133,21 @@ def test_soe_url_route_503_then_ok():
     body = r.json()
     assert body["url"].startswith("wss://soe.cloud.tencent.com/soe/api/")
     assert "signature=" in body["url"]
+
+
+def test_soe_cfg_blank_engine_defaults_to_en():
+    from app.services.ai_enrich import set_cfg
+
+    db = SessionLocal()
+    set_cfg(db, "speak.soe", json.dumps({**_CFG, "engine": ""}))
+    db.close()
+
+    db = SessionLocal()
+    cfg = tencent_soe.soe_cfg(db)
+    db.close()
+    assert cfg["engine"] == "16k_en"
+    url = tencent_soe.build_soe_url(cfg, "Hi.", 1)
+    assert "server_engine_type=16k_en" in url
 
 
 def test_qwen38_requires_workspace():

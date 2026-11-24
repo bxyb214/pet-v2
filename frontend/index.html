@@ -2,11 +2,53 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#15803d" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="火焰学习" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
     <title>火焰学习</title>
+    <style>
+      html, body { margin: 0; min-height: 100%; background: #f6f9f7; }
+      #boot {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        background: radial-gradient(120% 90% at 50% 0%, #eaf7ef 0%, #f6f9f7 62%);
+        transition: opacity 0.22s ease;
+      }
+      #boot.gone { opacity: 0; pointer-events: none; }
+      #boot .b-logo {
+        width: 64px; height: 64px; border-radius: 18px;
+        display: grid; place-items: center;
+        background: linear-gradient(135deg, #22c55e, #15803d);
+        box-shadow: 0 12px 28px rgba(21, 128, 61, 0.24);
+        animation: boot-pulse 1.6s ease-in-out infinite;
+      }
+      #boot .b-name { font-size: 18px; font-weight: 800; color: #15803d; letter-spacing: 0.04em; }
+      #boot .b-tip { font-size: 12.5px; color: #6b7f74; }
+      @keyframes boot-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #boot .b-logo { animation: none; }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot" aria-hidden="true">
+      <div class="b-logo">
+        <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" />
+        </svg>
+      </div>
+      <div class="b-name">火焰学习</div>
+      <div class="b-tip">正在点亮…</div>
+    </div>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -1,6 +1,6 @@
 <template>
   <main class="page">
-    <BackButton @click="back" />
+    <BackButton to="/english/speak" label="返回口语" />
     <h1>{{ title }}</h1>
     <p class="sub">{{ subtitle }}</p>
 
@@ -566,10 +566,6 @@ function mmss(s: number): string {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}:${String(r).padStart(2, "0")}`;
-}
-function back(): void {
-  settleTalk();
-  conn.value?.close();
 }
 </script>
 

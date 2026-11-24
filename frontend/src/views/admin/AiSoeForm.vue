@@ -27,7 +27,8 @@
       </label>
       <label class="adm-field">
         <span class="adm-flabel">引擎</span>
-        <n-input v-model:value="soe.engine" placeholder="16k_en" />
+        <n-select v-model:value="soe.engine" :options="engineOptions" placeholder="16k_en（英文，默认）" />
+        <span class="adm-fhint">英文句子选 16k_en；留空按 16k_en 处理</span>
       </label>
       <label class="adm-field">
         <span class="adm-flabel">SecretId</span>
@@ -50,9 +51,14 @@
 </template>
 
 <script setup lang="ts">
-import { NButton, NInput, NInputNumber } from "naive-ui";
+import { NButton, NInput, NInputNumber, NSelect } from "naive-ui";
 import AiTestLine from "./AiTestLine.vue";
 import type { SoeCfg, TestResult } from "./types";
+
+const engineOptions = [
+  { label: "16k_en（英文标准版）", value: "16k_en" },
+  { label: "16k_zh（中文标准版）", value: "16k_zh" },
+];
 
 const soe = defineModel<SoeCfg>("soe", { required: true });
 defineProps<{ test: TestResult | null; saveMsg: string; busy: boolean; testBusy: boolean }>();

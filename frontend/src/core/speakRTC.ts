@@ -6,6 +6,7 @@ import { api } from "./api";
 import { ensureDevMode } from "./devMode";
 import { createDevSpeakConn } from "./devSpeak";
 import { holdMic } from "./micPresence";
+import { micBlockedReason, micErrorText } from "./micSupport";
 
 export type SpeakMsg = Record<string, unknown> & { type: string };
 
@@ -266,6 +267,11 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
 
   // session.updated 后挂麦克风并下发 session 配置
   const attach = async () => {
+    const blocked = micBlockedReason();
+    if (blocked) {
+      opts.onError(blocked);
+      return;
+    }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -299,10 +305,10 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
       } catch { /* 环境不支持能量检测时只记 0 秒 */ }
       applySession(opts.instructions);
       opts.onStatus(opts.mode === "talk" ? "准备好就开口吧" : "点「开始朗读」");
-    } catch {
+    } catch (e) {
       releaseMic?.();
       releaseMic = null;
-      opts.onError("无法访问麦克风，请检查浏览器权限");
+      opts.onError(micErrorText(e));
     }
   };
   void attach();

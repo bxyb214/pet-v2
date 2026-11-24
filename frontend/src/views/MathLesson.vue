@@ -1,12 +1,13 @@
 <template>
   <main class="page">
-    <BackButton :to="backTo" :label="`返回${book?.gradeName ?? ''}教材`" />
+    <BackButton :to="backTo" :label="`返回${book?.gradeName ?? ''}课程`" />
 
-    <div v-if="loading" class="card empty">加载中…</div>
-    <div v-else-if="!lesson || !book" class="card empty">
-      <p>没有找到这节课。</p>
-      <n-button type="primary" @click="router.push('/math')">返回课程</n-button>
-    </div>
+    <LoadingBlock v-if="loading" />
+    <EmptyState v-else-if="!lesson || !book" title="没有找到这节课" desc="回到课程目录重新选择。">
+      <template #action>
+        <n-button type="primary" @click="router.push('/math')">返回课程</n-button>
+      </template>
+    </EmptyState>
     <template v-else>
       <header class="head">
         <span class="hno tnum">{{ lesson.no }}</span>
@@ -66,6 +67,8 @@ import { useRoute, useRouter } from "vue-router";
 import { NButton, NIcon } from "naive-ui";
 import { CheckmarkCircleOutline, TvOutline } from "@vicons/ionicons5";
 import BackButton from "../components/BackButton.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
+import EmptyState from "../components/EmptyState.vue";
 import MathPlayer from "../components/MathPlayer.vue";
 import {
   findBook, isDone, lessonKey, loadMath, videoUrl,

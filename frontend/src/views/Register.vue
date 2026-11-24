@@ -62,13 +62,15 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { NButton, NForm, NFormItem, NInput } from "naive-ui";
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
+import { safeRedirect } from "../core/redirect";
 import AuthShell from "../components/AuthShell.vue";
 
 const auth = useAuthStore();
+const route = useRoute();
 const router = useRouter();
 
 const invite = ref("");
@@ -113,7 +115,7 @@ async function submit(): Promise<void> {
     });
     // 建号成功后直接登录，顺便建立同步引擎
     await auth.login(username.value.trim(), password.value);
-    await router.push("/");
+    await router.push(safeRedirect(route.query.redirect));
   } catch (e) {
     error.value = e instanceof Error ? e.message : "创建失败";
   } finally {

@@ -3,8 +3,8 @@
     <h1>学习进度</h1>
     <p class="sub">按年级分别记录；看完整节才算学完，进度跟账号同步，换设备也能接着学。</p>
 
-    <div v-if="loading" class="card empty">加载中…</div>
-    <div v-else-if="!books.length" class="card empty">暂时没有课程</div>
+    <LoadingBlock v-if="loading" />
+    <EmptyState v-else-if="!books.length" title="暂时没有课程" desc="课程上线后，进度会按年级记录在这里。" />
     <template v-else>
       <div class="gpicks" role="tablist" aria-label="选择年级">
         <button
@@ -104,6 +104,8 @@ import {
   type MathBook, type MathData, type MathLesson, type VideoRec,
 } from "../core/math";
 import { useLearningStore } from "../stores/learning";
+import LoadingBlock from "../components/LoadingBlock.vue";
+import EmptyState from "../components/EmptyState.vue";
 
 const router = useRouter();
 const learning = useLearningStore();

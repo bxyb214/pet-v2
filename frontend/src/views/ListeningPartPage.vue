@@ -1,12 +1,17 @@
 <template>
   <main class="page">
-    <button type="button" class="ghost back" @click="back">← 返回听力列表</button>
+    <BackButton to="/english/listening/home" label="返回听力" />
     <h1>{{ label }}</h1>
     <p class="sub">听音频 · 对照字幕（可隐藏）· 0.8–1.2 倍速</p>
 
-    <div v-if="!loaded" class="empty card">加载中…</div>
-    <div v-else-if="error" class="empty card">{{ error }}</div>
-    <div v-else-if="!test || !pt" class="empty card">未找到对应的听力内容</div>
+    <LoadingBlock v-if="!loaded" />
+    <EmptyState v-else-if="error" :title="error" plain />
+    <EmptyState
+      v-else-if="!test || !pt"
+      title="未找到对应的听力内容"
+      desc="从听力列表重新选择一个 Part。"
+      plain
+    />
     <template v-else>
       <!-- 播放器 -->
       <div class="player card">
@@ -69,14 +74,16 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute } from "vue-router";
 import { activeSentenceIdx, loadListening, type LTest } from "../core/listening";
+import BackButton from "../components/BackButton.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
+import EmptyState from "../components/EmptyState.vue";
 
 /** 需求指定的五档速度（默认 1.0） */
 const RATES = [0.8, 0.9, 1.0, 1.1, 1.2];
 
 const route = useRoute();
-const router = useRouter();
 
 const test = ref<LTest | null>(null);
 const partNo = ref(0);
@@ -184,10 +191,6 @@ function fmtTime(t: number): string {
   const s = Math.floor(t % 60);
   return `${m}:${String(s).padStart(2, "0")}`;
 }
-
-function back(): void {
-  void router.push("/english/listening/home");
-}
 </script>
 
 <style scoped>
@@ -195,19 +198,10 @@ function back(): void {
 h1 { color: var(--c-text); font-size: var(--fs-title); margin: 0 0 6px; }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 14px; }
 
-.back {
-  display: inline-flex; align-items: center; gap: 4px;
-  background: transparent; border: 0; color: var(--c-text-2);
-  font: inherit; font-size: var(--fs-sub); font-weight: 600;
-  padding: 8px 10px; margin: 0 0 6px -10px; border-radius: 10px; cursor: pointer;
-}
-.back:hover { color: var(--c-primary-strong); background: var(--c-primary-soft); }
-
 .card {
   background: var(--c-surface); border: 1px solid var(--c-line);
   border-radius: var(--r-card); box-shadow: var(--shadow-card); padding: 16px;
 }
-.empty { padding: 40px; text-align: center; color: var(--c-text-2); }
 
 .player { margin-bottom: 14px; }
 .p-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

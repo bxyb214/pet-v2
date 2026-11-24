@@ -1,6 +1,6 @@
 <template>
   <div class="page">
-    <p v-if="!banksReady" class="loading">词库加载中…</p>
+    <LoadingBlock v-if="!banksReady" plain text="词库加载中…" />
 
     <n-card v-else-if="!planDay" size="small">
       <n-empty description="没有找到这一天的词汇计划">
@@ -50,7 +50,7 @@
 
         <div class="actions">
           <n-button type="primary" :disabled="!words.length" @click="goTest">去测试本库</n-button>
-          <router-link to="/english/words/plan" class="linkbtn">返回计划</router-link>
+          <BackButton to="/english/words/plan" label="返回计划" variant="text" />
         </div>
       </n-card>
     </template>
@@ -62,6 +62,7 @@ import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { NButton, NCard, NEmpty } from "naive-ui";
 import WordStudyCard from "../components/WordStudyCard.vue";
+import BackButton from "../components/BackButton.vue";
 import { availableBankKeys, loadBanks, EMPTY_BANKS, type BankMeta } from "../core/banks";
 import { splitPlan, type WordBanks } from "../core/plan";
 import { useLearningStore } from "../stores/learning";
@@ -146,7 +147,8 @@ function goTest(): void {
 </script>
 
 <style scoped>
-.page { width: 100%; max-width: 820px; margin: 0 auto; }
+/* 宽度由布局层（.stack）决定，页面内不再自限宽度，避免与页签条错位 */
+.page { width: 100%; }
 .loading { padding: 20px; text-align: center; color: var(--c-text-2); }
 
 .planbar {

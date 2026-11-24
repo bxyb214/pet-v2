@@ -1,4 +1,4 @@
-/* 「绿野成长」Design Tokens v3（docs/05 + docs/archive/2026-11-22-前端重构设计方案.md）——唯一色彩/字号来源
+/* 「绿野成长」Design Tokens v3（docs/05 + docs/05-前端设计规范.md）——唯一色彩/字号来源
  * v3（2026-11-22）：主色不变；圆角 10/14/20/24 收敛、阴影改冷绿黑三档、引入自托管 Nunito、
  * 增加动效 token。基调从「糖果」调向「简洁 + 精密」，靠留白与线条做高级感，不靠大圆角和大阴影。 */
 
@@ -112,7 +112,7 @@
 .btn:active { transform: scale(0.985); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-/* 容器规则（docs/archive/2026-11-22-前端走查报告.md §3.1）：页面宽度只由布局层 .stack 决定，页面内一律 width:100% */
+/* 容器规则（docs/05-前端设计规范.md）：页面宽度只由布局层 .stack 决定，页面内一律 width:100% */
 .page { width: 100%; }
 
 /* 尊重系统降低动效偏好：全部降级为淡入淡出 */

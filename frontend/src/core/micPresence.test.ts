@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { holdMic, micActive, resetMicForTest, stopMic } from "./micPresence";
+import { holdMic, micAction, micActive, resetMicForTest, stopMic } from "./micPresence";
 
 describe("micPresence", () => {
   beforeEach(() => resetMicForTest());
@@ -37,5 +37,14 @@ describe("micPresence", () => {
     a();
     a();
     expect(micActive.value).toBe(true); // 另一个仍占用
+  });
+
+  it("跟读评分登记「提交」按钮文案，释放后恢复默认", () => {
+    expect(micAction.value.label).toBe("关闭麦克风");
+    const release = holdMic(() => {}, { label: "提交", tone: "submit" });
+    expect(micAction.value).toEqual({ label: "提交", tone: "submit" });
+    release();
+    expect(micAction.value.label).toBe("关闭麦克风");
+    expect(micAction.value.tone).toBe("close");
   });
 });

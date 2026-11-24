@@ -9,7 +9,7 @@
 
 视频文件不在这里，也不进 git：位于 NAS 的
 `/vol2/1000/media/felix/math/<mediaDir>/`（三年级 `grade_3/`，四年级 `grade_4/`），
-由 nginx 以 `/media/math/` 只读直出；**取流需要登录**（`?mt=` 短时效媒体令牌，见 docs/dev/math-grade4）。
+由 nginx 以 `/media/math/` 只读直出；**取流需要登录**（`?mt=` 短时效媒体令牌，见 [docs/06](../../docs/06-部署与运维.md)）。
 
 - `file` 必须与 NAS 上的真实文件名完全一致（保留中文、空格、半角括号）；页面会做 URL 编码。
 - `tag` 是难度/类型胶囊；文件名没标注难度的课留空字符串，页面不显示，不臆造难度。

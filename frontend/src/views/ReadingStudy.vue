@@ -1,7 +1,7 @@
 <template>
   <main class="page" v-if="sent">
     <div class="topbar">
-      <button class="ghost" @click="back">返回</button>
+      <BackButton to="/english/reading/home" label="返回阅读" variant="text" />
       <p class="label">{{ label }}</p>
       <span class="pos tnum">{{ idx + 1 }} / {{ sentences.length }}</span>
     </div>
@@ -92,6 +92,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useLearningStore } from "../stores/learning";
+import BackButton from "../components/BackButton.vue";
 import {
   loadReading, speak, withCustomSentences,
   type RGrammar, type RSentence,
@@ -160,9 +161,6 @@ function advance(): void {
   }
 }
 
-function back(): void {
-  void router.push("/english/reading/home");
-}
 function goQuiz(): void {
   void router.push({ path: `/english/reading/quiz/${testNo.value}`, query: { part: String(part.value) } });
 }

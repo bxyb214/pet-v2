@@ -8,6 +8,11 @@ describe("侧栏折叠偏好", () => {
     expect(isSiderCollapsed(1440, null)).toBe(false);
   });
 
+  it("平板竖屏默认收起，横屏/桌面默认展开", () => {
+    expect(isSiderCollapsed(820, null)).toBe(true);
+    expect(isSiderCollapsed(1024, null)).toBe(false);
+  });
+
   it("手动展开后即使窄屏也保持展开", () => {
     expect(isSiderCollapsed(900, "open")).toBe(false);
   });

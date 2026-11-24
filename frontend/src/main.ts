@@ -18,3 +18,11 @@ setUnauthorizedHandler(() => {
 });
 
 app.mount("#app");
+
+// 首屏启动图：等路由完成首次导航再淡出，避免先闪登录页再跳首页
+void router.isReady().then(() => {
+  const boot = document.getElementById("boot");
+  if (!boot) return;
+  boot.classList.add("gone");
+  window.setTimeout(() => boot.remove(), 240);
+});

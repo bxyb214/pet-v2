@@ -23,6 +23,9 @@ _HOST = "soe.cloud.tencent.com"
 # 句子模式上限 30 词；段落模式 120 词
 _LIMITS = {0: 10, 1: 30, 2: 120, 3: 0}
 
+# 新版 SOE 支持的引擎（server_engine_type），留空按英文标准版处理
+ENGINES = {"16k_en": "英文标准版", "16k_zh": "中文标准版"}
+
 
 def soe_cfg(db: Session) -> dict:
     """app_cfg 'speak.soe' 存 JSON 配置；缺省安全值。"""
@@ -35,13 +38,24 @@ def soe_cfg(db: Session) -> dict:
             d = {}
     except json.JSONDecodeError:
         d = {}
+    # 管理页允许引擎留空：空值回落到 16k_en（build_soe_url 负责校验非法值）
+    engine = str(d.get("engine") or "").strip().lower() or "16k_en"
     return {
         "appid": str(d.get("appid", "")),
         "secret_id": str(d.get("secret_id", "")),
         "secret_key": str(d.get("secret_key", "")),
-        "engine": str(d.get("engine", "16k_en")),
+        "engine": engine,
         "coeff": float(d.get("coeff", 1.0)),  # 1.0 适合儿童（苛刻指数 1.0-4.0）
     }
+
+
+def check_engine(engine: str) -> str:
+    """校验 server_engine_type；未知值直接 400，避免腾讯只回一句难懂的报错。"""
+    if engine not in ENGINES:
+        raise ValueError(
+            f"SOE 引擎类型无效：{engine or '（空）'}；只支持 16k_en（英文）或 16k_zh（中文）"
+        )
+    return engine
 
 
 def is_configured(cfg: dict) -> bool:
@@ -62,6 +76,7 @@ def build_soe_url(cfg: dict, ref_text: str, eval_mode: int = 1, coeff: float | N
     """
     if not is_configured(cfg):
         raise LookupError("管理员还没有配置腾讯云口语评测（SOE）")
+    check_engine(str(cfg.get("engine") or ""))
     limit = _LIMITS.get(eval_mode)
     if limit and len(ref_text.split()) > limit:
         raise ValueError(f"评测文本超过 {limit} 词上限")

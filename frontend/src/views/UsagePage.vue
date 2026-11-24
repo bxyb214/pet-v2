@@ -1,7 +1,7 @@
 <template>
   <div class="usage-page">
     <div class="topline">
-      <router-link class="back" to="/settings">← 返回设置</router-link>
+      <BackButton to="/settings" label="返回设置" variant="text" />
       <span class="hint">费用为服务端估算，仅供对账</span>
     </div>
 
@@ -11,11 +11,12 @@
         <span class="sect-hint">北京时间 · 每日 / 每月自动重置</span>
       </div>
 
-      <div v-if="loading && !data" class="empty">正在加载…</div>
-      <div v-else-if="error && !data" class="empty">
-        <p>{{ error }}</p>
-        <n-button size="small" secondary @click="retry">重试</n-button>
-      </div>
+      <LoadingBlock v-if="loading && !data" plain />
+      <EmptyState v-else-if="error && !data" :title="error" plain>
+        <template #action>
+          <n-button size="small" secondary @click="retry">重试</n-button>
+        </template>
+      </EmptyState>
 
       <template v-else-if="data">
         <p v-if="!data.status.ai_enabled" class="notice neutral">
@@ -98,7 +99,7 @@
           </div>
         </div>
       </div>
-      <p v-else class="empty">这个月还没有 AI 用量。</p>
+      <EmptyState v-else plain title="这个月还没有 AI 用量" desc="使用付费 AI 功能后，这里会按天记录。" />
     </n-card>
 
     <p class="foot">
@@ -111,6 +112,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { NButton, NCard, NDatePicker } from "naive-ui";
+import BackButton from "../components/BackButton.vue";
+import LoadingBlock from "../components/LoadingBlock.vue";
+import EmptyState from "../components/EmptyState.vue";
 import {
   fmtChars,
   fmtMilli,
@@ -186,8 +190,6 @@ onMounted(() => {
 .card { margin-bottom: 16px; }
 
 .topline { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.back { font-size: 12.5px; font-weight: 700; color: var(--c-primary-strong); text-decoration: none; }
-.back:hover { text-decoration: underline; }
 .hint { font-size: 12px; color: var(--c-text-3); }
 
 .sect-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }

@@ -1,11 +1,12 @@
 # data-src — 学习数据源
 
-> 只有**口语**的结构化源数据入库；词库/阅读/听力的构建脚本仍读取上级旧站 `../PET/js/*.js`，
-> 产物统一输出到 `frontend/public/data/*.json`。运行期 JSON 是生成文件，不要手改。
+> 本目录只放**口语**与**数学**的结构化源数据；词库/阅读/听力的构建脚本读取上级旧站 `../PET/js/*.js`。
+> 产物统一输出到 `frontend/public/data/*.json`（不入 git）。运行期 JSON 是生成文件，不要手改。
 
 ```text
 data-src/
-└─ speak/       part1_85 / part1_130 / patterns / rubric / toc_zhen2 / toc_zhen34 / demos
+├─ speak/      part1_85 / part1_130 / patterns / rubric / toc_zhen2 / toc_zhen34 / demos / curriculum_v4
+└─ math/       yongle.json（李永乐一课通关课程清单）
 ```
 
 ## 构建链
@@ -15,7 +16,8 @@ data-src/
 | 词库（PET + KET） | `python tools/build_data.py` | `../PET/js/data.js`、`ket-data.js` | `banks.json` |
 | 阅读 | `node tools/build_reading_v2.js` | `../PET/js/reading-data.js` | `reading.json` |
 | 听力 | `node tools/build_listening_v2.js` | `../PET/js/listening-data.js` | `listening.json` |
-| 口语 | `node tools/build_speak_v3.js` | `data-src/speak/*.json` | `speak.json`（schema v3） |
+| 口语 | `node tools/build_speak_v4.js` | `data-src/speak/*.json` | `speak.json`（schema 5） |
+| 数学 | `node tools/build_math.js` | `data-src/math/yongle.json` | `math.json`（schema 2） |
 
 - 脚本支持 `--dry`（只校验、不写文件）。
 - 音频/图片（`frontend/public/audio`、`public/img`）体积大，不进 git，由部署阶段整目录同步。
