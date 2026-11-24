@@ -5,24 +5,6 @@
     <div v-if="banner" class="aibanner" :class="banner.tone">{{ banner.text }}</div>
 
     <div v-if="!authReady" class="locked card">加载中…</div>
-    <!-- 未开通口语：占位 + 弹框提示（AI 调用有费用） -->
-    <template v-else-if="locked">
-      <div class="locked card">
-        <div class="lock-icon">🔒</div>
-        <p class="lock-msg">由于 AI 调用产生费用，请联系<b>管理员</b>开通口语功能</p>
-        <p class="lock-sub">开通后即可使用跟读纠音、实时对话、造句练习</p>
-      </div>
-      <n-modal v-model:show="showLocked" preset="dialog" type="warning" title="口语功能未开通" style="max-width: 400px">
-        <div style="text-align:center; padding: 6px 0;">
-          <div style="font-size:40px">🔒</div>
-          <p style="font-size:16px; margin:10px 0 4px;">由于 AI 调用产生费用，请联系<b style="color:var(--c-primary)">管理员</b>开通口语功能</p>
-          <p style="color:var(--c-text-2); font-size:13px;">跟读纠音 · 实时对话 · 造句练习</p>
-        </div>
-        <template #action>
-          <n-button type="primary" @click="showLocked = false">知道了</n-button>
-        </template>
-      </n-modal>
-    </template>
     <template v-else>
       <!-- 今日已用（只记录不限流）：放在日历上方 -->
       <div v-if="loaded && paidLocked" class="paidhint card">
@@ -147,8 +129,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
-import { useRoute, useRouter } from "vue-router";
-import { NButton, NIcon, NInputNumber, NModal, NPopconfirm } from "naive-ui";
+import { useRouter } from "vue-router";
+import { NButton, NIcon, NInputNumber, NPopconfirm } from "naive-ui";
 import { MicOutline, ChatbubblesOutline, CreateOutline } from "@vicons/ionicons5";
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
@@ -161,7 +143,6 @@ import {
 } from "../core/speak";
 
 const router = useRouter();
-const route = useRoute();
 const auth = useAuthStore();
 const planData = ref<SpeakData | null>(null);
 const checks = ref<DayCheck[]>([]);
@@ -172,15 +153,11 @@ const days = ref(30);
 const usage = ref<{ rt_seconds: number; soe_calls: number; est_cost_milli: number } | null>(null);
 const timeTotals = ref<{ shadow: number; make: number; talk: number } | null>(null);
 const authReady = ref(false);
-const showLocked = ref(route.query.locked === "1");
 const aiStatus = ref<AiStatus | null>(null);
 const banner = computed(() => budgetBanner(aiStatus.value));
 const paidLocked = computed(() => paidBlocked(aiStatus.value));
 const paidLock = computed(() => paidLockText(aiStatus.value));
 
-const locked = computed(
-  () => localStorage.getItem("pet_local_only") !== "true" && !auth.perms.includes("speak"),
-);
 const hasPlan = computed(() => planLength.value > 0);
 const effectiveLength = computed(() => planLength.value || (planData.value?.plan.days?.length ?? 90));
 const planDays = computed<PlanDayView[]>(() => splitSpeakPlan(planData.value, effectiveLength.value));
@@ -235,10 +212,6 @@ onMounted(async () => {
   await auth.restore();
   authReady.value = true;
   pickedDay.value = readPickedDay();
-  if (locked.value) {
-    showLocked.value = true;
-    return;
-  }
   planData.value = await loadSpeak();
   await refresh();
   aiStatus.value = await loadAiStatus(true);
@@ -326,10 +299,6 @@ function goSceneById(id: string): void {
 h1 { color: var(--c-text); font-size: var(--fs-title); }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 16px; }
 .locked { padding: 40px 24px; text-align: center; }
-.lock-icon { font-size: 44px; margin-bottom: 10px; }
-.lock-msg { color: var(--c-text); font-size: 17px; margin: 0 0 8px; }
-.lock-msg b { color: var(--c-primary); }
-.lock-sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 16px; }
 .sec { padding: 16px; margin-bottom: 14px; }
 .sec-head { display: flex; justify-content: space-between; margin-bottom: 10px; color: var(--c-text); }
 .done { color: var(--c-primary); font-weight: 600; }

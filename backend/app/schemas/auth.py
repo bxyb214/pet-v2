@@ -18,7 +18,6 @@ class TokenOut(BaseModel):
     user_id: int
     username: str
     display_name: str
-    perms: str
     is_admin: bool
     exam: str = "pet"
     ai_enabled: bool = False
@@ -32,7 +31,6 @@ class UserOut(BaseModel):
     id: int
     username: str
     display_name: str
-    perms: str
     is_admin: bool
     exam: str = "pet"
     ai_enabled: bool = False

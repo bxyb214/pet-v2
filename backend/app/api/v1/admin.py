@@ -2,11 +2,11 @@
 import json
 import secrets
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.deps import effective_perms, require_admin
+from app.core.deps import require_admin
 from app.db import get_db
 from app.models.user import InviteCode, User
 from app.services import ai_enrich, usage as usage_svc
@@ -164,10 +164,6 @@ def list_users(
     return [_user_row(db, u) for u in db.query(User).order_by(User.id).all()]
 
 
-class PermIn(BaseModel):
-    speak: bool
-
-
 def _user_row(db: Session, u: User) -> dict:
     from app.services import budget
 
@@ -177,7 +173,6 @@ def _user_row(db: Session, u: User) -> dict:
         "username": u.username,
         "display_name": u.display_name,
         "is_admin": u.is_admin,
-        "perms": effective_perms(u),
         "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None,
         "ai_enabled": bool(u.ai_enabled),
         "ai_daily_budget_milli": u.ai_daily_budget_milli,
@@ -188,31 +183,3 @@ def _user_row(db: Session, u: User) -> dict:
         "monthly_budget_milli": st["monthly"]["budget_milli"],
         "alert_stage": st["alert_stage"],
     }
-
-
-@router.put("/users/{user_id}/perms")
-def set_user_perms(
-    user_id: int,
-    body: PermIn,
-    _admin: object = Depends(require_admin),
-    db: Session = Depends(get_db),
-) -> dict:
-    """开通 / 关闭某个账号的口语权限（只动 speak 位，!listen 等其他标记原样保留）。
-
-    管理员默认开通，但允许显式关闭：关闭时写入 `!speak`，effective_perms 不再补 speak。
-    """
-    u = db.get(User, user_id)
-    if u is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "用户不存在")
-    others = [
-        p for p in (u.perms or "").split(",")
-        if p.strip() and p.strip() not in ("speak", "!speak")
-    ]
-    if body.speak:
-        u.perms = ",".join(others + ["speak"])
-    elif u.is_admin:
-        u.perms = ",".join(others + ["!speak"])
-    else:
-        u.perms = ",".join(others)
-    db.commit()
-    return _user_row(db, u)

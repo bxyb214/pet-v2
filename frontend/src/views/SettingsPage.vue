@@ -47,34 +47,68 @@
         <div class="row"><dt>可用板块</dt><dd class="perms">{{ permText }}</dd></div>
       </dl>
     </n-card>
+
+    <n-card v-if="!auth.isAdmin" size="small" class="card">
+      <div class="sect-head">
+        <h2>AI 计费</h2>
+        <span class="sect-hint">只统计你本人的付费 AI 用量</span>
+      </div>
+      <div class="billing">
+        <div class="billing-stat">
+          <span>今日</span>
+          <b class="tnum">{{ usage ? fmtMilli(usage.totals.today.est_cost_milli) : usageLoading ? "…" : "—" }}</b>
+        </div>
+        <div class="billing-stat">
+          <span>本月</span>
+          <b class="tnum">{{ usage ? fmtMilli(usage.totals.month.est_cost_milli) : usageLoading ? "…" : "—" }}</b>
+        </div>
+        <div class="billing-action">
+          <n-button size="small" secondary @click="router.push('/settings/usage')">查看明细</n-button>
+        </div>
+      </div>
+      <p v-if="!usage && !usageLoading" class="usage-note">用量暂时加载失败，可进入明细页重试。</p>
+    </n-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
-import { NCard, useDialog, useMessage } from "naive-ui";
+import { onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { NButton, NCard, useDialog, useMessage } from "naive-ui";
 import { loadBanks, DEFAULT_EXAMS, type ExamMeta } from "../core/banks";
+import { fmtMilli, loadMyUsage, type MyUsage } from "../core/usage";
 import { useAuthStore } from "../stores/auth";
 import { useLearningStore } from "../stores/learning";
 
 const auth = useAuthStore();
 const learning = useLearningStore();
+const router = useRouter();
 const message = useMessage();
 const dialog = useDialog();
 const exams = ref<ExamMeta[]>(DEFAULT_EXAMS);
 const current = ref(auth.exam);
 const busy = ref(false);
+const usage = ref<MyUsage | null>(null);
+const usageLoading = ref(false);
 
-const permText = computed(() => {
-  const parts = ["词汇", "阅读", "听力"];
-  if (auth.perms.includes("speak")) parts.push("口语");
-  return parts.join(" · ");
-});
+const permText = "词汇 · 阅读 · 听力 · 口语";
+
+async function loadUsageSummary(): Promise<void> {
+  usageLoading.value = true;
+  try {
+    usage.value = await loadMyUsage();
+  } catch {
+    usage.value = null;
+  } finally {
+    usageLoading.value = false;
+  }
+}
 
 onMounted(async () => {
   const loaded = await loadBanks();
   if (loaded.exams.length) exams.value = loaded.exams;
   current.value = auth.exam;
+  if (!auth.isAdmin) void loadUsageSummary();
 });
 
 async function doChoose(e: ExamMeta): Promise<void> {
@@ -242,6 +276,15 @@ function choose(e: ExamMeta): void {
   overflow-wrap: anywhere;
 }
 .perms { color: var(--c-primary-strong); }
+
+/* ---------- AI 计费入口 ---------- */
+.billing { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.billing-stat { display: flex; flex-direction: column; gap: 2px; min-width: 88px; }
+.billing-stat span { font-size: 11.5px; color: var(--c-text-3); }
+.billing-stat b { font-size: 17px; color: var(--c-primary-strong); }
+.billing-action { margin-left: auto; }
+.usage-note { margin: 10px 0 0; font-size: 12px; color: var(--c-text-3); }
+.tnum { font-variant-numeric: tabular-nums; }
 
 @media (max-width: 520px) {
   .exams { grid-template-columns: 1fr 1fr; }

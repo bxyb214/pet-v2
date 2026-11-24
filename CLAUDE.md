@@ -29,6 +29,7 @@ Docker（`cd deploy`）
 
 工具（仓库根 `package.json` 只为 playwright）
 - `node tools/check_overflow.js <BASE>`（先起 vite）；`python tools/check_tokens.py`
+- 本地开发/预发布（无 Docker，localhost:8088）：`backend/.venv/Scripts/python.exe tools/dev_local.py --build`
 
 ## 不要改
 

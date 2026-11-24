@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.deps import effective_perms, get_current_user
+from app.core.deps import get_current_user
 from app.core.security import (
     hash_password,
     make_access_token,
@@ -26,7 +26,6 @@ def _token_out(user: User) -> TokenOut:
         user_id=user.id,
         username=user.username,
         display_name=user.display_name,
-        perms=effective_perms(user),
         is_admin=user.is_admin,
         exam=user.exam or "pet",
         ai_enabled=bool(user.ai_enabled),
@@ -129,9 +128,7 @@ def claim(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
 
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)) -> UserOut:
-    out = UserOut.model_validate(user)
-    out.perms = effective_perms(user)
-    return out
+    return UserOut.model_validate(user)
 
 
 @router.put("/me/exam")

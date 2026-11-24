@@ -34,8 +34,6 @@ def _register_kid() -> tuple[str, int]:
     assert r.status_code == 201, r.text
     db = SessionLocal()
     kid = db.query(User).filter(User.username == "kid").one()
-    kid.perms = "speak"
-    db.commit()
     uid = kid.id
     db.close()
     return r.json()["access_token"], uid
@@ -194,4 +192,17 @@ def test_connection_tests_are_safe_without_keys():
     assert r.json()["ok"] is False
 
     r = client.post("/api/v1/admin/test/nope", headers=H)
+    assert r.status_code == 404
+
+
+def test_user_rows_no_perms_and_legacy_endpoint_removed():
+    """口语不再按人限制：用户列表不返回 perms，旧权限接口已删除。"""
+    admin = _claim_admin()
+    _, uid = _register_kid()
+    H = _h(admin)
+
+    rows = client.get("/api/v1/admin/users", headers=H).json()
+    assert all("perms" not in r for r in rows)
+
+    r = client.put(f"/api/v1/admin/users/{uid}/perms", json={"speak": True}, headers=H)
     assert r.status_code == 404

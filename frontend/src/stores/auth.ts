@@ -11,7 +11,6 @@ interface TokenResp {
   user_id: number;
   username: string;
   display_name: string;
-  perms: string;
   is_admin: boolean;
   exam: string;
 }
@@ -20,7 +19,6 @@ export const useAuthStore = defineStore("auth", {
   state: () => ({
     username: "",
     displayName: "",
-    perms: "",
     isAdmin: false,
     /** 当前学习的考试级别：pet / ket / fce / junior */
     exam: "pet",
@@ -34,7 +32,6 @@ export const useAuthStore = defineStore("auth", {
       setToken(resp.access_token);
       this.username = resp.username;
       this.displayName = resp.display_name;
-      this.perms = resp.perms;
       this.isAdmin = resp.is_admin;
       this.exam = resp.exam || "pet";
       // 登录后建立同步引擎（首次 pull 合并 + 45s 静默拉取），本地快照按用户隔离
@@ -45,7 +42,6 @@ export const useAuthStore = defineStore("auth", {
       clearAiStatus();
       this.username = "";
       this.displayName = "";
-      this.perms = "";
       this.isAdmin = false;
       this.exam = "pet";
     },
@@ -60,7 +56,7 @@ export const useAuthStore = defineStore("auth", {
       await api("/auth/me/exam", { method: "PUT", body: JSON.stringify({ exam }) });
       this.exam = exam;
     },
-    /** 刷新页面 / 路由跳转前恢复登录态（perms 决定口语权限弹框，必须还原） */
+    /** 刷新页面 / 路由跳转前恢复登录态 */
     async restore(): Promise<void> {
       const token = getToken();
       if (!token) {
@@ -74,10 +70,9 @@ export const useAuthStore = defineStore("auth", {
       }
       if (!this.username) {
         try {
-          const me = await api<{ username: string; display_name: string; perms: string; is_admin: boolean; exam: string }>("/auth/me");
+          const me = await api<{ username: string; display_name: string; is_admin: boolean; exam: string }>("/auth/me");
           this.username = me.username;
           this.displayName = me.display_name;
-          this.perms = me.perms;
           this.isAdmin = me.is_admin;
           this.exam = me.exam || "pet";
         } catch (e) {

@@ -34,7 +34,7 @@
       <div class="adm-panel-h row">
         <div>
           <h2>账号与额度</h2>
-          <p>共 {{ users.length }} 个；口语与 AI 是两个独立开关，AI 开关关闭时付费接口一律 403。</p>
+          <p>共 {{ users.length }} 个；AI 开关是唯一付费闸门，关闭时付费接口一律 403。</p>
         </div>
         <n-button size="small" secondary :loading="loading" @click="loadUsers">刷新</n-button>
       </div>
@@ -49,14 +49,6 @@
           <i v-if="u.is_admin" class="adm-tag admin">管理员</i>
 
           <div class="adm-uops">
-            <span class="lbl">口语</span>
-            <n-switch
-              size="small"
-              :value="u.perms.includes('speak')"
-              :loading="speakBusy === u.id"
-              :title="u.is_admin ? '管理员默认开通，也可关闭' : '开通后可进入跟读 / 对话 / 造句'"
-              @update:value="(v: boolean) => toggleSpeak(u, v)"
-            />
             <span class="lbl">AI</span>
             <n-switch
               size="small"
@@ -77,7 +69,7 @@
       </div>
       <p v-else class="adm-empty">还没有账号。</p>
       <p class="adm-foot">
-        额度按人可覆盖：留空表示跟随全局默认。日/月预算用尽后服务端返回 429，免费功能（单词、听力、题库）不受影响。
+        口语对所有账号开放，无需单独开通。额度按人可覆盖：留空表示跟随全局默认。日/月预算用尽后服务端返回 429，免费功能（单词、听力、题库）不受影响。
       </p>
     </section>
 
@@ -115,7 +107,6 @@ type UserRow = {
   username: string;
   display_name: string;
   is_admin: boolean;
-  perms: string;
   created_at: string | null;
   ai_enabled: boolean;
   ai_daily_budget_milli: number | null;
@@ -133,7 +124,6 @@ const users = ref<UserRow[]>([]);
 const codeCount = ref(3);
 const making = ref(false);
 const loading = ref(false);
-const speakBusy = ref(0);
 const aiBusy = ref(0);
 
 async function copyCode(code: string): Promise<void> {
@@ -182,21 +172,6 @@ async function makeCodes(): Promise<void> {
     message.error("生成失败：" + (e as Error).message);
   } finally {
     making.value = false;
-  }
-}
-
-async function toggleSpeak(u: UserRow, on: boolean): Promise<void> {
-  speakBusy.value = u.id;
-  try {
-    patch(await api<UserRow>(`/admin/users/${u.id}/perms`, {
-      method: "PUT",
-      body: JSON.stringify({ speak: on }),
-    }));
-    message.success(on ? `已为 ${u.username} 开通口语` : `已关闭 ${u.username} 的口语`);
-  } catch (e) {
-    message.error("修改失败：" + (e as Error).message);
-  } finally {
-    speakBusy.value = 0;
   }
 }
 

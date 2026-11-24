@@ -18,7 +18,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(256))
     display_name: Mapped[str] = mapped_column(String(64), default="")
-    # 权限位标记，逗号分隔或 JSON；"speak"=口语开通，"!listen"=听力关闭
+    # 历史权限位（旧站迁移保留）：不再参与鉴权；口语对所有登录用户开放，付费能力由 ai_enabled 控制
     perms: Mapped[str] = mapped_column(String(256), default="")
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     data_rev: Mapped[int] = mapped_column(Integer, default=1)  # 同步乐观锁版本号

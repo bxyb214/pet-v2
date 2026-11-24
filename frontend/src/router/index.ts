@@ -62,6 +62,11 @@ export const router = createRouter({
           component: () => import("../views/SettingsPage.vue"),
           meta: { crumbs: ["设置"], narrow: true },
         },
+        {
+          path: "settings/usage",
+          component: () => import("../views/UsagePage.vue"),
+          meta: { crumbs: ["设置", "AI 计费"] },
+        },
         // ---------- 英语 · 单词 ----------
         {
           path: "english/words/browse",
@@ -242,13 +247,5 @@ router.beforeEach(async (to) => {
   // 非管理员禁止进管理页
   if (to.path === "/admin" && !auth.isAdmin) return "/english/words/browse";
 
-  // 未开通口语的用户进入口语子页 → 回口语首页并弹权限提示
-  if (
-    to.path.startsWith("/english/speak") &&
-    to.path !== "/english/speak" &&
-    !auth.perms.includes("speak")
-  ) {
-    return "/english/speak?locked=1";
-  }
   return true;
 });

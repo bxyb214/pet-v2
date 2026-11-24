@@ -1,5 +1,8 @@
 # NAS 开发环境 — 设计
 
+> **已归档（2026-11-24）**：NAS `8089` 开发环境已删除，改由
+> [本地开发环境](../../dev/local-dev-env/02-design.md)（`localhost:8088`，Windows 原生进程）替代。
+>
 > 对应需求：[01-requirements](01-requirements.md)；部署入口：[06 部署与运维](../../06-部署与运维.md)
 
 ## 1. 方案概览

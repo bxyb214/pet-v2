@@ -1,6 +1,6 @@
 """口语路由（S 组）：boot / sdp / log / days / 复盘 / 求助。密钥不出服务端。
 
-付费接口统一走 `require_paid_ai`（P0-1）；免费接口只查口语权限。
+付费接口统一走 `require_paid_ai`（P0-1）；免费接口只要求登录。
 TTS 已拆到 `speak_media.py`（静态 URL + 缓存治理）。
 """
 import json
@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.core.deps import check_paid_or_raise, require_paid_ai, require_speak
+from app.core.deps import check_paid_or_raise, get_current_user, require_paid_ai
 from app.db import get_db
 from app.models.speak import SpeakDay, SpeakLog, SpeakPlan, SpeakTime
 from app.models.user import User
@@ -28,7 +28,7 @@ class BootIn(BaseModel):
 
 
 @router.post("/boot")
-def boot(body: BootIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def boot(body: BootIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """拼会话提示词（talk 附带历史问题摘要 + 当日画像 + 到期复盘热身句）。
 
     shadow 只拼评测提示词，不产生外部费用；talk 会生成/复用画像，走付费闸门。
@@ -95,7 +95,7 @@ class SessionEndIn(BaseModel):
 
 
 @router.post("/session_end")
-def session_end(body: SessionEndIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def session_end(body: SessionEndIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """会话关闭记账（免费接口，只记录）：服务端按官方换算率折算音频 token。
 
     P0-2：`sdp` 创建会话；正常结束或 `sendBeacon` 补报都走这里，幂等关闭。
@@ -142,7 +142,7 @@ class LogIn(BaseModel):
 
 
 @router.post("/log")
-def log(body: LogIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def log(body: LogIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     row = SpeakLog(
         user_id=user.id, mode=body.mode, ref=body.ref, sentence_id=body.sentence_id, day=body.day,
         turns=body.turns, score=body.score,
@@ -178,7 +178,7 @@ def log(body: LogIn, user: User = Depends(require_speak), db: Session = Depends(
 
 
 @router.get("/days")
-def days(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def days(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     rows = db.query(SpeakDay).filter(SpeakDay.user_id == user.id).all()
     return {
         "days": [
@@ -196,7 +196,7 @@ class PlanIn(BaseModel):
 
 
 @router.get("/plan")
-def get_plan(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def get_plan(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """口语计划天数；0 = 未创建（前端按默认 90 天展示）。"""
     row = db.get(SpeakPlan, user.id)
     return {"length": row.length if row else 0}
@@ -204,7 +204,7 @@ def get_plan(user: User = Depends(require_speak), db: Session = Depends(get_db))
 
 @router.put("/plan")
 def put_plan(
-    body: PlanIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
+    body: PlanIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict:
     row = db.get(SpeakPlan, user.id)
     old_length = row.length if row else 0
@@ -221,7 +221,7 @@ def put_plan(
 
 
 @router.delete("/plan")
-def delete_plan(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def delete_plan(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """删除计划但保留打卡记录（与词汇计划一致）。"""
     row = db.get(SpeakPlan, user.id)
     if row is not None:
@@ -231,13 +231,13 @@ def delete_plan(user: User = Depends(require_speak), db: Session = Depends(get_d
 
 
 @router.get("/usage_today")
-def usage_today(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def usage_today(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """用户端「今日已用」轻展示（不限流）。"""
     return usage.day_row(db, user.id)
 
 
 @router.get("/ai_status")
-def ai_status(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def ai_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """付费 AI 状态：开关、日/月预算、剩余额度、单次会话上限（前端横幅与锁定用）。"""
     return budget.status(db, user)
 
@@ -245,7 +245,7 @@ def ai_status(user: User = Depends(require_speak), db: Session = Depends(get_db)
 @router.get("/shadow/recent")
 def shadow_recent(
     limit: int = 10,
-    user: User = Depends(require_speak),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict:
     """最近跟读记录：供难度选句与弱音素加权（P0-3 / P2-5）。"""
@@ -302,14 +302,14 @@ class TimeIn(BaseModel):
 
 
 @router.get("/time/today")
-def time_today(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def time_today(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     day = usage.today()
     return {"day": day, "totals": _time_totals(db, user.id, day)}
 
 
 @router.post("/time")
 def add_time(
-    body: TimeIn, user: User = Depends(require_speak), db: Session = Depends(get_db)
+    body: TimeIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> dict:
     """累加一段真实练习秒数（前端按说话时段分批上报）。"""
     day = usage.today()
@@ -347,6 +347,8 @@ def improve(
     body: ImproveIn, user: User = Depends(require_paid_ai), db: Session = Depends(get_db)
 ) -> dict:
     """自由对话中：把孩子刚说的一句改写成 PET B1 版本（穿插显示并跟读）。"""
+    from app.services import ai_enrich
+
     if dev_mock.is_dev():
         return dev_mock.improve(body.text)
     prompt = _IMPROVE_PROMPT.format(text=body.text[:400], last_ai=body.last_ai_text[:200])
@@ -392,7 +394,7 @@ def review(body: ReviewIn, user: User = Depends(require_paid_ai), db: Session = 
 
 
 @router.get("/review/due")
-def review_due(user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def review_due(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     return {"items": speak_review.due_items(db, user.id)}
 
 
@@ -403,7 +405,7 @@ class GradeIn(BaseModel):
 
 
 @router.post("/review/grade")
-def review_grade(body: GradeIn, user: User = Depends(require_speak), db: Session = Depends(get_db)) -> dict:
+def review_grade(body: GradeIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """复盘跟读评分 → 记忆曲线记账。"""
     out = speak_review.grade(db, user.id, body.id, body.score, body.dims_ok)
     if not out:

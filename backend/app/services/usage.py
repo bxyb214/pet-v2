@@ -174,6 +174,61 @@ def day_row(db: Session, user_id: int, day: str = "") -> dict:
     }
 
 
+def week_start() -> str:
+    """本周一（北京时间 YYYY-MM-DD），用于用户端「本周」汇总。"""
+    now = datetime.now(_CST)
+    return (now - timedelta(days=now.weekday())).strftime("%Y-%m-%d")
+
+
+def _metrics(row: Usage) -> dict:
+    return {
+        "rt_seconds": row.rt_seconds,
+        "rt_ai_seconds": row.rt_ai_seconds,
+        "soe_calls": row.soe_calls,
+        "llm_in_tok": row.llm_in_tok,
+        "llm_out_tok": row.llm_out_tok,
+        "llm_tok": row.llm_in_tok + row.llm_out_tok,
+        "tts_calls": row.tts_calls,
+        "tts_chars": row.tts_chars,
+        "tts_cache_hits": row.tts_cache_hits,
+        "est_cost_milli": row.est_cost_milli,
+    }
+
+
+def user_range_totals(db: Session, user_id: int, start: str, end: str) -> dict:
+    """某用户 [start, end] 闭区间的用量汇总（只读，不含 user_id）。"""
+    rows = (
+        db.query(Usage)
+        .filter(Usage.user_id == user_id, Usage.day >= start, Usage.day <= end)
+        .all()
+    )
+    totals = {
+        "active_days": len(rows),
+        "rt_seconds": sum(r.rt_seconds for r in rows),
+        "rt_ai_seconds": sum(r.rt_ai_seconds for r in rows),
+        "soe_calls": sum(r.soe_calls for r in rows),
+        "llm_in_tok": sum(r.llm_in_tok for r in rows),
+        "llm_out_tok": sum(r.llm_out_tok for r in rows),
+        "llm_tok": sum(r.llm_in_tok + r.llm_out_tok for r in rows),
+        "tts_calls": sum(r.tts_calls for r in rows),
+        "tts_chars": sum(r.tts_chars for r in rows),
+        "tts_cache_hits": sum(r.tts_cache_hits for r in rows),
+        "est_cost_milli": sum(r.est_cost_milli for r in rows),
+    }
+    return totals
+
+
+def user_month_days(db: Session, user_id: int, month: str) -> list[dict]:
+    """某用户某月有记账的日期，按日期升序（只读，不含 user_id）。"""
+    rows = (
+        db.query(Usage)
+        .filter(Usage.user_id == user_id, Usage.day.like(f"{month}-%"))
+        .order_by(Usage.day)
+        .all()
+    )
+    return [{"day": r.day, **_metrics(r)} for r in rows]
+
+
 def month_used(db: Session, user_id: int, month: str) -> int:
     """某用户某月（YYYY-MM）已用预估费用（0.001 元）。"""
     value = (

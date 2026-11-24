@@ -47,7 +47,19 @@ docker compose up -d --build                  # api 启动时自动迁移
 > 测试环境没有 AI Key：在 `deploy/.env` 设 `PET_DEV_MODE=1` 后重建 api。顶栏显示 **DEV**，
 > 口语/造句/加词返回模拟结果，不调用外部服务；正式环境保持 `0`。
 
-### 本地开发
+### Windows 原生（无 Docker，localhost:8088）
+
+没有 Docker Desktop 时，用一个 uvicorn 进程同时提供 API 与构建后的前端：
+
+```powershell
+backend\.venv\Scripts\python.exe tools\dev_local.py --build
+# 打开 http://localhost:8088
+```
+
+默认 `PET_DEV_MODE=1`（AI 走模拟）；`--prod-mode` 关闭模拟。数据库在 `backend/data/pet.db`，
+设 `PET_MATH_MEDIA=D:\path\to\math` 才会挂载课程视频。详见 [部署文档 §2.5](docs/06-部署与运维.md)。
+
+### 本地开发（热更新，5173）
 
 ```bash
 # 后端（Python 3.12+）
