@@ -95,17 +95,17 @@
 
       <section class="qcard" :class="{ answered }">
         <div class="qtop">
-          <span class="dim">{{ DIM_LABEL[q.dim] }}</span>
+          <span class="dim">{{ dimLabel }}</span>
           <span v-if="!answered" class="tip">{{ tip }}</span>
         </div>
 
         <div class="stem">
           <template v-if="q.dim === 'w2m'">
-            <p class="word" :style="wordStyle">{{ q.word.en }}</p>
+            <p class="word" :style="wordStyle">{{ qStem }}</p>
             <p v-if="q.word.phonetic" class="phon">{{ q.word.phonetic }}</p>
           </template>
           <template v-else>
-            <p class="word cn" :style="wordStyle">{{ q.word.cn }}</p>
+            <p class="word cn" :style="wordStyle">{{ qStem }}</p>
           </template>
         </div>
 
@@ -167,10 +167,15 @@
             </div>
 
             <p class="fbans">
-              <b>{{ q.word.en }}</b>
-              <span v-if="q.word.phonetic" class="ph">{{ q.word.phonetic }}</span>
-              <span v-if="q.word.pos" class="pos">{{ q.word.pos }}</span>
-              <span class="cn">{{ q.word.cn }}</span>
+              <b>{{ qIsSyn ? synEn : q.word.en }}</b>
+              <span v-if="!qIsSyn && q.word.phonetic" class="ph">{{ q.word.phonetic }}</span>
+              <span v-if="!qIsSyn && q.word.pos" class="pos">{{ q.word.pos }}</span>
+              <span v-if="!qIsSyn" class="cn">{{ q.word.cn }}</span>
+            </p>
+            <!-- 同义替换库：显示 ↔ 同义说法配对 -->
+            <p v-if="qIsSyn" class="fbans alt-line">
+              <span class="alt-arrow">↔</span>
+              <b>{{ synAlt }}</b>
             </p>
             <p v-if="q.dim === 'spell' && !lastCorrect && typed.trim()" class="fbtyped">
               你写的是 <s>{{ typed.trim() }}</s>
@@ -264,8 +269,8 @@ import { useImmersive } from "../core/immersive";
 import { availableBankKeys, loadBanks, type BankMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import {
-  makeRound, makeTestRound, seedFrom, testDimsForBank,
-  checkAnswer, DIM_LABEL, type QuizDim, type QuizQuestion,
+  makeRound, makeTestRound, seedFrom, testDimsForBank, stemOf, isSynonymWord,
+  checkAnswer, DIM_LABEL, SYN_DIM_LABEL, type QuizDim, type QuizQuestion,
 } from "../core/quiz";
 import { splitPlan, type WordBanks, type BankKey, type PlanWord } from "../core/plan";
 import { englishOnly, playWordAudio, say } from "../core/say";
@@ -463,10 +468,31 @@ const segStates = computed(() =>
   }),
 );
 
+/** 当前词是否同义替换词（考短语配对） */
+const qIsSyn = computed(() => Boolean(q.value && isSynonymWord(q.value.word)));
+
+/** 同义配对显示：原短语 / 同义短语（英英对照，反馈区用） */
+const synEn = computed(() => (q.value ? stemOf(q.value.word, "w2m") : ""));
+const synAlt = computed(() => (q.value ? stemOf(q.value.word, "m2w") : ""));
+
+/** 题干：同义库 w2m=原短语、m2w=同义短语；普通库 w2m=en、m2w=cn */
+const qStem = computed(() => {
+  if (!q.value) return "";
+  return stemOf(q.value.word, q.value.dim);
+});
+
+/** 维度标签：同义库显示「选同义短语 / 看同义选短语」 */
+const dimLabel = computed(() => {
+  if (!q.value) return "";
+  if (qIsSyn.value && q.value.dim !== "spell") return SYN_DIM_LABEL[q.value.dim];
+  return DIM_LABEL[q.value.dim];
+});
+
 /** 维度提示：告诉孩子这一步要做什么，不用猜 */
 const tip = computed(() => {
   if (!q.value) return "";
   if (q.value.dim === "spell") return "根据中文拼出单词";
+  if (qIsSyn.value) return q.value.dim === "w2m" ? "选它的同义说法" : "选对应的原短语";
   if (q.value.dim === "w2m") return "选它的意思";
   return "选对应的英文";
 });
@@ -474,9 +500,9 @@ const tip = computed(() => {
 /** 长词自适应：词库里有 100+ 字符的释义，固定字号必溢出 */
 const wordStyle = computed(() => {
   if (!q.value) return {};
-  const text = q.value.dim === "m2w" ? q.value.word.cn : q.value.word.en;
+  const text = qStem.value;
   const n = (text ?? "").length;
-  const isCn = q.value.dim === "m2w";
+  const isCn = q.value.dim === "m2w" && !qIsSyn.value;
   const size = isCn
     ? n <= 8 ? 30 : n <= 14 ? 26 : n <= 24 ? 22 : 19
     : n <= 12 ? 42 : n <= 20 ? 34 : n <= 30 ? 28 : 23;
@@ -884,7 +910,13 @@ function onKey(e: KeyboardEvent): void {
   }
 }
 onMounted(() => window.addEventListener("keydown", onKey));
-onUnmounted(() => window.removeEventListener("keydown", onKey));
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKey);
+  // 随机学习中途退出 = 放弃本轮：清掉续做会话，重进回到开局设置（可重新选题库/题型/题量）。
+  // 学习成果已由 learning store 每题落盘，这里丢的只是「本轮走到哪」。
+  // 计划测试不受影响：按库续做是有意设计。
+  if (roundMode.value === "free" && round.value.length && !finished.value) clearCurrentSession();
+});
 
 const FULL_DIMS: QuizDim[] = ["w2m", "m2w", "spell"];
 /** 本次要考的维度：KET 按旧站规则不考拼写 */
@@ -1170,6 +1202,9 @@ watch(
 .fbans .ph { font-size: 12.5px; color: var(--c-text-3); font-family: var(--font-en); }
 .fbans .pos { font-size: 12px; color: var(--c-accent); font-weight: 600; }
 .fbans .cn { color: var(--c-text-2); }
+.alt-line { margin-top: 6px; }
+.alt-line b { font-size: 15.5px; color: var(--c-primary-strong); }
+.alt-arrow { color: var(--c-text-3); font-weight: 700; }
 .fbtyped { margin: 8px 0 0; font-size: 13px; color: var(--c-text-2); }
 .fbtyped s { color: #b42318; opacity: 0.85; }
 .fbex {

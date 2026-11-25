@@ -61,6 +61,8 @@ def _read_data(db: Session, user_id: int) -> dict:
                 "definition": w.definition,
                 "example_en": w.example_en,
                 "example_cn": w.example_cn,
+                "bank": getattr(w, "bank", "") or "",
+                "exam": getattr(w, "exam", "") or "",
             }
             for w in db.query(CustomWord).filter(CustomWord.user_id == user_id)
         ],
@@ -113,7 +115,8 @@ def _write_data(db: Session, user_id: int, data: SyncData) -> None:
     for item in data.custom_words:
         db.add(CustomWord(user_id=user_id, word=item.word, pos=item.pos,
                           definition=item.definition, example_en=item.example_en,
-                          example_cn=item.example_cn))
+                          example_cn=item.example_cn,
+                          bank=item.bank, exam=item.exam))
 
     for item in data.custom_sentences:
         db.add(CustomSentence(user_id=user_id, sid=item.sid, book=item.book,

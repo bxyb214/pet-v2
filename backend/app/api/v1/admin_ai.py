@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.api.v1.admin import _user_row
 from app.api.v1.speak_media import cache_dir
 from app.core.deps import require_admin
+from app.core.security import hash_password
 from app.db import get_db
 from app.models.user import User
 from app.services import ai_enrich, budget, qwen_speak, tencent_soe, usage as usage_svc
@@ -105,6 +106,25 @@ class AiQuotaIn(BaseModel):
     enabled: bool | None = None
     daily_milli: int | None = Field(default=None, ge=0, le=1_000_000)
     monthly_milli: int | None = Field(default=None, ge=0, le=10_000_000)
+
+
+@router.post("/users/{user_id}/reset_password")
+def reset_user_password(
+    user_id: int,
+    _admin: object = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """管理员重置用户密码：生成随机临时密码，明文只在本响应中出现一次。"""
+    import secrets
+
+    u = db.get(User, user_id)
+    if u is None:
+        raise HTTPException(404, "用户不存在")
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # 去掉易混的 I/O/0/1，方便口头转述
+    temp = "pet-" + "".join(secrets.choice(alphabet) for _ in range(8))
+    u.password_hash = hash_password(temp)
+    db.commit()
+    return {"username": u.username, "temp_password": temp}
 
 
 @router.put("/users/{user_id}/ai")

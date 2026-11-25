@@ -103,7 +103,7 @@ import { useRoute, useRouter } from "vue-router";
 import { NDrawer, NDrawerContent, NDropdown, NIcon, type DropdownOption } from "naive-ui";
 import {
   ChevronBackOutline, ChevronForwardOutline,
-  LogOutOutline, SettingsOutline, ShieldCheckmarkOutline,
+  LogOutOutline, PersonOutline, SettingsOutline, ShieldCheckmarkOutline,
 } from "@vicons/ionicons5";
 import SiderNav from "./SiderNav.vue";
 import MicCompanion from "../components/MicCompanion.vue";
@@ -213,7 +213,8 @@ const userMenu = computed<DropdownOption[]>(() => {
   const options: DropdownOption[] = [
     { key: "who", label: who, disabled: true },
     { type: "divider", key: "d1" },
-    { key: "settings", label: "设置", icon: renderIcon(SettingsOutline) },
+    { key: "settings", label: "备考", icon: renderIcon(SettingsOutline) },
+    { key: "account", label: "账号", icon: renderIcon(PersonOutline) },
   ];
   if (auth.isAdmin) {
     options.push({ key: "admin", label: "管理", icon: renderIcon(ShieldCheckmarkOutline) });
@@ -232,6 +233,7 @@ const userMenu = computed<DropdownOption[]>(() => {
 
 function onUserMenu(key: string): void {
   if (key === "settings") void router.push("/settings");
+  else if (key === "account") void router.push("/account");
   else if (key === "admin") void router.push("/admin");
   else if (key === "logout") logout();
 }

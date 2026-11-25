@@ -85,6 +85,8 @@ def convert_pet(banks: dict, groups: dict, meta: dict) -> None:
                 "example_cn": w.get("example_cn") or "",
                 "category": w.get("category") or "",
                 "audio": w.get("audio") or "",
+                # 同义替换库：term 是原说法，alt 是同义说法（中英对照），成对显示
+                **({"alt": w["alt"]} if w.get("alt") else {}),
             }
             for w in old["words"][key]
         ]

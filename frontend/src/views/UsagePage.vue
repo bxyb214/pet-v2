@@ -1,7 +1,7 @@
 <template>
   <div class="usage-page">
     <div class="topline">
-      <BackButton to="/settings" label="返回设置" variant="text" />
+      <BackButton to="/settings" label="返回备考" variant="text" />
       <span class="hint">费用为服务端估算，仅供对账</span>
     </div>
 

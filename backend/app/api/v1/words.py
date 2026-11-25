@@ -1,5 +1,6 @@
-"""自加词路由（V11）。"""
-from fastapi import APIRouter, Depends, HTTPException
+"""自加词路由（V11 / V11a）。"""
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,7 +9,7 @@ from app.core.deps import check_paid_or_raise, get_current_user, require_paid_ai
 from app.db import get_db
 from app.models.extra import CustomWord
 from app.models.user import User
-from app.services import ai_enrich
+from app.services import ai_enrich, word_import
 
 router = APIRouter(prefix="/words/custom", tags=["words"])
 
@@ -33,6 +34,8 @@ def _out(w: CustomWord) -> dict:
         "definition": w.definition,
         "example_en": w.example_en,
         "example_cn": w.example_cn,
+        "bank": w.bank or "",
+        "exam": w.exam or "",
     }
 
 
@@ -114,3 +117,24 @@ def enrich(
         raise HTTPException(503, "未配置 AI Key")
     except Exception:
         raise HTTPException(502, "AI 生成失败")
+
+
+@router.post("/import")
+def import_words(
+    exam: str,
+    file: UploadFile,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """学生自助 Excel 批量导入生词到自己的生词本（模板同管理员导入）。"""
+    return word_import.import_words_from_excel(db, user.id, exam, file.file.read())
+
+
+@router.get("/import/template")
+def import_template(_user: User = Depends(get_current_user)) -> Response:
+    """下载导入模板（含一行示例）。"""
+    return Response(
+        content=word_import.template_xlsx(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=pet-word-import-template.xlsx"},
+    )

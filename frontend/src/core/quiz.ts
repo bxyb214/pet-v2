@@ -14,6 +14,12 @@ export const DIM_LABEL: Record<QuizDim, string> = {
   m2w: "看义选词",
 };
 
+/** 同义替换库的两型标签：考短语配对，不考中文释义 */
+export const SYN_DIM_LABEL: Record<Exclude<QuizDim, "spell">, string> = {
+  w2m: "选同义短语",
+  m2w: "看同义选短语",
+};
+
 export interface QuizQuestion {
   word: PlanWord;
   dim: QuizDim;
@@ -24,6 +30,25 @@ export interface QuizQuestion {
 
 function isDim(v: string): v is QuizDim {
   return v === "spell" || v === "w2m" || v === "m2w";
+}
+
+/** 同义替换词（带 alt 字段）：考「原短语 ↔ 同义短语」，不考中文释义 */
+export function isSynonymWord(w: PlanWord): boolean {
+  const alt = w.alt;
+  return typeof alt === "string" && alt.trim().length > 0;
+}
+
+/** 字段里的英文部分（同义库字段是「英文 中文」混排，如「walk 走路」→「walk」） */
+export function enPart(s: string): string {
+  const m = s.match(/^([\s\S]*?)([㐀-鿿][\s\S]*)$/);
+  return (m ? m[1] : s).trim();
+}
+
+/** 题干文本：同义库 w2m 题干=原短语、m2w 题干=同义短语；普通库沿用 en/cn */
+export function stemOf(word: PlanWord, dim: QuizDim): string {
+  if (dim === "w2m") return isSynonymWord(word) ? enPart(String(word.en ?? "")) : String(word.en ?? "");
+  if (isSynonymWord(word)) return enPart(String(word.alt ?? ""));
+  return String(word.cn ?? "");
 }
 
 /**
@@ -62,6 +87,19 @@ export function makeQuestion(
 ): QuizQuestion {
   if (dim === "spell") {
     return { word, dim, options: [], answer: word.en };
+  }
+  // 同义替换库：w2m=看原短语选同义短语，m2w=看同义短语选原短语（不考中文）
+  if (isSynonymWord(word)) {
+    const fromAlt = dim === "m2w"; // 题干给同义短语，选原短语
+    const answer = fromAlt ? enPart(String(word.en ?? "")) : enPart(String(word.alt ?? ""));
+    const distractors = shuffleWith(
+      bank.filter((w) => w.id !== word.id && isSynonymWord(w)),
+      rand,
+    )
+      .slice(0, 3)
+      .map((w) => enPart(String(fromAlt ? w.en : w.alt)));
+    const options = shuffleWith([answer, ...distractors], rand);
+    return { word, dim, options, answer };
   }
   const distractors = shuffleWith(
     bank.filter((w) => w.id !== word.id),

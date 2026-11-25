@@ -93,3 +93,79 @@ def test_refresh_flow():
     r2 = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh_token})
     assert r2.status_code == 200
     assert r2.json()["access_token"]
+
+
+def _login_token(username: str, password: str) -> str:
+    r = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    assert r.status_code == 200
+    return r.json()["access_token"]
+
+
+def test_update_me_display_name():
+    _add_invite("TEST-INVITE-6")
+    client.post(
+        "/api/v1/auth/register",
+        json={"username": "nick", "password": "pet-test-pass", "invite_code": "TEST-INVITE-6"},
+    )
+    token = _login_token("nick", "pet-test-pass")
+    h = {"Authorization": f"Bearer {token}"}
+    r = client.put("/api/v1/auth/me", json={"display_name": "小明"}, headers=h)
+    assert r.status_code == 200
+    assert r.json()["display_name"] == "小明"
+    me = client.get("/api/v1/auth/me", headers=h)
+    assert me.json()["display_name"] == "小明"
+
+
+def test_change_password_flow():
+    _add_invite("TEST-INVITE-7")
+    client.post(
+        "/api/v1/auth/register",
+        json={"username": "pwuser", "password": "pet-test-pass", "invite_code": "TEST-INVITE-7"},
+    )
+    token = _login_token("pwuser", "pet-test-pass")
+    h = {"Authorization": f"Bearer {token}"}
+    # 旧密码错 → 400
+    r = client.post(
+        "/api/v1/auth/me/password",
+        json={"old_password": "wrong", "new_password": "newpass-123"},
+        headers=h,
+    )
+    assert r.status_code == 400
+    # 旧密码对 → 200 并返回新 token
+    r = client.post(
+        "/api/v1/auth/me/password",
+        json={"old_password": "pet-test-pass", "new_password": "newpass-123"},
+        headers=h,
+    )
+    assert r.status_code == 200
+    assert r.json()["access_token"]
+    # 新密码能登录，旧密码不能
+    assert client.post("/api/v1/auth/login", json={"username": "pwuser", "password": "newpass-123"}).status_code == 200
+    assert client.post("/api/v1/auth/login", json={"username": "pwuser", "password": "pet-test-pass"}).status_code == 401
+
+
+def test_admin_reset_user_password():
+    _add_invite("TEST-INVITE-8A")
+    client.post(
+        "/api/v1/auth/claim",
+        json={"username": "root", "password": "pet-test-pass", "invite_code": "TEST-INVITE-8A"},
+    )
+    _add_invite("TEST-INVITE-8")
+    client.post(
+        "/api/v1/auth/register",
+        json={"username": "victim", "password": "pet-test-pass", "invite_code": "TEST-INVITE-8"},
+    )
+    admin_token = _login_token("root", "pet-test-pass")
+    user_token = _login_token("victim", "pet-test-pass")
+    # 非管理员 → 403
+    r = client.post("/api/v1/admin/users/999/reset_password", headers={"Authorization": f"Bearer {user_token}"})
+    assert r.status_code == 403
+    users = client.get("/api/v1/admin/users", headers={"Authorization": f"Bearer {admin_token}"}).json()
+    uid = next(u["id"] for u in users if u["username"] == "victim")
+    r = client.post(f"/api/v1/admin/users/{uid}/reset_password", headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 200
+    temp = r.json()["temp_password"]
+    assert temp.startswith("pet-") and len(temp) == 12
+    # 旧密码失效，临时密码可登录
+    assert client.post("/api/v1/auth/login", json={"username": "victim", "password": "pet-test-pass"}).status_code == 401
+    assert client.post("/api/v1/auth/login", json={"username": "victim", "password": temp}).status_code == 200

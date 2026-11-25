@@ -7,6 +7,12 @@
     </template>
     <template v-else>
       <p class="cn">{{ word.cn || "（暂无释义）" }}</p>
+      <!-- 同义替换库：翻面后显示 ↔ 同义说法配对 -->
+      <p v-if="word.alt" class="synergy">
+        <span class="sy-arrow">↔</span>
+        <span class="sy-alt">{{ word.alt }}</span>
+        <button type="button" class="exsay" aria-label="听同义说法" @click.stop="sayAlt">听发音</button>
+      </p>
       <p class="meta">
         <span v-if="word.pos" class="pos">{{ word.pos }}</span>
         <span class="en">{{ word.en }}</span>
@@ -41,6 +47,10 @@ function play(): void {
 }
 function sayExample(): void {
   const text = englishOnly(String(props.word.example ?? ""));
+  if (text) say(text);
+}
+function sayAlt(): void {
+  const text = englishOnly(String(props.word.alt ?? ""));
   if (text) say(text);
 }
 </script>
@@ -88,6 +98,17 @@ function sayExample(): void {
 .meta { margin: 12px 0 0; display: flex; gap: 8px; align-items: baseline; justify-content: center; flex-wrap: wrap; }
 .pos { font-size: 12px; font-weight: 700; color: var(--c-accent); }
 .en { font-family: var(--font-word); font-size: 15px; color: var(--c-text-2); }
+.synergy {
+  margin: 12px 0 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  max-width: 560px;
+}
+.sy-arrow { color: var(--c-text-3); font-weight: 800; }
+.sy-alt { font-size: 16px; font-weight: 700; color: var(--c-primary-strong); line-height: 1.5; }
 .ex {
   margin: 14px 0 0;
   max-width: 560px;

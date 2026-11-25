@@ -41,35 +41,46 @@
       </div>
     </div>
 
-    <!-- 其他单词（手动上传） -->
+    <!-- 我的生词（Excel 批量导入） -->
     <template v-if="current === 'custom'">
-      <n-card title="添加单词" size="small" class="mb">
-        <template #header-extra><span class="muted">AI 自动配例句、词性、释义，可修改后保存</span></template>
-        <div class="addrow">
-          <n-input v-model:value="word" placeholder="输入单词，如 shadow" size="large" @keyup.enter="enrich" />
-          <n-button type="primary" size="large" :loading="busy" :disabled="!word.trim()" @click="enrich">
-            {{ busy ? "生成中…" : "AI 补全" }}
+      <n-card title="批量导入生词" size="small" class="mb">
+        <template #header-extra><span class="muted">线下整理好 Excel 后上传，自动配到对应词库</span></template>
+        <div class="improw">
+          <n-button size="large" secondary @click="downloadTemplate">
+            <template #icon><n-icon :component="DownloadOutline" /></template>
+            下载 Excel 模板
           </n-button>
+          <input ref="fileInput" type="file" accept=".xlsx" hidden @change="onImportFile" />
+          <n-button type="primary" size="large" :loading="importBusy" :disabled="importBusy" @click="pickFile">
+            {{ importBusy ? "导入中…" : "上传 Excel" }}
+          </n-button>
+          <n-radio-group v-model:value="importExam" size="large">
+            <n-radio-button value="pet">PET</n-radio-button>
+            <n-radio-button value="ket">KET</n-radio-button>
+            <n-radio-button value="fce">FCE</n-radio-button>
+          </n-radio-group>
         </div>
-        <n-alert v-if="err" type="error" size="small" class="mt">{{ err }}</n-alert>
-
-        <template v-if="filled">
-          <n-form label-placement="left" label-width="88" class="mt">
-            <n-form-item label="单词"><n-input v-model:value="filled.word" /></n-form-item>
-            <n-form-item label="词性"><n-input v-model:value="filled.pos" placeholder="n. / v. / adj." /></n-form-item>
-            <n-form-item label="释义"><n-input v-model:value="filled.definition" /></n-form-item>
-            <n-form-item label="英文例句"><n-input v-model:value="filled.example_en" /></n-form-item>
-            <n-form-item label="中文翻译"><n-input v-model:value="filled.example_cn" /></n-form-item>
-          </n-form>
-          <n-button type="primary" @click="save">保存到我的生词本</n-button>
-        </template>
+        <p class="muted mt">
+          模板列：单词 / 词库 / 词性 / 释义 / 英文例句 / 中文翻译。词库填：必默 · 高频 · 固搭 · 同义（KET 为核心词 / 生难词 / 短语 / 易混词 / 同义）；已存在的词自动跳过。
+        </p>
+        <n-alert v-if="importResult" type="success" size="small" class="mt" closable @close="importResult = null">
+          成功导入 {{ importResult.added }} 个词{{ importResult.skipped.length ? `；跳过 ${importResult.skipped.length} 行` : "" }}
+          <ul v-if="importResult.skipped.length" class="imp-skips">
+            <li v-for="s in importResult.skipped" :key="s">{{ s }}</li>
+          </ul>
+        </n-alert>
+        <n-alert v-if="importErr" type="error" size="small" class="mt" closable @close="importErr = ''">{{ importErr }}</n-alert>
       </n-card>
 
       <n-card :title="`我的生词（${myWords.length}）`" size="small">
-        <n-empty v-if="!myWords.length" description="还没有手动添加的单词" />
+        <n-empty v-if="!myWords.length" description="还没有生词，先上传一份 Excel 试试" />
         <div v-else class="wordrows">
           <div v-for="w in myWords" :key="w.id" class="wordrow">
-            <span class="w">{{ w.word }} <n-tag size="small" :bordered="false">{{ w.pos || "—" }}</n-tag></span>
+            <span class="w">
+              {{ w.word }}
+              <n-tag v-if="w.bank" size="small" :bordered="false">{{ bankLabelOf(w.bank) }}</n-tag>
+              <n-tag size="small" :bordered="false">{{ w.pos || "—" }}</n-tag>
+            </span>
             <span class="d muted">{{ w.definition }}</span>
             <n-popconfirm @positive-click="remove(w.id)">
               <template #trigger><n-button size="tiny" quaternary type="error">删除</n-button></template>
@@ -83,7 +94,7 @@
     <!-- 教材词库 -->
     <template v-else>
       <div class="toolbar">
-        <n-input v-model:value="keyword" placeholder="搜索单词或释义…" size="medium" clearable style="max-width: 280px">
+        <n-input v-model:value="keyword" :placeholder="isSynBank ? '搜索短语或释义…' : '搜索单词或释义…'" size="medium" clearable style="max-width: 280px">
           <template #prefix><n-icon :component="SearchOutline" /></template>
         </n-input>
         <div class="spacer"></div>
@@ -113,27 +124,39 @@
         <n-empty v-if="!filtered.length" description="没有匹配的单词" />
         <div v-else class="flashcard card" @click="flipped = !flipped">
           <template v-if="!flipped">
-            <p class="word">{{ filtered[idx].en }}</p>
+            <p class="word">{{ frontOf(filtered[idx]) }}</p>
             <p class="phon">{{ filtered[idx].phonetic || " " }}</p>
             <div class="fc-act">
-              <n-button size="small" secondary @click.stop="say(String(filtered[idx].en))">
+              <n-button size="small" secondary @click.stop="sayEn(filtered[idx])">
                 <template #icon><n-icon :component="VolumeHighOutline" /></template>
                 听发音
               </n-button>
             </div>
-            <p class="sub">点击卡片看释义</p>
+            <p class="sub">点击卡片看{{ isSynBank ? "同义说法" : "释义" }}</p>
           </template>
           <template v-else>
-            <p class="word cn">{{ filtered[idx].cn }}</p>
-            <template v-if="exOf(filtered[idx]).en">
-              <p class="ex">{{ exOf(filtered[idx]).en }}</p>
-              <p v-if="exOf(filtered[idx]).cn" class="ex-cn">{{ exOf(filtered[idx]).cn }}</p>
+            <template v-if="isSynBank">
+              <p class="word cn">{{ altEnOf(filtered[idx]) }}</p>
+              <p class="ex-cn">{{ altCnOf(filtered[idx]) || "（暂无同义说法）" }}</p>
               <div class="fc-act">
-                <n-button size="small" tertiary @click.stop="say(exOf(filtered[idx]).en)">
+                <n-button size="small" secondary @click.stop="sayAlt(filtered[idx])">
                   <template #icon><n-icon :component="VolumeHighOutline" /></template>
-                  听例句
+                  听同义说法
                 </n-button>
               </div>
+            </template>
+            <template v-else>
+              <p class="word cn">{{ filtered[idx].cn }}</p>
+              <template v-if="exOf(filtered[idx]).en">
+                <p class="ex">{{ exOf(filtered[idx]).en }}</p>
+                <p v-if="exOf(filtered[idx]).cn" class="ex-cn">{{ exOf(filtered[idx]).cn }}</p>
+                <div class="fc-act">
+                  <n-button size="small" tertiary @click.stop="say(exOf(filtered[idx]).en)">
+                    <template #icon><n-icon :component="VolumeHighOutline" /></template>
+                    听例句
+                  </n-button>
+                </div>
+              </template>
             </template>
             <p class="sub">点击返回单词</p>
           </template>
@@ -152,20 +175,21 @@
 import { computed, h, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
-  NAlert, NButton, NCard, NDataTable, NEmpty, NForm, NFormItem, NIcon, NInput,
+  NAlert, NButton, NCard, NDataTable, NEmpty, NIcon, NInput,
   NPopconfirm, NProgress, NRadioButton, NRadioGroup, NTag, type DataTableColumns,
 } from "naive-ui";
 import {
   VolumeHighOutline, SearchOutline, LibraryOutline, CheckmarkCircleOutline,
-  AlertCircleOutline, CreateOutline, PlayOutline,
+  AlertCircleOutline, CreateOutline, PlayOutline, DownloadOutline,
 } from "@vicons/ionicons5";
-import { api } from "../core/api";
+import { api, downloadFile } from "../core/api";
 import { splitExample, say } from "../core/say";
 import { availableBankKeys, loadBanks, type BankMeta, type ExamMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import type { WordBanks, BankKey, PlanWord } from "../core/plan";
 import type { CustomWordItem } from "../core/merge";
 import { bucketOf, masteryPct, masteryStats, requiredDimsForBank } from "../core/mastery";
+import { enPart, isSynonymWord } from "../core/quiz";
 import { useLearningStore } from "../stores/learning";
 
 type CatKey = BankKey | "custom";
@@ -194,12 +218,12 @@ const keyword = ref("");
 const idx = ref(0);
 const flipped = ref(false);
 
-// 生词本（其他单词）
-const word = ref("");
-const filled = ref<Omit<CustomWordItem, "id"> | null>(null);
+// 生词本（Excel 批量导入）
 const myWords = ref<CustomWordItem[]>([]);
-const busy = ref(false);
-const err = ref("");
+const importExam = ref<"pet" | "ket" | "fce">("pet");
+const importBusy = ref(false);
+const importErr = ref("");
+const importResult = ref<{ added: number; skipped: string[]; skipped_more: number } | null>(null);
 void loadBanks().then((r) => {
   banks.value = r.banks;
   bankMeta.value = r.bankMeta;
@@ -217,6 +241,10 @@ function pickCat(k: CatKey): void {
 }
 function countOf(k: CatKey): number {
   return k === "custom" ? myWords.value.length : (banks.value[k]?.length ?? 0);
+}
+/** 导入生词的词库短名（手动添加无 bank 字段） */
+function bankLabelOf(bank: string): string {
+  return bankMeta.value[bank]?.short || bank;
 }
 
 // 掌握度查询
@@ -287,6 +315,40 @@ function pctOf(id: string): number {
 function exOf(w: PlanWord): { en: string; cn: string } {
   return splitExample(String(w.example ?? ""), String(w.example_cn ?? ""));
 }
+
+/* ---------- 同义替换库：展示「原短语 ↔ 同义短语」配对 ---------- */
+/** 整库都是同义词（tongyi / ksyn）时启用同义展示 */
+const isSynBank = computed(
+  () => currentBankKey.value !== "" && (banks.value[currentBankKey.value] ?? []).length > 0
+    && (banks.value[currentBankKey.value] ?? []).every(isSynonymWord),
+);
+
+/** 词条字段里的中英对照拆开：「make something to take home 制作可带回家的物品」→ 英文 + 中文 */
+function altEnOf(w: PlanWord): string {
+  return enPart(String(w.alt ?? ""));
+}
+function altCnOf(w: PlanWord): string {
+  const s = String(w.alt ?? "").trim();
+  const m = s.match(/[㐀-鿿][\s\S]*$/);
+  return m ? m[0].trim() : "";
+}
+/** 正面短语：同义库显示英文部分（词条 en 本身是「英文 中文」混排） */
+function frontOf(w: PlanWord): string {
+  return isSynBank.value ? enPart(String(w.en ?? "")) : String(w.en ?? "");
+}
+/** 词条 en 里的中文部分（列表 / 卡片背面展示用） */
+function cnOf(w: PlanWord): string {
+  const s = String(w.cn ?? "").trim();
+  if (s && /[㐀-鿿]/.test(s)) return s;
+  const m = String(w.en ?? "").match(/[㐀-鿿][\s\S]*$/);
+  return m ? m[0].trim() : s;
+}
+function sayEn(w: PlanWord): void {
+  say(enPart(String(w.en ?? "")) || String(w.en ?? ""));
+}
+function sayAlt(w: PlanWord): void {
+  say(altEnOf(w) || String(w.alt ?? ""));
+}
 /** 只保留一个「去学习」入口：带上当前词库，学习页自动选中 */
 function studyCurrent(): void {
   const bank = current.value === "custom"
@@ -328,42 +390,57 @@ const statCards = computed(() => {
   ];
 });
 
-// n-data-table 列定义
+// n-data-table 列定义（同义库：第二列显示 ↔ 同义说法；普通库：释义 / 例句）
 const columns = computed<DataTableColumns<PlanWord>>(() => [
   {
-    title: "单词",
+    title: isSynBank.value ? "短语" : "单词",
     key: "en",
     width: 280,
     render: (w) =>
       h("div", { class: "wc" }, [
         h("div", { class: "wc-1" }, [
-          h("b", { class: "w-en" }, w.en),
-          w.pos ? h(NTag, { size: "tiny", bordered: false, style: "margin-left:6px" }, { default: () => w.pos }) : null,
+          h("b", { class: "w-en" }, isSynBank.value ? enPart(String(w.en ?? "")) : w.en),
+          w.pos && !isSynBank.value ? h(NTag, { size: "tiny", bordered: false, style: "margin-left:6px" }, { default: () => w.pos }) : null,
           h(
             NButton,
             {
-              size: "small", quaternary: true, circle: true, title: "朗读单词",
+              size: "small", quaternary: true, circle: true, title: "朗读",
               style: "color:#16a34a;margin-left:2px",
-              onClick: (e: MouseEvent) => { e.stopPropagation(); say(String(w.en)); },
+              onClick: (e: MouseEvent) => { e.stopPropagation(); isSynBank.value ? sayEn(w) : say(String(w.en)); },
             },
             { icon: () => h(NIcon, { size: 17 }, { default: () => h(VolumeHighOutline) }) },
           ),
         ]),
-        w.phonetic ? h("div", { class: "wc-phon" }, String(w.phonetic)) : null,
+        isSynBank.value
+          ? h("div", { class: "wc-phon" }, cnOf(w))
+          : w.phonetic ? h("div", { class: "wc-phon" }, String(w.phonetic)) : null,
       ]),
   },
-  {
-    title: "释义 / 例句",
-    key: "cn",
-    render: (w) => {
-      const ex = splitExample(String(w.example ?? ""), String(w.example_cn ?? ""));
-      return h("div", { class: "wc-ex" }, [
-        h("div", { class: "ex-cn" }, String(w.cn ?? "—")),
-        ex.en ? h("div", { class: "ex-en" }, ex.en) : null,
-        ex.cn ? h("div", { class: "ex-cn2" }, ex.cn) : null,
-      ]);
-    },
-  },
+  isSynBank.value
+    ? {
+        title: "同义说法",
+        key: "alt",
+        render: (w) =>
+          h("div", { class: "wc-ex" }, [
+            h("div", { class: "ex-alt" }, [
+              h("span", { class: "alt-arrow" }, "↔ "),
+              h("span", { class: "ex-alt-en" }, altEnOf(w) || "—"),
+            ]),
+            altCnOf(w) ? h("div", { class: "ex-cn2" }, altCnOf(w)) : null,
+          ]),
+      }
+    : {
+        title: "释义 / 例句",
+        key: "cn",
+        render: (w) => {
+          const ex = splitExample(String(w.example ?? ""), String(w.example_cn ?? ""));
+          return h("div", { class: "wc-ex" }, [
+            h("div", { class: "ex-cn" }, String(w.cn ?? "—")),
+            ex.en ? h("div", { class: "ex-en" }, ex.en) : null,
+            ex.cn ? h("div", { class: "ex-cn2" }, ex.cn) : null,
+          ]);
+        },
+      },
   {
     title: "掌握度",
     key: "pct",
@@ -395,31 +472,39 @@ const columns = computed<DataTableColumns<PlanWord>>(() => [
 ]);
 
 // 生词本操作
-async function enrich(): Promise<void> {
-  err.value = "";
-  busy.value = true;
-  try {
-    filled.value = await api<Omit<CustomWordItem, "id">>("/words/custom/enrich", {
-      method: "POST",
-      body: JSON.stringify({ word: word.value.trim() }),
-    });
-  } catch (e) {
-    err.value = e instanceof Error ? e.message : "生成失败，可手动填写后保存";
-    filled.value = { word: word.value.trim(), pos: "", definition: "", example_en: "", example_cn: "" };
-  } finally {
-    busy.value = false;
-  }
+function downloadTemplate(): void {
+  void downloadFile("/words/custom/import/template", "生词导入模板.xlsx");
 }
-async function save(): Promise<void> {
-  if (!filled.value) return;
-  err.value = "";
+/** 隐藏 file input 用 JS 触发：label 包 n-button 时点击不转发（button 是交互元素） */
+const fileInput = ref<HTMLInputElement | null>(null);
+function pickFile(): void {
+  fileInput.value?.click();
+}
+async function onImportFile(ev: Event): Promise<void> {
+  const input = ev.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ""; // 允许重选同一个文件
+  if (!file) return;
+  importBusy.value = true;
+  importErr.value = "";
   try {
-    await api("/words/custom", { method: "POST", body: JSON.stringify(filled.value) });
-    word.value = "";
-    filled.value = null;
+    const form = new FormData();
+    form.append("file", file);
+    // multipart 上传：api() 是 JSON 通道，附件走 downloadFile 同级的裸 fetch 并带鉴权
+    const token = localStorage.getItem("pet_access") ?? "";
+    const res = await fetch(`/api/v1/words/custom/import?exam=${importExam.value}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.detail ?? `导入失败 (${res.status})`);
+    importResult.value = body;
     myWords.value = await api<CustomWordItem[]>("/words/custom");
   } catch (e) {
-    err.value = e instanceof Error ? e.message : "保存失败";
+    importErr.value = e instanceof Error ? e.message : "导入失败";
+  } finally {
+    importBusy.value = false;
   }
 }
 async function remove(id: number): Promise<void> {
@@ -487,7 +572,8 @@ async function remove(id: number): Promise<void> {
 .spacer { flex: 1; }
 .mt { margin-top: 14px; }
 .mb { margin-bottom: 14px; }
-.addrow { display: flex; gap: 10px; }
+.improw { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.imp-skips { max-height: 160px; overflow: auto; margin: 8px 0 0; padding-left: 18px; font-size: 12px; color: var(--c-text-2, #6b7f74); }
 .muted { color: var(--c-text-2, #6b7f74); font-size: 13px; }
 .wordrows { display: flex; flex-direction: column; }
 .wordrow { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--c-line, #e5efe9); }
@@ -511,6 +597,10 @@ async function remove(id: number): Promise<void> {
 :deep(.ex-cn) { font-weight: 600; font-size: 14.5px; color: var(--c-text, #1f2d26); }
 :deep(.ex-en) { font-size: 13px; color: var(--c-text-2, #6b7f74); line-height: 1.45; }
 :deep(.ex-cn2) { font-size: 12px; color: #8aa094; line-height: 1.4; }
+/* 同义说法列 */
+:deep(.ex-alt) { display: flex; align-items: baseline; }
+:deep(.alt-arrow) { color: #8aa094; font-weight: 700; margin-right: 6px; }
+:deep(.ex-alt-en) { font-weight: 600; font-size: 14.5px; color: var(--c-primary-strong, #15803d); line-height: 1.5; }
 :deep(.pct) { display: flex; align-items: center; gap: 6px; }
 :deep(.pct .n-progress) { flex: 1; }
 :deep(.pct-t) { font-size: 12px; color: var(--c-text-2, #6b7f74); font-variant-numeric: tabular-nums; width: 40px; text-align: right; }

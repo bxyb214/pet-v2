@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  makeQuestion, makeRound, makeTestRound, seedFrom, testDimsForBank,
+  makeQuestion, makeRound, makeTestRound, seedFrom, testDimsForBank, stemOf, enPart,
   checkAnswer, ALL_DIMS, type QuizDim,
 } from "./quiz";
 import type { PlanWord } from "./plan";
@@ -31,6 +31,56 @@ describe("makeQuestion", () => {
     const q = makeQuestion(bank, word, "spell");
     expect(q.options).toEqual([]);
     expect(q.answer).toBe(word.en);
+  });
+});
+
+describe("makeQuestion（同义替换库：考短语配对）", () => {
+  // 数据形态同 banks.json：「英文 中文」混排在 en，alt 是同义说法
+  function makeSynBank(n: number): PlanWord[] {
+    return Array.from({ length: n }, (_, i) => ({
+      id: `t${i}`,
+      en: `phrase ${i} 短语${i}`,
+      cn: `短语${i}`,
+      alt: `alt words ${i} 同义${i}`,
+    }));
+  }
+  const bank = makeSynBank(10);
+  const word = bank[0];
+
+  it("w2m：题干=原短语英文，答案=同义短语英文（不含中文）", () => {
+    const q = makeQuestion(bank, word, "w2m");
+    expect(q.answer).toBe("alt words 0");
+    expect(q.options).toContain("alt words 0");
+    expect(q.options.every((o) => !/[一-鿿]/.test(o))).toBe(true);
+    expect(new Set(q.options).size).toBe(4);
+  });
+
+  it("m2w：题干给同义短语，答案=原短语英文", () => {
+    const q = makeQuestion(bank, word, "m2w");
+    expect(q.answer).toBe("phrase 0");
+    expect(q.options).toContain("phrase 0");
+    expect(q.options.every((o) => !/[一-鿿]/.test(o))).toBe(true);
+    expect(new Set(q.options).size).toBe(4);
+  });
+
+  it("干扰项方向正确：w2m 取他人同义短语，m2w 取他人原短语", () => {
+    const w2m = makeQuestion(bank, word, "w2m");
+    for (const o of w2m.options.filter((x) => x !== "alt words 0")) {
+      expect(bank.some((w) => enPart(String(w.alt)) === o && w.id !== "t0")).toBe(true);
+    }
+    const m2w = makeQuestion(bank, word, "m2w");
+    for (const o of m2w.options.filter((x) => x !== "phrase 0")) {
+      expect(bank.some((w) => enPart(String(w.en)) === o && w.id !== "t0")).toBe(true);
+    }
+  });
+
+  it("stemOf：同义库题干取英文部分；普通库沿用 en/cn", () => {
+    expect(stemOf(word, "w2m")).toBe("phrase 0");
+    expect(stemOf(word, "m2w")).toBe("alt words 0");
+    const plain = bank[0];
+    delete (plain as Partial<PlanWord>).alt;
+    expect(stemOf(plain, "w2m")).toBe("phrase 0 短语0");
+    expect(stemOf(plain, "m2w")).toBe("短语0");
   });
 });
 

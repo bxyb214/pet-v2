@@ -63,6 +63,8 @@
             <i v-if="u.alert_stage >= 2" class="adm-tag danger">已用尽</i>
             <i v-else-if="u.alert_stage === 1" class="adm-tag warn">接近上限</i>
             <n-button size="tiny" secondary @click="openQuota(u)">额度</n-button>
+            <n-button size="tiny" secondary @click="openImport(u)">导入生词</n-button>
+            <n-button size="tiny" secondary :loading="resetBusy === u.id" @click="resetPwd(u)">重置密码</n-button>
             <n-button v-if="u.alert_stage > 0" size="tiny" quaternary @click="resetAlert(u)">清除告警</n-button>
           </div>
         </div>
@@ -92,12 +94,44 @@
         </div>
       </div>
     </n-modal>
+
+    <!-- Excel 批量导入生词 -->
+    <n-modal v-model:show="importOpen" preset="card" title="导入生词" class="quota-modal">
+      <div v-if="importTarget" class="quota">
+        <p class="quota-u">@{{ importTarget.username }}（{{ importTarget.display_name || importTarget.username }}）</p>
+        <label class="adm-field">
+          <span class="adm-flabel">级别</span>
+          <n-radio-group v-model:value="importExam" size="small">
+            <n-radio-button value="pet">PET</n-radio-button>
+            <n-radio-button value="ket">KET</n-radio-button>
+            <n-radio-button value="fce">FCE</n-radio-button>
+          </n-radio-group>
+          <span class="adm-fhint">词库列填：PET 必默/高频/固搭/同义；KET 核心词/生难词/短语/易混词/同义</span>
+        </label>
+        <div class="imp-actions">
+          <n-button size="small" secondary @click="downloadTemplate">下载 Excel 模板</n-button>
+          <input ref="fileInput" type="file" accept=".xlsx" hidden @change="onImportFile" />
+          <n-button size="small" type="primary" :loading="importBusy" :disabled="importBusy" @click="pickFile">
+            {{ importBusy ? "导入中…" : "选择文件上传" }}
+          </n-button>
+        </div>
+        <p class="adm-fhint">模板列：单词 / 词库 / 词性 / 释义 / 英文例句 / 中文翻译。已存在的词自动跳过；词库与级别不匹配的行会提示。</p>
+        <n-alert v-if="importResult" type="success" size="small" closable>
+          成功导入 {{ importResult.added }} 个词{{ importResult.skipped.length ? `；跳过 ${importResult.skipped.length} 行` : "" }}
+          <n-ul v-if="importResult.skipped.length" class="imp-skips">
+            <n-li v-for="s in importResult.skipped" :key="s">{{ s }}</n-li>
+          </n-ul>
+        </n-alert>
+        <n-alert v-if="importErr" type="error" size="small" closable>{{ importErr }}</n-alert>
+      </div>
+    </n-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { NButton, NInputNumber, NModal, NSwitch, useMessage } from "naive-ui";
+import { NAlert, NButton, NInputNumber, NLi, NModal, NRadioButton, NRadioGroup, NSwitch, NUl, useMessage } from "naive-ui";
+import { downloadFile } from "../../core/api";
 import { api } from "../../core/api";
 import { fmtYuan, fmtYuanShort } from "./format";
 
@@ -235,10 +269,88 @@ async function resetAlert(u: UserRow): Promise<void> {
   }
 }
 
+// ---- 重置密码
+const resetBusy = ref(0);
+
+async function resetPwd(u: UserRow): Promise<void> {
+  resetBusy.value = u.id;
+  try {
+    const r = await api<{ username: string; temp_password: string }>(
+      `/admin/users/${u.id}/reset_password`,
+      { method: "POST" },
+    );
+    try {
+      await navigator.clipboard.writeText(r.temp_password);
+      message.success(`已为 @${r.username} 重置密码：${r.temp_password}（已复制，请发给用户）`);
+    } catch {
+      message.warning(`已为 @${r.username} 重置密码：${r.temp_password}（请手动记下，仅显示一次）`);
+    }
+  } catch (e) {
+    message.error("重置失败：" + (e as Error).message);
+  } finally {
+    resetBusy.value = 0;
+  }
+}
+
 onMounted(() => {
   void loadCodes();
   void loadUsers();
 });
+
+// ---- Excel 导入生词
+const importOpen = ref(false);
+const importTarget = ref<UserRow | null>(null);
+const importExam = ref<"pet" | "ket" | "fce">("pet");
+const importBusy = ref(false);
+const importErr = ref("");
+const importResult = ref<{ added: number; skipped: string[]; skipped_more: number } | null>(null);
+
+function openImport(u: UserRow): void {
+  importTarget.value = u;
+  importExam.value = "pet";
+  importErr.value = "";
+  importResult.value = null;
+  importOpen.value = true;
+}
+
+function downloadTemplate(): void {
+  void downloadFile("/admin/words/import/template", "生词导入模板.xlsx");
+}
+
+/** 隐藏 file input 用 JS 触发：label 包 n-button 时点击不转发（button 是交互元素） */
+const fileInput = ref<HTMLInputElement | null>(null);
+function pickFile(): void {
+  fileInput.value?.click();
+}
+
+async function onImportFile(ev: Event): Promise<void> {
+  const input = ev.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = ""; // 允许重选同一个文件
+  const u = importTarget.value;
+  if (!file || !u) return;
+  importBusy.value = true;
+  importErr.value = "";
+  try {
+    const form = new FormData();
+    form.append("file", file);
+    // 附件上传（multipart）：api() 走 JSON，这里用裸 fetch 但仍带鉴权头
+    const token = localStorage.getItem("pet_access") ?? "";
+    const res = await fetch(`/api/v1/admin/users/${u.id}/words/import?exam=${importExam.value}`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(body?.detail ?? `导入失败 (${res.status})`);
+    importResult.value = body;
+    message.success(`已导入 ${body.added} 个词到 @${u.username}`);
+  } catch (e) {
+    importErr.value = e instanceof Error ? e.message : "导入失败";
+  } finally {
+    importBusy.value = false;
+  }
+}
 </script>
 
 <style scoped>
@@ -247,4 +359,6 @@ onMounted(() => {
 .quota { display: flex; flex-direction: column; gap: 16px; }
 .quota-u { margin: 0; font-size: 13px; color: var(--c-text-2); }
 .quota-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.imp-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.imp-skips { max-height: 160px; overflow: auto; margin: 8px 0 0; }
 </style>

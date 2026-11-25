@@ -38,6 +38,8 @@ class CustomWordItem(BaseModel):
     definition: str = Field(default="", max_length=256)
     example_en: str = Field(default="", max_length=512)
     example_cn: str = Field(default="", max_length=512)
+    bank: str = Field(default="", max_length=16)  # 所属词库（管理员导入时有值）
+    exam: str = Field(default="", max_length=16)  # 级别（管理员导入时有值）
 
 
 class CustomSentenceItem(BaseModel):

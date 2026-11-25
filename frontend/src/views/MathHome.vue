@@ -55,6 +55,14 @@
         </div>
       </section>
     </template>
+
+    <footer class="src-note">
+      <p>内容来自互联网，仅供个人学习使用，请勿对外传播。</p>
+      <p>
+        李永樂数学一课通关（习题和讲义）网盘下载：
+        <span class="pan-link" @click="copyPan">百度网盘 · 提取码 5tj2</span>
+      </p>
+    </footer>
   </main>
 </template>
 
@@ -100,6 +108,12 @@ function continueLearn(b: MathBook): void {
   const l = nextLesson(b.lessons, recOf);
   if (l) void router.push(`/math/books/${encodeURIComponent(b.id)}/${encodeURIComponent(l.id)}`);
   else openBook(b);
+}
+
+const PAN_URL = "https://pan.baidu.com/s/11VjAQTSaIlyoYPqzG4k2kg?pwd=5tj2";
+
+function copyPan(): void {
+  window.open(PAN_URL, "_blank", "noopener");
 }
 
 onMounted(async () => {
@@ -160,6 +174,11 @@ h1 { color: var(--c-text); font-size: var(--fs-display); margin: 0 0 4px; }
 }
 .soon-card b { font-size: 19px; color: var(--c-text-2); }
 .soon-card span { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--c-surface); }
+
+.src-note { margin-top: 26px; padding: 14px 16px; border-top: 1px solid var(--c-line); }
+.src-note p { margin: 0 0 4px; color: var(--c-text-2); font-size: 12.5px; line-height: 1.7; }
+.src-note p:last-child { margin-bottom: 0; }
+.pan-link { color: var(--c-primary-strong); font-weight: 600; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 @media (max-width: 520px) {
   .featured { padding: 16px; gap: 16px; }

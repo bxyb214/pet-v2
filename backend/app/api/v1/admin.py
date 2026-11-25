@@ -2,14 +2,14 @@
 import json
 import secrets
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.deps import require_admin
 from app.db import get_db
 from app.models.user import InviteCode, User
-from app.services import ai_enrich, usage as usage_svc
+from app.services import ai_enrich, usage as usage_svc, word_import
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -183,3 +183,36 @@ def _user_row(db: Session, u: User) -> dict:
         "monthly_budget_milli": st["monthly"]["budget_milli"],
         "alert_stage": st["alert_stage"],
     }
+
+
+def _norm_cell(v: object) -> str:
+    """单元格规范化：None → 空串，其余去首尾空白。"""
+    return str(v).strip() if v is not None else ""
+
+
+@router.post("/users/{user_id}/words/import")
+def import_words(
+    user_id: int,
+    exam: str,
+    file: UploadFile,
+    _admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict:
+    """管理员为指定学生 Excel 批量导入生词（解析与插入在 services/word_import）。"""
+    if db.get(User, user_id) is None:
+        raise HTTPException(404, "学生不存在")
+    return word_import.import_words_from_excel(db, user_id, exam, file.file.read())
+
+
+@router.get("/words/import/template")
+def import_template(
+    _admin: User = Depends(require_admin),
+) -> object:
+    """下载导入模板（含一行示例）。"""
+    from fastapi import Response
+
+    return Response(
+        content=word_import.template_xlsx(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=pet-word-import-template.xlsx"},
+    )

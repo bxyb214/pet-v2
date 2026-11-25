@@ -25,6 +25,9 @@ type CustomWordItem = {
   definition: string;
   example_en: string;
   example_cn: string;
+  /** 管理员批量导入时标注的词库与级别（手动添加为空） */
+  bank?: string;
+  exam?: string;
 };
 type CustomSentenceItem = {
   sid: string;

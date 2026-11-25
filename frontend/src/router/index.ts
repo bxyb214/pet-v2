@@ -70,14 +70,21 @@ export const router = createRouter({
         {
           path: "settings",
           component: () => import("../views/SettingsPage.vue"),
-          meta: { crumbs: ["设置"], width: "narrow" },
+          meta: { crumbs: ["备考"], width: "narrow" },
+        },
+        {
+          path: "account",
+          component: () => import("../views/AccountPage.vue"),
+          meta: { crumbs: ["账号"], width: "narrow" },
         },
         {
           path: "settings/usage",
           component: () => import("../views/UsagePage.vue"),
-          meta: { crumbs: [{ label: "设置", to: "/settings" }, "AI 计费"] },
+          meta: { crumbs: [{ label: "备考", to: "/settings" }, "AI 计费"] },
         },
-        // ---------- 英语 · 单词 ----------
+        // 旧路径兼容：账号页曾短暂挂在 /settings/account
+        { path: "settings/account", redirect: "/account" },
+        // 英语 · 单词 ----------
         {
           path: "english/words/browse",
           component: () => import("../views/BrowsePage.vue"),
@@ -103,7 +110,7 @@ export const router = createRouter({
           component: () => import("../views/WordsMistakes.vue"),
           meta: { subject: "english", module: "words", crumbs: ["英语", { label: "单词", to: "/english/words/browse" }, "错题"], tabs: WORD_TABS },
         },
-        // ---------- 英语 · 阅读 ----------
+        // 英语 · 阅读 ----------
         {
           path: "english/reading/home",
           component: () => import("../views/ReadingHome.vue"),
@@ -134,13 +141,13 @@ export const router = createRouter({
           component: () => import("../views/ReadingMistakes.vue"),
           meta: { subject: "english", module: "reading", crumbs: ["英语", { label: "阅读", to: "/english/reading/home" }, "错题"], tabs: READING_TABS },
         },
-        // ---------- 英语 · 语法 ----------
+        // 英语 · 语法 ----------
         {
           path: "english/grammar",
           component: () => import("../views/GrammarHome.vue"),
           meta: { subject: "english", module: "grammar", crumbs: ["英语", "语法"] },
         },
-        // ---------- 英语 · 听力 ----------
+        // 英语 · 听力 ----------
         {
           path: "english/listening/home",
           component: () => import("../views/ListeningHome.vue"),
@@ -153,7 +160,7 @@ export const router = createRouter({
         },
         // 听力错题本已下线，旧链接回首页
         { path: "english/listening/review", redirect: "/english/listening/home" },
-        // ---------- 英语 · 口语 ----------
+        // 英语 · 口语 ----------
         {
           path: "english/speak",
           component: () => import("../views/SpeakHome.vue"),

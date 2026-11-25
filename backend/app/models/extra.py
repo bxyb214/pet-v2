@@ -32,6 +32,8 @@ class CustomWord(Base):
     definition: Mapped[str] = mapped_column(String(256), default="")  # 释义
     example_en: Mapped[str] = mapped_column(Text, default="")
     example_cn: Mapped[str] = mapped_column(Text, default="")
+    bank: Mapped[str] = mapped_column(String(16), default="")  # 所属词库（bimo/gaopin/...；手动添加为空）
+    exam: Mapped[str] = mapped_column(String(16), default="")  # 级别（pet/ket/fce；手动添加为空）
     source: Mapped[str] = mapped_column(String(16), default="manual")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 

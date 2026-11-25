@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -129,6 +130,41 @@ def claim(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
 @router.get("/me", response_model=UserOut)
 def me(user: User = Depends(get_current_user)) -> UserOut:
     return UserOut.model_validate(user)
+
+
+class DisplayNameIn(BaseModel):
+    display_name: str = Field(min_length=1, max_length=64)
+
+
+@router.put("/me", response_model=UserOut)
+def update_me(
+    body: DisplayNameIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UserOut:
+    """修改昵称（display_name）。"""
+    user.display_name = body.display_name.strip()
+    db.commit()
+    return UserOut.model_validate(user)
+
+
+class PasswordIn(BaseModel):
+    old_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=6, max_length=128)
+
+
+@router.post("/me/password", response_model=TokenOut)
+def change_password(
+    body: PasswordIn,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """修改密码：校验旧密码，成功后返回新的 token 对（旧 token 仍有效至自然过期）。"""
+    if not verify_password(body.old_password, user.password_hash):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "旧密码不正确")
+    user.password_hash = hash_password(body.new_password)
+    db.commit()
+    return _token_out(user)
 
 
 @router.put("/me/exam")

@@ -2,7 +2,7 @@
   <div class="page">
     <n-card size="small" class="card">
       <div class="sect-head">
-        <h2>我在备考</h2>
+        <h2>备考级别</h2>
         <span class="sect-hint">选择后只显示这一级别的词库和教材；已掌握/错题记录保留，进行中的计划会按新级别重新分词</span>
       </div>
 
@@ -36,18 +36,6 @@
       </p>
     </n-card>
 
-    <n-card size="small" class="card">
-      <div class="sect-head">
-        <h2>账号</h2>
-        <span class="sect-hint">需要改密码请找老师</span>
-      </div>
-      <dl class="rows">
-        <div class="row"><dt>用户名</dt><dd>{{ auth.username }}</dd></div>
-        <div class="row"><dt>昵称</dt><dd>{{ auth.displayName || auth.username }}</dd></div>
-        <div class="row"><dt>可用板块</dt><dd class="perms">{{ permText }}</dd></div>
-      </dl>
-    </n-card>
-
     <n-card v-if="!auth.isAdmin" size="small" class="card">
       <div class="sect-head">
         <h2>AI 计费</h2>
@@ -75,6 +63,7 @@
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { NButton, NCard, useDialog, useMessage } from "naive-ui";
+
 import { loadBanks, DEFAULT_EXAMS, type ExamMeta } from "../core/banks";
 import { fmtMilli, loadMyUsage, type MyUsage } from "../core/usage";
 import { useAuthStore } from "../stores/auth";
@@ -90,8 +79,6 @@ const current = ref(auth.exam);
 const busy = ref(false);
 const usage = ref<MyUsage | null>(null);
 const usageLoading = ref(false);
-
-const permText = "词汇 · 阅读 · 听力 · 口语";
 
 async function loadUsageSummary(): Promise<void> {
   usageLoading.value = true;
@@ -165,7 +152,7 @@ function choose(e: ExamMeta): void {
 }
 .sect-hint { font-size: 12px; color: var(--c-text-3); }
 
-/* ---------- 级别卡 ---------- */
+/* 级别卡 */
 .exams {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
@@ -251,33 +238,7 @@ function choose(e: ExamMeta): void {
   color: #8a5a13;
 }
 
-/* ---------- 账号信息 ---------- */
-.rows { margin: 0; display: grid; gap: 0; }
-.row {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--c-line);
-}
-.row:last-child { border-bottom: none; padding-bottom: 2px; }
-.row dt {
-  flex: none;
-  width: 76px;
-  font-size: 12.5px;
-  color: var(--c-text-3);
-}
-.row dd {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--c-text);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.perms { color: var(--c-primary-strong); }
-
-/* ---------- AI 计费入口 ---------- */
+/* AI 计费入口 */
 .billing { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .billing-stat { display: flex; flex-direction: column; gap: 2px; min-width: 88px; }
 .billing-stat span { font-size: 11.5px; color: var(--c-text-3); }
