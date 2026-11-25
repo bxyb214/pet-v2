@@ -33,25 +33,59 @@ export const DEFAULT_EXAMS: ExamMeta[] = [
 ];
 
 /**
- * 同义替换库的旧数据把中英混在一个字段（如「a DVD you can keep 你可以拥有的 DVD」），
- * 且 cn 为 null。这里在加载时拆成英文 / 中文，保证看词选义、看义选词都能出题。
+ * 兼容旧版 banks.json：同义替换库曾把中英混在一个字段（如「a DVD you can keep 你可以拥有的 DVD」），
+ * 且 cn 为 null。这里拆成英文 / 中文；新构建产物已是纯字段，本函数只做兜底。
  */
+const CN_UNIT_PREFIXES = [
+  "岁", "米", "世纪", "分钟", "小时", "公里", "公斤", "元", "块", "英镑", "美元",
+  "年", "月", "日", "天", "个", "名", "位", "次", "倍", "折", "层", "楼",
+  "号", "页", "题", "课", "班", "组", "级",
+];
+const CN_UNIT_EXCLUDE = ["年龄", "年纪", "年代", "年度", "年级", "日常", "日期", "日子"];
+
 export function splitTermMeaning(term: string): { en: string; cn: string } {
   const s = String(term ?? "").trim();
   if (!s) return { en: "", cn: "" };
   const m = s.match(/^([\s\S]*?)([㐀-鿿][\s\S]*)$/);
   if (!m) return { en: s, cn: "" };
-  return { en: m[1].trim(), cn: m[2].trim() };
+  let en = m[1];
+  let cn = m[2];
+  // 「10-metre cliff... 10 米高…」：末尾数字实际属于中文量词，挪回中文侧
+  const num = en.match(/(\d+(?:[.,]\d+)?)\s*$/);
+  if (num) {
+    const token = num[1];
+    const startsUnit = CN_UNIT_PREFIXES.some((u) => cn.startsWith(u));
+    const excluded = CN_UNIT_EXCLUDE.some((u) => cn.startsWith(u));
+    const duplicated = new RegExp(
+      `(?<!\\d)${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?!\\d)`,
+    ).test(cn);
+    if (startsUnit && !excluded && !duplicated) {
+      cn = num[0] + cn;
+      en = en.slice(0, num.index ?? 0);
+    }
+  }
+  return { en: en.trim(), cn: cn.trim() };
 }
 
 function normalizeWord(w: PlanWord): PlanWord {
-  if (typeof w.cn === "string" && w.cn.trim()) return w;
-  const { en, cn } = splitTermMeaning(String(w.en ?? ""));
-  return {
-    ...w,
-    en: en || String(w.en ?? ""),
-    cn: cn || String(w.en ?? ""),
-  };
+  const out: PlanWord = { ...w };
+  const altRaw = typeof w.alt === "string" ? w.alt.trim() : "";
+  const altCnRaw = typeof w.alt_cn === "string" ? w.alt_cn.trim() : "";
+
+  const cnRaw = typeof w.cn === "string" ? w.cn.trim() : "";
+  if (!cnRaw || altRaw) {
+    const { en, cn } = splitTermMeaning(String(w.en ?? ""));
+    out.en = en || String(w.en ?? "");
+    // 同义词本身可能只有英文题面，不要把英文塞进中文释义
+    if (!cnRaw) out.cn = cn || (altRaw ? "" : String(w.en ?? ""));
+  }
+
+  if (altRaw) {
+    const { en, cn } = splitTermMeaning(altRaw);
+    out.alt = en || altRaw;
+    if (!altCnRaw) out.alt_cn = cn;
+  }
+  return out;
 }
 
 export interface LoadedBanks {

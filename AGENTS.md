@@ -44,9 +44,13 @@
 
 ## 环境约定
 
-- 生产：飞牛 NAS Docker（nginx + FastAPI + SQLite），见 [docs/06](docs/06-部署与运维.md)。
-- 本地开发/预发布：`backend/.venv/Scripts/python.exe tools/dev_local.py --build`（Windows，localhost:8088）。
-- 热更新：vite 5173 + uvicorn 8000。
+- 生产：飞牛 NAS Docker（nginx + api），发布 `python tools/deploy_nas.py deploy --host <IP>`；
+  备份/回滚见 [docs/06 §4](docs/06-部署与运维.md)。
+- 开发：Docker（macOS / Windows 统一），`python tools/dev.py init` 首次、`up` 启动；
+  Vite 5173 + uvicorn 8000 热更新，开发库 `data/dev/pet.db` 与生产隔离。
+- 演示数据：`python tools/dev.py seed --reset`；账号/邀请码见 `backend/app/seed_dev.py`。
+- 无 Docker 时用 `tools/dev_local.py --build`（Windows，8088），仅做发布前验证。
+- 版本：Node 22（`.nvmrc`）、Python 3.12（`.python-version`）。
 - Monorepo：`frontend/`、`backend/`、`data-src/`、`tools/`、`deploy/`。
 - 媒体文件用 ASCII slug 命名；音频/图片/视频与数据库不进 git。
 - 旧站参考代码在上级目录 `../PET/`，只读。

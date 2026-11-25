@@ -107,16 +107,30 @@
           <template v-else>
             <p class="word cn" :style="wordStyle">{{ qStem }}</p>
           </template>
+          <button v-if="q.word.en" type="button" class="stem-say" @click="playQuestionWord">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
+              <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
+            </svg>
+            听单词
+          </button>
         </div>
 
-        <!-- 拼写 -->
+        <!-- 拼写：横线式大字号输入，答案居中 -->
         <div v-if="q.dim === 'spell'" class="spellrow">
-          <n-input
-            v-model:value="typed"
-            size="large"
+          <input
+            v-model="typed"
+            class="spellinput"
+            :class="{ error: answered && !lastCorrect }"
+            type="text"
+            inputmode="text"
             placeholder="拼出这个单词，回车提交"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            aria-label="拼写单词"
             :disabled="answered"
-            :status="answered && !lastCorrect ? 'error' : undefined"
             @keyup.enter="submit(typed)"
           />
           <n-button v-if="!answered" type="primary" size="large" :disabled="!typed.trim()" @click="submit(typed)">
@@ -887,6 +901,14 @@ function playAudio(word: PlanWord): void {
   playWordAudio(word.en);
 }
 
+/** 题面上的发音按钮：普通词读目标英文词；同义配对读当前题面上的英文短语 */
+function playQuestionWord(): void {
+  const item = q.value;
+  if (!item) return;
+  const w = item.word;
+  playWordAudio(isSynonymWord(w) ? qStem.value : stemOf(w, "w2m"));
+}
+
 function playExample(word: PlanWord): void {
   const text = englishOnly(String(word.example ?? ""));
   if (text) say(text);
@@ -1066,11 +1088,68 @@ watch(
   font-family: var(--font-en);
   letter-spacing: 0.02em;
 }
+.stem-say {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 14px;
+  padding: 6px 14px;
+  border: 1px solid color-mix(in srgb, var(--c-primary) 28%, transparent);
+  border-radius: var(--r-pill);
+  background: var(--c-primary-soft);
+  color: var(--c-primary-strong);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.stem-say:hover { background: color-mix(in srgb, var(--c-primary) 14%, transparent); }
+.stem-say:active { transform: scale(0.96); }
+.stem-say:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
 
 /* ---------- 拼写 ---------- */
-.spellrow { display: flex; gap: 10px; align-items: stretch; max-width: 560px; margin: 0 auto; }
-.spellrow :deep(.n-input) { flex: 1; }
-.spellrow :deep(.n-input__input-el) { font-family: var(--font-en); letter-spacing: 0.06em; }
+.spellrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+.spellinput {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 14px 10px;
+  border: 0;
+  border-bottom: 2px solid var(--c-line);
+  border-radius: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--c-text);
+  font-family: var(--font-en);
+  font-size: clamp(28px, 7vw, 40px);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  text-align: center;
+  outline: none;
+  transition: border-color var(--dur-2) var(--ease-out);
+}
+.spellinput::placeholder {
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--c-text-3);
+}
+.spellinput:focus { border-bottom-color: var(--c-primary); }
+.spellinput:disabled { opacity: 1; -webkit-text-fill-color: var(--c-text); }
+.spellinput.error {
+  border-bottom-color: #d92d20;
+  color: #b42318;
+  -webkit-text-fill-color: #b42318;
+}
 
 /* ---------- 选项 ---------- */
 .opts { display: grid; gap: 10px; }

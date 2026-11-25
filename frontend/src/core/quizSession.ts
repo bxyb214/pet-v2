@@ -7,7 +7,8 @@
 import type { QuizQuestion } from "./quiz";
 import type { PlanWord } from "./plan";
 
-export const QUIZ_SESSION_VERSION = 2;
+/** v3：同义库改为纯英文/中文字段成对出题，废弃 v2 的旧题组 */
+export const QUIZ_SESSION_VERSION = 3;
 /** 一轮最多几十题，7 天足够跨过「学到一半第二天接着学」 */
 export const QUIZ_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const LS_PREFIX = "pet_quiz_session::";

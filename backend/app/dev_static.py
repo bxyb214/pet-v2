@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI, Header, HTTPException, status
 from fastapi.responses import FileResponse
 
-# 与 deploy/nginx.conf 的缓存策略保持一致：入口与题库每次协商，哈希资源长缓存
+# 与 deploy/nginx/default.conf 的缓存策略保持一致：入口与题库每次协商，哈希资源长缓存
 NO_CACHE = "no-cache"
 ASSET_CACHE = "public, max-age=2592000"
 MEDIA_CACHE = "private, max-age=3600"

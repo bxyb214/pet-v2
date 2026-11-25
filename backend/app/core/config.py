@@ -29,6 +29,18 @@ class Settings(BaseSettings):
     allow_claim: bool = True
 
 
+def require_production_secret(settings: Settings) -> None:
+    """生产模式必须显式注入强随机 JWT secret，避免默认值被带上线。
+
+    只在应用启动时调用（main.py），不要放进 Settings 校验：
+    Alembic 迁移只需要数据库地址，不应被 JWT 配置拦住。
+    """
+    if not settings.dev_mode and (
+        settings.jwt_secret == "dev-only-change-me" or len(settings.jwt_secret) < 32
+    ):
+        raise RuntimeError("生产环境必须设置至少 32 字符的 PET_JWT_SECRET")
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()

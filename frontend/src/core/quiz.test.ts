@@ -35,7 +35,7 @@ describe("makeQuestion", () => {
 });
 
 describe("makeQuestion（同义替换库：考短语配对）", () => {
-  // 数据形态同 banks.json：「英文 中文」混排在 en，alt 是同义说法
+  // 新数据是纯字段；这里保留旧「英文 中文」混排，验证 enPart 兼容层
   function makeSynBank(n: number): PlanWord[] {
     return Array.from({ length: n }, (_, i) => ({
       id: `t${i}`,

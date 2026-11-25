@@ -1,11 +1,26 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
+// Docker 开发环境里 api 是服务名；本机直接跑 vite 时用默认的 localhost:8000
+const apiTarget = process.env.VITE_API_TARGET || "http://localhost:8000";
+// Docker Desktop（macOS/Windows）文件事件偶尔丢失时，用 DEV_POLL=1 开轮询
+const usePolling = (process.env.VITE_USE_POLLING ?? "").toLowerCase();
+const polling = usePolling === "1" || usePolling === "true";
+
 export default defineConfig({
   plugins: [vue()],
   server: {
+    host: true,
+    port: 5173,
+    strictPort: true,
     proxy: {
-      "/api": "http://localhost:8000",
+      "/api": apiTarget,
+      "/media": apiTarget,
+    },
+    watch: {
+      // 85MB 音频不会改动，排除后 HMR 更轻
+      ignored: ["**/public/audio/**"],
+      usePolling: polling,
     },
   },
   build: {

@@ -30,11 +30,37 @@
 - **前端**：Vue 3 · TypeScript · Vite · Pinia · vue-router · Naive UI · vitest
 - **后端**：FastAPI · SQLAlchemy 2 · SQLite(WAL) · Alembic · JWT · argon2/bcrypt · pytest
 - **AI**：阿里云百炼 Qwen（Realtime / 文本 / TTS）、腾讯云 SOE；免费发音用浏览器 `speechSynthesis`
-- **部署**：Docker Compose（nginx + api），或 Windows 原生进程
+- **部署**：生产 Docker Compose（nginx + api，飞牛 NAS）；开发 Docker Compose（Vite + uvicorn 热更新）
 
 ## 快速开始
 
-### Windows 原生（无 Docker，localhost:8088）
+### 开发环境（macOS / Windows 统一，Docker + 热更新）
+
+```bash
+python tools/dev.py check
+python tools/dev.py assets --host <NAS_IP>   # 首次：从 NAS 拉题库/音频（密码走 NAS_PASS）
+python tools/dev.py init                     # 构建 + 迁移 + 演示数据
+# → http://localhost:5173
+```
+
+Vite :5173 + uvicorn :8000，源码 bind mount，前后端改完即生效；开发库在 `data/dev/pet.db`，与生产隔离。
+演示账号 `admin` / `kid` / `kid-free`（密码见 `backend/app/seed_dev.py`），邀请码 `CLAIM` / `DEV-INVITE`。
+日常：`python tools/dev.py logs api`、`seed --reset`、`reset-db`、`test`、`down`。详见[部署文档 §2](docs/06-部署与运维.md)。
+
+### 生产（飞牛 NAS）
+
+```bash
+export NAS_PASS=...                                              # 也可交互输入
+python tools/deploy_nas.py deploy --host <NAS_IP> --with-audio   # 首次（含 85 MB 音频）
+python tools/deploy_nas.py deploy --host <NAS_IP>                # 日常发布
+```
+
+发布脚本会构建前端、上传、部署前备份、按 tag 启动、健康检查并清理旧镜像。
+访问 `http://<NAS_IP>:8088`；首次注册邀请码 `CLAIM`，第一个账号自动成为管理员；AI Key 在 `/admin` 配置。
+备份/回滚：`python tools/deploy_nas.py backup --host <IP> --download`、`rollback --host <IP>`，
+见[部署文档 §4](docs/06-部署与运维.md)。
+
+### 无 Docker 的 Windows（仅发布前验证）
 
 ```powershell
 # 首次：准备后端环境
@@ -49,50 +75,39 @@ backend\.venv\Scripts\python.exe tools\dev_local.py --build
 
 默认 `PET_DEV_MODE=1`（AI 走模拟，顶栏显示 DEV）；`--prod-mode` 关闭模拟。
 数据库在 `backend/data/pet.db`；设 `PET_MATH_MEDIA=D:\path\to\math` 才会挂载课程视频。
-详见 [部署文档 §2.5](docs/06-部署与运维.md)。
+详见[部署文档 §2.5](docs/06-部署与运维.md)。
 
-### Docker（与生产一致）
+### 本地验证生产 compose（可选）
 
 ```bash
-cd frontend && npm ci && npm run build   # nginx 直接挂载 dist
+cd frontend && npm run build             # nginx 直接挂载 dist
 cd ../deploy
 cp .env.example .env                     # 填 PET_JWT_SECRET（openssl rand -hex 32）
-docker compose up -d --build             # api 启动时自动迁移
+docker compose up -d --build             # api 启动时自动迁移 + bootstrap
 ```
 
-访问 <http://localhost:8088>。题库 JSON、音频等运行期素材不进仓库，首次需从 NAS 同步（或按
-`data-src/README.md` 重新构建），详见 [部署文档](docs/06-部署与运维.md)。空库首次用邀请码 `claim` 注册，第一个账号自动成为管理员；
-AI Key 部署后在 `/admin` 填写。
-
-### 本地开发（热更新，5173）
-
-```bash
-# 后端（Python 3.12+）
-cd backend
-python -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m alembic upgrade head
-.venv/bin/python -m uvicorn app.main:app --port 8000 --reload
-
-# 前端（Node 22）
-cd frontend
-npm install
-npm run dev        # http://localhost:5173，/api 代理到 8000
-```
-
-> Windows 用 `.venv/Scripts/` 代替 `.venv/bin/`。Node 26 的实验性 `localStorage` 会让 vitest 失败，测试与构建建议用 Node 22。
+访问 <http://localhost:8088>。题库 JSON、音频等运行期素材不进仓库，首次需从 NAS 同步（`tools/dev.py assets`）
+或按 `data-src/README.md` 重新构建。
 
 ## 常用命令
 
 ```bash
-cd frontend && npm test                 # vitest
+python tools/dev.py up                  # 开发环境（Docker，5173 + 8000）
+python tools/dev.py test                # 容器内 pytest + vitest
+cd frontend && npm test                 # 本机 vitest（Node 22）
 cd frontend && npx vitest run src/core/merge.test.ts
-cd frontend && npm run build            # vue-tsc + vite build
+cd frontend && npm run build            # vue-tsc + 清理 dist/assets + vite build
 cd backend  && .venv/bin/python -m pytest tests/ -q
 cd backend  && .venv/bin/python -m pytest tests/test_merge.py -q
 node tools/check_overflow.js http://localhost:5178   # 路由 × 3 视口横向溢出
 python tools/check_tokens.py                         # CSS 变量引用检查
 python tools/deploy_nas.py deploy --host <NAS_IP>    # 生产发布（密码走 NAS_PASS）
+python tools/deploy_nas.py backup --host <NAS_IP> --download
+python tools/deploy_nas.py rollback --host <NAS_IP>
 ```
+
+> Node 26 的实验性 `localStorage` 会让 vitest 失败；测试与构建统一 Node 22（`.nvmrc` / `engines`）。
+> Windows 用 `.venv/Scripts/` 代替 `.venv/bin/`。
 
 ## 目录
 
@@ -101,7 +116,7 @@ frontend/     Vue 3 应用（src/core 纯逻辑，src/views 页面）
 backend/      FastAPI（api/v1 → services → models，Alembic 迁移）
 data-src/     学习数据源（构建产物在 frontend/public/data）
 tools/        构建、迁移、部署、检查脚本
-deploy/       Dockerfile、compose、nginx
+deploy/       compose（prod/dev）、nginx、backup.sh
 docs/         需求 / 架构 / 开发规范 / 功能 / 设计 / 部署 / 口语 / AI 额度
 ```
 

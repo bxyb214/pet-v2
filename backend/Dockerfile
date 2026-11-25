@@ -19,5 +19,7 @@ RUN pip install --no-cache-dir \
         --retries 5 \
         .
 
-# 迁移驱动：先 alembic upgrade head 再起服务
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"]
+# 迁移 + 空库初始化邀请码，再起服务
+CMD ["sh", "-c", "alembic upgrade head && python -m app.bootstrap && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"]
+
+EXPOSE 8000

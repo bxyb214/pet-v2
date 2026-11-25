@@ -3,6 +3,10 @@
  * 朗读规则红线：w2m（看词选义）答题前有发音；spell/m2w 答题前不放。
  */
 import type { PlanWord } from "./plan";
+import { mulberry32, shuffleWith } from "./shuffle";
+
+/** 兼容既有引用：计划测试用稳定种子 */
+export { seedFrom } from "./shuffle";
 
 export type QuizDim = "spell" | "w2m" | "m2w";
 
@@ -70,15 +74,6 @@ export function testDimsForBank(key: string, metaDims?: string[]): QuizDim[] {
   return dims.length ? dims : [...ALL_DIMS];
 }
 
-function shuffleWith<T>(arr: T[], rand: () => number): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
 export function makeQuestion(
   bank: PlanWord[],
   word: PlanWord,
@@ -122,32 +117,6 @@ export function makeRound(
   // picked（错题优先）只决定顺序，仍受题量限制
   const pool = (picked ?? shuffleWith(bank, Math.random)).slice(0, Math.min(count, bank.length));
   return pool.map((word) => makeQuestion(bank, word, dims[Math.floor(Math.random() * dims.length)]));
-}
-
-/** 稳定种子：同一组输入（计划时间戳/天/词库）永远得到同一序列 */
-export function seedFrom(...parts: Array<string | number>): number {
-  let h = 2166136261 >>> 0;
-  for (const part of parts) {
-    const s = String(part);
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 16777619) >>> 0;
-    }
-    h ^= 0x9e3779b9;
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h >>> 0;
-}
-
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
 }
 
 /**

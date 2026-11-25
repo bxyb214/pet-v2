@@ -11,11 +11,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 常用命令
 
+本地开发（Docker，mac / Windows 统一；本机不必装 Node/Python）
+- `python tools/dev.py init` — 首次：启动 + 迁移 + 演示数据（库在 `data/dev/pet.db`）
+- `python tools/dev.py up` — :5173（Vite HMR）+ :8000（uvicorn --reload）
+- `python tools/dev.py seed --reset` / `reset-db`；`test`（容器内 pytest + vitest）；`logs api`
+- 无 Docker 时用 `backend/.venv/Scripts/python.exe tools/dev_local.py --build`（:8088，仅发布前验证）
+
 前端（`cd frontend`，Node 22；Node 26 的 localStorage 会破坏 vitest）
 - `npm run dev` — :5173，`/api` 代理到 :8000
 - `npm test` — vitest run；单文件：`npx vitest run src/core/merge.test.ts`
-- `npm run build` — `vue-tsc --noEmit && vite build`（没有独立 lint 脚本）
-- `vite.config.ts` 设了 `emptyOutDir: false`（dist 含 85MB 音频），不要手动清 `dist`
+- `npm run build` — `vue-tsc --noEmit && node scripts/clean-dist-assets.mjs && vite build`（没有独立 lint 脚本）
+- `vite.config.ts` 设了 `emptyOutDir: false`（dist 含 85MB 音频），构建只清 `dist/assets`，不要手清 `dist`
 
 后端（`cd backend`，Python ≥3.12；macOS/Linux 用 `.venv/bin`）
 - `.venv/bin/python -m alembic upgrade head`
@@ -24,15 +30,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ruff 配置在 `pyproject.toml`（line-length=100, py312）
 
 Docker（`cd deploy`）
-- 先 `cd frontend && npm run build`：nginx 直接挂载 `../frontend/dist`，compose 不构建前端。
+- 生产 compose **不构建前端**：先 `cd frontend && npm run build`（nginx 挂载 `../frontend/dist`）
 - `cp .env.example .env` 填 `PET_JWT_SECRET` → `docker compose up -d --build`
-- api 容器启动时自动执行 `alembic upgrade head`；SQLite 在 `../data/pet.db`
-- 空库首次部署：用邀请码 `claim` 注册的第一个账号自动成为管理员；完整流程见 `docs/06-部署与运维.md`
+- api 启动时自动 `alembic upgrade head && python -m app.bootstrap`；空库用 `CLAIM` 注册首账号为管理员
+- SQLite 在 `../data/pet.db`，备份在 `../data/backups/`（`deploy/backup.sh`）
 
 工具（仓库根 `package.json` 只为 playwright）
 - `node tools/check_overflow.js <BASE>`（先起 vite）；`python tools/check_tokens.py`
-- 本地开发/预发布（无 Docker，localhost:8088）：`backend/.venv/Scripts/python.exe tools/dev_local.py --build`
-- 生产发布：`python tools/deploy_nas.py deploy --host <NAS_IP>`（密码走 `NAS_PASS`）
+- 生产发布：`python tools/deploy_nas.py deploy --host <NAS_IP>`（密码走 `NAS_PASS`；首次加 `--with-audio`）
+- 备份/回滚：`... backup --download`、`... rollback [--tag <tag>]`
 
 ## 不要改
 

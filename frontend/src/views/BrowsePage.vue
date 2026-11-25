@@ -328,6 +328,8 @@ function altEnOf(w: PlanWord): string {
   return enPart(String(w.alt ?? ""));
 }
 function altCnOf(w: PlanWord): string {
+  const direct = String(w.alt_cn ?? "").trim();
+  if (direct) return direct;
   const s = String(w.alt ?? "").trim();
   const m = s.match(/[㐀-鿿][\s\S]*$/);
   return m ? m[0].trim() : "";

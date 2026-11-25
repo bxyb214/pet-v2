@@ -1,0 +1,5 @@
+# 只在容器/Linux 里执行的脚本，避免 Windows CRLF 导致 sh 报错
+*.sh text eol=lf
+Dockerfile text eol=lf
+Dockerfile.* text eol=lf
+deploy/nginx/*.conf text eol=lf
