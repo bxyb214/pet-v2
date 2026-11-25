@@ -99,6 +99,20 @@
         </transition>
       </section>
     </template>
+    <!-- 空态：没有到期错题 / 题库缺失 / 加载失败 -->
+    <section v-else class="card done-card">
+      <p class="reye">{{ emptyTitle || "暂无内容" }}</p>
+      <p class="rrate">{{ emptyDesc }}</p>
+      <div class="actions">
+        <BackButton :to="emptyTo" :label="emptyLabel" />
+        <BackButton
+          v-if="emptyTo !== '/english/reading/home'"
+          to="/english/reading/home"
+          label="返回阅读"
+          variant="text"
+        />
+      </div>
+    </section>
   </main>
 </template>
 
@@ -113,7 +127,7 @@ import {
 } from "../core/readingQuizSession";
 import {
   buildQuizItems, grammarIndex, itemForDim, loadReading, speak, withCustomSentences,
-  type QuizItem, type RSentence,
+  type QuizItem, type RSentence, type ReadingData,
 } from "../core/reading";
 import { buildReadingPlan, partKey, readingDayOf, readingParts, type ReadingPartRef } from "../core/plan";
 
@@ -148,6 +162,19 @@ const label = ref("");
 const progressKey = ref("");
 const partRef = ref<ReadingPartRef | null>(null);
 
+/** 空态：review 无到期错题 / 题号或考点不存在 / 题库加载失败 */
+const emptyTitle = ref("");
+const emptyDesc = ref("");
+const emptyTo = ref("/english/reading/home");
+const emptyLabel = ref("返回阅读");
+
+function setEmpty(title: string, desc: string, to = "/english/reading/home", label = "返回阅读"): void {
+  emptyTitle.value = title;
+  emptyDesc.value = desc;
+  emptyTo.value = to;
+  emptyLabel.value = label;
+}
+
 const q = computed(() => items.value[idx.value] ?? null);
 const correctLabel = computed(() => q.value?.options.find((o) => o.correct)?.label ?? "");
 
@@ -171,8 +198,15 @@ function reviewItems(sentences: RSentence[], pool: RSentence[]): QuizItem[] {
 }
 
 onMounted(async () => {
-  const base = await loadReading();
-  const d = withCustomSentences(base, learning.data.custom_sentences);
+  let d: ReadingData;
+  try {
+    const base = await loadReading();
+    d = withCustomSentences(base, learning.data.custom_sentences);
+  } catch {
+    setEmpty("阅读题库加载失败", "请检查网络后刷新重试。");
+    ready.value = true;
+    return;
+  }
   const allSentences = d.tests.flatMap((x) => x.parts.flatMap((p) => p.sentences));
   const testNo = Number(route.params.testNo);
   const gc = route.query.gc ? Number(route.query.gc) : null;
@@ -182,14 +216,29 @@ onMounted(async () => {
     // R8 错题复习：只考欠的维度
     items.value = reviewItems(allSentences, allSentences);
     label.value = "阅读错题复习（只考欠的维度）";
+    if (!items.value.length) {
+      setEmpty(
+        "今天没有到期的阅读错题",
+        "阅读错题会按 1/2/4/7/15 天的间隔到期；到期后再来复习就好。",
+        "/english/reading/mistakes",
+        "去错题本",
+      );
+    }
   } else if (gc != null) {
     // 语法专项
     const pool = grammarIndex(d.tests)[gc] ?? [];
     items.value = pool.slice(0, 20);
     label.value = `语法专项 · ${route.query.label ?? "考点 " + gc}（20 题上限）`;
+    if (!items.value.length) {
+      setEmpty("这个语法考点暂时没有题目", "换一个考点，或先返回阅读继续精读。");
+    }
   } else {
     const t = d.tests.find((x) => x.no === testNo);
-    if (!t) { ready.value = true; return; }
+    if (!t) {
+      setEmpty("没有找到这套阅读题", "链接可能已过期，返回阅读重新选择一套。");
+      ready.value = true;
+      return;
+    }
     const partQ = route.query.part ? Number(route.query.part) : 0;
     const sentences: RSentence[] = partQ
       ? (t.parts.find((p) => p.part === partQ)?.sentences ?? [])
@@ -198,6 +247,9 @@ onMounted(async () => {
     const rev = reviewItems(sentences, allSentences);
     const rest = buildQuizItems(sentences, allSentences);
     items.value = [...rev, ...rest];
+    if (!items.value.length) {
+      setEmpty("这套阅读题暂时没有内容", "返回阅读换一套试试。");
+    }
     results.value = new Array(items.value.length).fill(null);
     label.value = `${t.title}${partQ ? " · Part " + partQ : " · 全套"}${rev.length ? `（含 ${rev.length} 道错题）` : ""}`;
     progressKey.value = `read:${t.book || "t2"}:${t.no}:${partQ || "all"}`;
