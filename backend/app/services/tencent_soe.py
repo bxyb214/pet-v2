@@ -110,8 +110,9 @@ def build_soe_url(cfg: dict, ref_text: str, eval_mode: int = 1, coeff: float | N
 def parse_soe_result(raw: str) -> dict:
     """解析识别阶段返回的 result 字符串（类 Python dict 文本）。
 
-    返回 {"score": int, "pron_accuracy": float, "words": [{"w": str, "ok": bool}]}。
-    优先 SuggestedScore（<0 视为无效），逐词 PronAccuracy>=60 计 ok。
+    返回 {"score", "accuracy", "fluency", "completion", "pron_accuracy", "words"}。
+    优先 SuggestedScore（<0 视为无效），逐词按 MatchTag/准确度判定。
+    流利度/完整度腾讯按 0-1 返回，统一换算成百分制。
     """
     text = raw or ""
     score = _extract_number(text, "SuggestedScore")
@@ -125,28 +126,49 @@ def parse_soe_result(raw: str) -> dict:
             body = m.split("}")[0]
             w = _extract_field(body, "Word")
             acc = _extract_number(body, "PronAccuracy")
-            if w and acc is not None and acc >= 0:
-                words.append({"w": w, "ok": acc >= 60})
+            tag = _extract_number(body, "MatchTag")
+            if tag is None:
+                tag = _extract_number(body, "Tag")
+            if not w or (acc is None and tag is None):
+                continue
+            word: dict = {}
+            word["w"] = w
+            if acc is not None and acc >= 0:
+                word["acc"] = round(acc)
                 word_accs.append(acc)
+            if tag is not None:
+                word["tag"] = int(tag)
+            word["ok"] = (tag is None or tag == 0) and (word.get("acc", 0) >= 60)
+            words.append(word)
     if not score and word_accs:
         # 整句分无效时回退到逐词最高分
         score = max(word_accs)
     return {
         "score": int(round(score)) if score else 0,
+        "accuracy": round(pron, 1) if pron is not None and pron >= 0 else None,
+        "fluency": _to_percent(_extract_number(text, "PronFluency")),
+        "completion": _to_percent(_extract_number(text, "PronCompletion")),
         "pron_accuracy": round(pron, 1) if pron and pron >= 0 else None,
         "words": words,
     }
 
 
+def _to_percent(v: float | None) -> float | None:
+    """流利度/完整度：0-1 的比率换算成百分制，已经是百分制的原样返回。"""
+    if v is None or v < 0:
+        return None
+    return round(v * 100, 1) if v <= 1.5 else v
+
+
 def _extract_number(text: str, field: str) -> float | None:
     import re
 
-    m = re.search(rf"{field}:(-?[\d.]+)", text)
+    m = re.search(rf"{field}:\s*(-?[\d.]+)", text)
     return float(m.group(1)) if m else None
 
 
 def _extract_field(text: str, field: str) -> str:
     import re
 
-    m = re.search(rf"{field}:([^}}\s]+)", text)
+    m = re.search(rf"{field}:\s*([^}}\s]+)", text)
     return m.group(1) if m else ""

@@ -105,7 +105,13 @@ def test_parse_soe_result():
     r = tencent_soe.parse_soe_result(raw)
     assert r["score"] == 87
     assert r["pron_accuracy"] == 82.1
-    assert r["words"] == [{"w": "hello", "ok": True}, {"w": "world", "ok": False}]
+    assert r["accuracy"] == 82.1
+    assert r["fluency"] == 90.0
+    assert r["completion"] == 100.0
+    assert r["words"] == [
+        {"w": "hello", "acc": 91, "tag": 0, "ok": True},
+        {"w": "world", "acc": 45, "tag": 0, "ok": False},
+    ]
 
 
 def test_parse_soe_result_negative_score_fallback():

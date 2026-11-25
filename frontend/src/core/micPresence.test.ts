@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { holdMic, micAction, micActive, resetMicForTest, stopMic } from "./micPresence";
+import { cancelMic, holdMic, micAction, micActive, resetMicForTest, stopMic } from "./micPresence";
 
 describe("micPresence", () => {
   beforeEach(() => resetMicForTest());
@@ -46,5 +46,25 @@ describe("micPresence", () => {
     release();
     expect(micAction.value.label).toBe("关闭麦克风");
     expect(micAction.value.tone).toBe("close");
+  });
+
+  it("「取消」单独回调，不会触发提交", () => {
+    const stop = vi.fn();
+    const cancel = vi.fn();
+    holdMic(stop, { label: "提交", tone: "submit", cancelLabel: "取消" }, cancel);
+    expect(micAction.value.cancelLabel).toBe("取消");
+    cancelMic();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(stop).not.toHaveBeenCalled();
+
+    stopMic();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it("没登记取消时沿用 stop（关闭麦克风即停止）", () => {
+    const stop = vi.fn();
+    holdMic(stop);
+    cancelMic();
+    expect(stop).toHaveBeenCalledTimes(1);
   });
 });

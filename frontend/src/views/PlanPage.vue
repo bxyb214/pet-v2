@@ -28,19 +28,14 @@
         <div class="actions">
           <n-button secondary @click="goLearn">学习第 {{ nextPlanDay }} 天</n-button>
           <n-button type="primary" @click="goTest">测试第 {{ nextPlanDay }} 天</n-button>
-          <n-popconfirm @positive-click="deletePlan">
-            <template #trigger>
-              <n-button type="error" strong class="del-plan">
-                <template #icon>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6" />
-                  </svg>
-                </template>
-                删除计划
-              </n-button>
+          <n-button type="error" strong class="del-plan" @click="delOpen = true">
+            <template #icon>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+              </svg>
             </template>
-            删除后学习进度保留，可重新生成新计划。确定？
-          </n-popconfirm>
+            删除计划
+          </n-button>
         </div>
       </template>
 
@@ -66,16 +61,23 @@
         </div>
       </template>
     </n-card>
+
+    <DeletePlanModal
+      v-model:show="delOpen"
+      note="删除后学习进度保留，可重新生成新计划。"
+      @confirm="deletePlan"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-import { NButton, NCard, NInputNumber, NPopconfirm, NTag } from "naive-ui";
+import { NButton, NCard, NInputNumber, NTag } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
 import PlanWall from "../components/PlanWall.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
+import DeletePlanModal from "../components/DeletePlanModal.vue";
 import { availableBankKeys, loadBanks, EMPTY_BANKS, type BankMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import { splitPlan, validatePlan, type PlanDay, type WordBanks } from "../core/plan";
@@ -89,6 +91,7 @@ const bankMeta = ref<Record<string, BankMeta>>({});
 const previewDays = ref<PlanDay[]>([]);
 const validateOk = ref(false);
 const creating = ref(false);
+const delOpen = ref(false);
 const auth = useAuthStore();
 
 /** 当前级别下要参与计划的词库（PET 四库 / KET 五库），顺序即切分顺序 */

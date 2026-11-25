@@ -77,19 +77,14 @@
           </div>
 
           <div class="plan-actions">
-            <n-popconfirm @positive-click="removePlan">
-              <template #trigger>
-                <n-button type="error" strong class="del-plan">
-                  <template #icon>
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6" />
-                    </svg>
-                  </template>
-                  删除计划
-                </n-button>
+            <n-button type="error" strong class="del-plan" @click="delOpen = true">
+              <template #icon>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+                </svg>
               </template>
-              删除后打卡记录保留，可重新创建新计划。确定？
-            </n-popconfirm>
+              删除计划
+            </n-button>
           </div>
         </template>
         <template v-else>
@@ -124,13 +119,19 @@
         </template>
       </section>
     </template>
+
+    <DeletePlanModal
+      v-model:show="delOpen"
+      note="删除后打卡记录保留，可重新创建新计划。"
+      @confirm="removePlan"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { NButton, NIcon, NInputNumber, NPopconfirm } from "naive-ui";
+import { NButton, NIcon, NInputNumber } from "naive-ui";
 import { MicOutline, ChatbubblesOutline, CreateOutline } from "@vicons/ionicons5";
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
@@ -140,6 +141,7 @@ import {
 import PaidAiNotice from "../components/PaidAiNotice.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
 import EmptyState from "../components/EmptyState.vue";
+import DeletePlanModal from "../components/DeletePlanModal.vue";
 import {
   loadSpeak, planDayDone, sourceRangeText, splitSpeakPlan,
   type DayCheck, type PlanDayView, type SpeakData,
@@ -152,6 +154,7 @@ const checks = ref<DayCheck[]>([]);
 const planLength = ref(0);
 const loaded = ref(false);
 const creating = ref(false);
+const delOpen = ref(false);
 const days = ref(30);
 const usage = ref<{ rt_seconds: number; soe_calls: number; est_cost_milli: number } | null>(null);
 const timeTotals = ref<{ shadow: number; make: number; talk: number } | null>(null);

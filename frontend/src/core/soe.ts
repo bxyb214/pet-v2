@@ -8,8 +8,18 @@ import { ensureDevMode } from "./devMode";
 import { holdMic } from "./micPresence";
 import { micBlockedReason, micErrorText } from "./micSupport";
 
-export type SoeWord = { w: string; ok: boolean };
-export type SoeResult = { score: number; words: SoeWord[] };
+export type SoeWord = { w: string; ok: boolean; acc?: number; tag?: number };
+export type SoeResult = {
+  /** 综合建议分（0-100） */
+  score: number;
+  /** 发音准确度（0-100）；腾讯没返回时为 null */
+  accuracy: number | null;
+  /** 发音流利度（0-100）；腾讯按 0-1 返回时已换算成百分制 */
+  fluency: number | null;
+  /** 发音完整度（0-100） */
+  completion: number | null;
+  words: SoeWord[];
+};
 
 export type SoeOpts = {
   refText: string;
@@ -22,7 +32,7 @@ export type SoeOpts = {
   onMicClosed?: () => void;
   /** 提交后进入上传/评分阶段（true），拿到结果/出错/取消后复位（false） */
   onBusy?: (busy: boolean) => void;
-  /** 评测结束（拿到结果、超时或出错）自动 stop 后回调一次，页面据此复位按钮 */
+  /** 评测结束（拿到结果、超时、出错或取消）自动 stop 后回调一次，页面据此复位按钮 */
   onStopped?: () => void;
 };
 
@@ -73,7 +83,7 @@ export function trimSilence(audio: Int16Array, marginMs = 300): Int16Array {
   return start === 0 && end === audio.length ? audio : audio.slice(start, end);
 }
 
-type SoeWordRaw = { Word?: unknown; PronAccuracy?: unknown };
+type SoeWordRaw = { Word?: unknown; PronAccuracy?: unknown; MatchTag?: unknown; Tag?: unknown };
 
 function toNum(v: unknown): number {
   if (typeof v === "number") return Number.isFinite(v) ? v : NaN;
@@ -84,56 +94,144 @@ function toNum(v: unknown): number {
   return NaN;
 }
 
+/** 0-100 的分值；负数表示腾讯「无法评分」，按缺失处理。 */
+function toScore(v: number): number | null {
+  return Number.isFinite(v) && v >= 0 ? Math.min(100, Math.round(v)) : null;
+}
+
+/** 腾讯的流利度/完整度按 0-1 返回（新版本也可能是 0-100），统一成百分制。 */
+function toPercent(v: number): number | null {
+  if (!Number.isFinite(v) || v < 0) return null;
+  return Math.round(v <= 1.5 ? v * 100 : v);
+}
+
+/** MatchTag：0 匹配 / 1 增读 / 2 漏读 / 3 替换 / 4 无法识别。 */
+function parseWord(raw: SoeWordRaw): SoeWord | null {
+  const w = String(raw.Word ?? "").trim();
+  if (!w) return null;
+  const acc = toNum(raw.PronAccuracy);
+  const tagNum = toNum(raw.MatchTag ?? raw.Tag ?? NaN);
+  const accOk = acc >= 0 ? Math.min(100, Math.round(acc)) : undefined;
+  const tag = Number.isFinite(tagNum) ? tagNum : undefined;
+  if (accOk === undefined && tag === undefined) return null;
+  // 漏读/增读/替换都算没读对；只有匹配（tag=0 或无 tag）且准确度 ≥60 才算过
+  const ok = (tag === undefined || tag === 0) && (accOk ?? 0) >= 60;
+  const out: SoeWord = { w, ok };
+  if (accOk !== undefined) out.acc = accOk;
+  if (tag !== undefined) out.tag = tag;
+  return out;
+}
+
+function parseResultObject(raw: Record<string, unknown>): SoeResult {
+  // 段落模式可能把逐句结果放在 Sentences 里；单句缺顶层字段时回落到第一句
+  const sentences = Array.isArray(raw.Sentences) ? raw.Sentences : [];
+  const first = sentences[0];
+  const inner = first && typeof first === "object" ? (first as Record<string, unknown>) : {};
+  const wordsRaw =
+    Array.isArray(raw.Words) && raw.Words.length
+      ? raw.Words
+      : Array.isArray(inner.Words)
+        ? inner.Words
+        : [];
+  const accuracy = toScore(toNum(raw.PronAccuracy ?? inner.PronAccuracy));
+  let score = toNum(raw.SuggestedScore ?? inner.SuggestedScore);
+  const words = wordsRaw
+    .map((item) => (item && typeof item === "object" ? parseWord(item as SoeWordRaw) : null))
+    .filter((w): w is SoeWord => w !== null);
+  if (!(score >= 0)) score = accuracy ?? NaN;
+  if (!(score >= 0) && words.length) score = Math.max(...words.map((w) => w.acc ?? 0));
+  return {
+    score: score >= 0 ? Math.min(100, Math.round(score)) : 0,
+    accuracy,
+    fluency: toPercent(toNum(raw.PronFluency ?? inner.PronFluency)),
+    completion: toPercent(toNum(raw.PronCompletion ?? inner.PronCompletion)),
+    words,
+  };
+}
+
 /**
  * 解析 SOE 结果。新版服务实际返回结构化对象：
- * { SuggestedScore, PronAccuracy, Words: [{ Word, PronAccuracy, ... }] }；
+ * { SuggestedScore, PronAccuracy, PronFluency, PronCompletion,
+ *   Words: [{ Word, PronAccuracy, MatchTag, ... }] }；
  * 旧文档/兼容格式是类 Python dict 文本，两种都支持。
  */
 export function parseSoeResult(raw: unknown): SoeResult {
-  if (raw && typeof raw === "object") {
-    const obj = raw as { SuggestedScore?: unknown; PronAccuracy?: unknown; Words?: unknown };
-    let score = toNum(obj.SuggestedScore);
-    const pron = toNum(obj.PronAccuracy);
-    if (!(score >= 0)) score = pron >= 0 ? pron : NaN;
-    const words: SoeWord[] = [];
-    const accs: number[] = [];
-    const list = Array.isArray(obj.Words) ? obj.Words : [];
-    for (const item of list) {
-      if (!item || typeof item !== "object") continue;
-      const word = item as SoeWordRaw;
-      const w = String(word.Word ?? "").trim();
-      const acc = toNum(word.PronAccuracy);
-      if (w && acc >= 0) {
-        words.push({ w, ok: acc >= 60 });
-        accs.push(acc);
-      }
-    }
-    if (!(score >= 0) && accs.length) score = Math.max(...accs);
-    return { score: score >= 0 ? Math.round(score) : 0, words };
-  }
+  if (raw && typeof raw === "object") return parseResultObject(raw as Record<string, unknown>);
 
   const text = typeof raw === "string" ? raw : "";
   const num = (field: string): number => {
-    const m = text.match(new RegExp(`${field}:(-?[\\d.]+)`));
+    const m = text.match(new RegExp(`${field}:\\s*(-?[\\d.]+)`));
     return m ? parseFloat(m[1]) : NaN;
   };
+  const accuracy = toScore(num("PronAccuracy"));
   let score = num("SuggestedScore");
-  const pron = num("PronAccuracy");
-  if (!(score >= 0)) score = pron >= 0 ? pron : NaN;
   const words: SoeWord[] = [];
-  const accs: number[] = [];
   const wordsPart = text.split("Words:")[1] ?? "";
   for (const chunk of wordsPart.split("{").slice(1)) {
     const body = chunk.split("}")[0];
-    const w = body.match(/Word:([^\s}]+)/)?.[1];
-    const acc = parseFloat(body.match(/PronAccuracy:(-?[\d.]+)/)?.[1] ?? "NaN");
-    if (w && acc >= 0) {
-      words.push({ w, ok: acc >= 60 });
-      accs.push(acc);
-    }
+    const word = parseWord({
+      Word: body.match(/Word:\s*([^\s}]+)/)?.[1],
+      PronAccuracy: body.match(/PronAccuracy:\s*(-?[\d.]+)/)?.[1],
+      MatchTag: body.match(/MatchTag:\s*(\d+)/)?.[1] ?? body.match(/\bTag:\s*(\d+)/)?.[1],
+    });
+    if (word) words.push(word);
   }
-  if (!(score >= 0) && accs.length) score = Math.max(...accs);
-  return { score: score >= 0 ? Math.round(score) : 0, words };
+  if (!(score >= 0)) score = accuracy ?? NaN;
+  if (!(score >= 0) && words.length) score = Math.max(...words.map((w) => w.acc ?? 0));
+  return {
+    score: score >= 0 ? Math.min(100, Math.round(score)) : 0,
+    accuracy,
+    fluency: toPercent(num("PronFluency")),
+    completion: toPercent(num("PronCompletion")),
+    words,
+  };
+}
+
+function nameList(words: SoeWord[]): string {
+  const names = [...new Set(words.map((w) => w.w).filter(Boolean))];
+  return names.length > 4 ? `${names.slice(0, 4).join("、")} 等` : names.join("、");
+}
+
+/** 由评分维度生成可执行的改进提示（结果页展示，也作为练习记录的评价内容）。 */
+export function soeTips(r: SoeResult): string[] {
+  const tips: string[] = [];
+  const missed = r.words.filter((w) => w.tag === 2);
+  const extra = r.words.filter((w) => w.tag === 1);
+  const swapped = r.words.filter((w) => w.tag === 3);
+  const bad = r.words.filter((w) => !w.ok && w.tag !== 1 && w.tag !== 2 && w.tag !== 3);
+  if (missed.length) tips.push(`漏读了 ${nameList(missed)}，跟着示范逐词读完整，别跳词。`);
+  if (swapped.length) tips.push(`这几个词读成了别的词：${nameList(swapped)}，先听示范再跟读。`);
+  if (extra.length) tips.push(`多读了 ${nameList(extra)}，只读屏幕上的词就好。`);
+  if (bad.length) tips.push(`重点练 ${nameList(bad)}：点词听发音，慢速读三遍再连起来。`);
+
+  // 三项分维度合成一条：分数低才提，并给对应练法
+  const lows: string[] = [];
+  const advice: string[] = [];
+  if (r.accuracy !== null && r.accuracy < 70) {
+    lows.push(`准确度 ${r.accuracy} 分`);
+    advice.push("放慢速度，注意词尾的 s/ed 和长元音");
+  }
+  if (r.fluency !== null && r.fluency < 70) {
+    lows.push(`流利度 ${r.fluency} 分`);
+    advice.push("听一遍示范，再连着读 3 遍，注意连读和停顿");
+  }
+  if (r.completion !== null && r.completion < 80) {
+    lows.push(`完整度 ${r.completion} 分`);
+    advice.push("有词没读出来，先把整句读全，再追求速度");
+  }
+  if (lows.length) tips.push(`${lows.join(" · ")}：${advice.join("；")}。`);
+
+  if (!tips.length) {
+    tips.push(
+      r.score >= 85
+        ? "读得很棒！可以再用正常语速读一遍，保持连读。"
+        : "整体不错，再听一遍示范，注意句子的重音和停顿。",
+    );
+  }
+  // 词级提示最多 3 条，保证维度建议不会被挤掉
+  return tips.length > 4 && lows.length
+    ? [...tips.slice(0, 3), tips[tips.length - 1]]
+    : tips.slice(0, 4);
 }
 
 export class SoeEval {
@@ -160,8 +258,9 @@ export class SoeEval {
   }
 
   /**
-   * 采集开始后登记麦克风占用：数字人出现，底部按钮显示「提交」。
-   * 点击提交：已经开口就结束录音并评分；还没开口则提示继续朗读，不结束会话。
+   * 采集开始后登记麦克风占用：数字人出现，底部显示「提交」和「取消」。
+   * 提交：已经开口就结束录音并评分；还没开口则提示继续朗读，不结束会话。
+   * 取消：放弃本次录音，不提交评分，回到可重新开始的状态。
    */
   private attachMicHold(): void {
     this.releaseMic?.();
@@ -181,13 +280,22 @@ export class SoeEval {
       this.opts.onMicClosed?.();
       this.endCapture();
       if (!this.submit()) this.stop();
-    }, { label: "提交", tone: "submit" });
+    }, { label: "提交", tone: "submit", cancelLabel: "取消" }, () => this.cancelRecording());
   }
 
   private releaseMicHold(): void {
     const release = this.releaseMic;
     this.releaseMic = null;
     release?.();
+  }
+
+  /** 数字人「取消」：结束录音但不评分，丢掉这次录音，回到可重新开始的状态。 */
+  private cancelRecording(): void {
+    if (this.closed) return;
+    this.releaseMicHold();
+    this.endCapture();
+    this.stop();
+    this.opts.onStatus("已取消本次跟读，点「跟读评分」重新开始");
   }
 
   /** 停止麦克风采集与音频上下文，但保留评测连接（提交后还要等结果）。 */
@@ -209,7 +317,7 @@ export class SoeEval {
     if (this.dev) {
       this.devStartedAt = Date.now();
       this.attachMicHold();
-      this.opts.onStatus("开发环境：模拟评测就绪，读完点「提交」");
+      this.opts.onStatus("开发环境：模拟评测就绪，读完点「提交」，想重读点「取消」");
       return;
     }
     // 先要麦克风权限：点按钮就弹授权，允许后出现数字人
@@ -248,7 +356,7 @@ export class SoeEval {
       sp.connect(this.ctx.destination);
       this.node = sp;
     }
-    this.opts.onStatus("在听你说…读完点「提交」");
+    this.opts.onStatus("在听你说…读完点小绿下面的「提交」，读错可点「取消」");
   }
 
   private enqueue(chunk: Int16Array): void {
@@ -426,7 +534,13 @@ export class SoeEval {
       setTimeout(() => {
         if (this.closed) return;
         this.final = true;
-        const result = { score: 100, words: words.length ? words : [{ w: "Great", ok: true }] };
+        const result: SoeResult = {
+          score: 100,
+          accuracy: 100,
+          fluency: 100,
+          completion: 100,
+          words: words.length ? words : [{ w: "Great", ok: true }],
+        };
         this.lastResult = result;
         this.opts.onStatus("评测完成");
         this.opts.onResult(result);

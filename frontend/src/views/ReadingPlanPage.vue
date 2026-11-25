@@ -18,19 +18,14 @@
         <div class="actions">
           <n-button type="primary" secondary @click="goReading">去阅读</n-button>
           <n-button quaternary @click="startCreate">重新规划</n-button>
-          <n-popconfirm @positive-click="remove">
-            <template #trigger>
-              <n-button type="error" strong class="del-plan">
-                <template #icon>
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6" />
-                  </svg>
-                </template>
-                删除计划
-              </n-button>
+          <n-button type="error" strong class="del-plan" @click="delOpen = true">
+            <template #icon>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+              </svg>
             </template>
-            删除后可重新生成，精读与错题记录都会保留。确定？
-          </n-popconfirm>
+            删除计划
+          </n-button>
         </div>
       </template>
 
@@ -78,14 +73,21 @@
         </div>
       </div>
     </section>
+
+    <DeletePlanModal
+      v-model:show="delOpen"
+      note="删除后可重新生成，精读与错题记录都会保留。"
+      @confirm="remove"
+    />
   </main>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { NButton, NCheckbox, NCheckboxGroup, NInputNumber, NPopconfirm, NTag } from "naive-ui";
+import { NButton, NCheckbox, NCheckboxGroup, NInputNumber, NTag } from "naive-ui";
 import PlanWall from "../components/PlanWall.vue";
+import DeletePlanModal from "../components/DeletePlanModal.vue";
 import { useLearningStore } from "../stores/learning";
 import { loadReading, type RBook, type RTest } from "../core/reading";
 import {
@@ -123,6 +125,7 @@ const planBooksText = computed(() =>
 );
 
 const creating = ref(false);
+const delOpen = ref(false);
 const picked = ref<string[]>([]);
 const days = ref(30);
 const previewDays = ref<ReadingPlanDay[]>([]);

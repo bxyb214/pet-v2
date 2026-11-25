@@ -68,27 +68,37 @@
       </p>
     </div>
 
-    <button class="mic-off" :class="{ submit: isSubmit }" type="button" :aria-label="label" @click="stopMic">
-      <svg v-if="isSubmit" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="m5 12.5 4.5 4.5L19 7" />
-      </svg>
-      <svg v-else viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M9 9v3a3 3 0 0 0 5.1 2.1M15 10V6a3 3 0 0 0-5.7-1.3" />
-        <path d="M5 11a7 7 0 0 0 10.4 6.2M19 11a7 7 0 0 1-.6 2.8M12 18.5V21M8.5 21h7" />
-        <path d="M4 4l16 16" />
-      </svg>
-      <span>{{ label }}</span>
-    </button>
+    <div class="btns">
+      <button class="mic-off" :class="{ submit: isSubmit }" type="button" :aria-label="label" @click="stopMic">
+        <svg v-if="isSubmit" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m5 12.5 4.5 4.5L19 7" />
+        </svg>
+        <svg v-else viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 9v3a3 3 0 0 0 5.1 2.1M15 10V6a3 3 0 0 0-5.7-1.3" />
+          <path d="M5 11a7 7 0 0 0 10.4 6.2M19 11a7 7 0 0 1-.6 2.8M12 18.5V21M8.5 21h7" />
+          <path d="M4 4l16 16" />
+        </svg>
+        <span>{{ label }}</span>
+      </button>
+      <!-- 跟读评分：取消本次录音，不提交评分；取消后回到页内「跟读评分」重新开始 -->
+      <button v-if="cancelLabel" class="mic-cancel" type="button" :aria-label="cancelLabel" @click="cancelMic">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+        <span>{{ cancelLabel }}</span>
+      </button>
+    </div>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
 import { devMode } from "../core/devMode";
-import { micAction, stopMic } from "../core/micPresence";
+import { cancelMic, micAction, stopMic } from "../core/micPresence";
 
 const label = computed(() => micAction.value.label ?? "关闭麦克风");
 const isSubmit = computed(() => micAction.value.tone === "submit");
+const cancelLabel = computed(() => micAction.value.cancelLabel ?? "");
 </script>
 
 <style scoped>
@@ -215,10 +225,18 @@ const isSubmit = computed(() => micAction.value.tone === "submit");
   color: var(--c-text-2, #64756c);
 }
 
-.mic-off {
+.btns {
   width: 100%;
-  min-height: 50px;
   flex: none;
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.mic-off {
+  flex: 1;
+  min-width: 0;
+  min-height: 50px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -243,6 +261,28 @@ const isSubmit = computed(() => micAction.value.tone === "submit");
 }
 .mic-off.submit:hover { background: var(--c-primary-strong, #15803d); filter: brightness(1.06); box-shadow: 0 12px 24px rgba(21, 128, 61, 0.3); }
 .mic-off.submit:focus-visible { outline-color: var(--c-primary, #16a34a); }
+
+/* 跟读的「取消」：放弃这次录音，不提交评分 */
+.mic-cancel {
+  flex: none;
+  min-height: 50px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1.5px solid var(--c-line-strong, #d3e0d8);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--c-text-2, #64756c);
+  font-size: 14.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.mic-cancel:hover { border-color: var(--c-danger, #dc2626); color: var(--c-danger, #dc2626); background: #fff7f7; }
+.mic-cancel:active { transform: scale(0.985); }
+.mic-cancel:focus-visible { outline: 3px solid var(--c-accent, #d97706); outline-offset: 3px; }
 
 @keyframes mc-in {
   from { opacity: 0; transform: translateY(-50%) translateX(16px) scale(0.98); }
@@ -301,6 +341,7 @@ const isSubmit = computed(() => micAction.value.tone === "submit");
   .tip { display: none; }
   .live { padding: 3px 9px; font-size: 11px; }
   .mic-off { min-height: 42px; font-size: 14.5px; }
+  .mic-cancel { min-height: 42px; padding: 0 12px; font-size: 13.5px; }
   .ring { top: 50%; width: 42%; }
 }
 

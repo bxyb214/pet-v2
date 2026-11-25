@@ -1,20 +1,23 @@
 /** SOE 结果解析测试（腾讯智聆口语评测新版返回的类 Python dict 文本）。 */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { SoeEval, parseSoeResult, trimSilence } from "./soe";
-import { micActive, resetMicForTest, stopMic } from "./micPresence";
+import { SoeEval, parseSoeResult, soeTips, trimSilence } from "./soe";
+import { cancelMic, micActive, resetMicForTest, stopMic } from "./micPresence";
 import { resetDevModeForTest } from "./devMode";
 
 describe("parseSoeResult", () => {
-  it("正常解析 SuggestedScore 与逐词准确度", () => {
+  it("正常解析综合分、三项子分与逐词准确度", () => {
     const raw =
       "SuggestedScore:87.4 PronAccuracy:82.1 PronFluency:0.9 PronCompletion:1.0 " +
       "Words:[{PronAccuracy:91.2 PronFluency:0.98 Word:hello Tag:0 PhoneInfo:[]}" +
       "{PronAccuracy:45.0 PronFluency:0.8 Word:world Tag:0 PhoneInfo:[]}]";
     const r = parseSoeResult(raw);
     expect(r.score).toBe(87);
+    expect(r.accuracy).toBe(82);
+    expect(r.fluency).toBe(90);
+    expect(r.completion).toBe(100);
     expect(r.words).toEqual([
-      { w: "hello", ok: true },
-      { w: "world", ok: false },
+      { w: "hello", ok: true, acc: 91, tag: 0 },
+      { w: "world", ok: false, acc: 45, tag: 0 },
     ]);
   });
 
@@ -36,16 +39,74 @@ describe("parseSoeResult", () => {
     const r = parseSoeResult({
       SuggestedScore: 97.64,
       PronAccuracy: 97.64,
+      PronFluency: 88.5,
+      PronCompletion: 100,
       Words: [
         { Word: "the", PronAccuracy: 97.4, ReferenceWord: "the_0" },
-        { Word: "lazy", PronAccuracy: 45 },
+        { Word: "lazy", PronAccuracy: 45, MatchTag: 3 },
       ],
     });
     expect(r.score).toBe(98);
+    expect(r.accuracy).toBe(98);
+    expect(r.fluency).toBe(89);
+    expect(r.completion).toBe(100);
     expect(r.words).toEqual([
-      { w: "the", ok: true },
-      { w: "lazy", ok: false },
+      { w: "the", ok: true, acc: 97 },
+      { w: "lazy", ok: false, acc: 45, tag: 3 },
     ]);
+  });
+
+  it("漏读词（准确度为 -1）保留为未读对，而不是被丢掉", () => {
+    const r = parseSoeResult({
+      SuggestedScore: 60,
+      Words: [{ Word: "really", PronAccuracy: -1, MatchTag: 2 }],
+    });
+    expect(r.words).toEqual([{ w: "really", ok: false, tag: 2 }]);
+  });
+
+  it("只返回 Sentences 时回落到第一句解析", () => {
+    const r = parseSoeResult({
+      Sentences: [{
+        SuggestedScore: 81,
+        PronAccuracy: 80,
+        PronFluency: 0.75,
+        Words: [{ Word: "hello", PronAccuracy: 88 }],
+      }],
+    });
+    expect(r.score).toBe(81);
+    expect(r.accuracy).toBe(80);
+    expect(r.fluency).toBe(75);
+    expect(r.words).toEqual([{ w: "hello", ok: true, acc: 88 }]);
+  });
+});
+
+describe("soeTips", () => {
+  const base = { accuracy: 90, fluency: 90, completion: 100, words: [] };
+
+  it("按漏读/增读/替换和三项分数给出改进提示", () => {
+    const tips = soeTips({
+      score: 55,
+      accuracy: 60,
+      fluency: 50,
+      completion: 70,
+      words: [
+        { w: "really", ok: false, tag: 2 },
+        { w: "uh", ok: false, tag: 1 },
+        { w: "world", ok: false, acc: 40, tag: 3 },
+      ],
+    });
+    const text = tips.join("\n");
+    expect(text).toContain("漏读了 really");
+    expect(text).toContain("多读了 uh");
+    expect(text).toContain("读成了别的词：world");
+    expect(text).toContain("流利度 50 分");
+    expect(text).toContain("完整度 70 分");
+    expect(tips.length).toBeLessThanOrEqual(4);
+  });
+
+  it("读得好时给鼓励，不硬凑问题", () => {
+    const tips = soeTips({ ...base, score: 92, words: [{ w: "hello", ok: true, acc: 95 }] });
+    expect(tips).toEqual(["读得很棒！可以再用正常语速读一遍，保持连读。"]);
   });
 });
 
@@ -133,6 +194,23 @@ describe("SoeEval：关闭麦克风（开发环境模拟）", () => {
     expect(onStopped).toHaveBeenCalledTimes(1);
   });
 
+  it("数字人「取消」：放弃本次录音，不评分", async () => {
+    const onResult = vi.fn();
+    const onStopped = vi.fn();
+    const onStatus = vi.fn();
+    const ev = makeEval(onResult, onStopped, vi.fn(), onStatus);
+    await ev.start();
+    vi.advanceTimersByTime(1000);
+    expect(micActive.value).toBe(true);
+    cancelMic();
+    expect(onResult).not.toHaveBeenCalled();
+    expect(micActive.value).toBe(false);
+    expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("已取消"));
+    expect(onStopped).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1000);
+    expect(onResult).not.toHaveBeenCalled();
+  });
+
   it("点了提交后再关闭麦克风，已发出的评分结果仍然返回", async () => {
     const onResult = vi.fn();
     const onStopped = vi.fn();
@@ -186,6 +264,12 @@ describe("SoeEval：评测消息", () => {
       }),
     } as MessageEvent);
     expect(onError).not.toHaveBeenCalled();
-    expect(onResult).toHaveBeenCalledWith({ score: 90, words: [{ w: "the", ok: true }] });
+    expect(onResult).toHaveBeenCalledWith({
+      score: 90,
+      accuracy: null,
+      fluency: null,
+      completion: null,
+      words: [{ w: "the", ok: true, acc: 95 }],
+    });
   });
 });

@@ -2,6 +2,8 @@
 
 conftest 每个测试后清空数据，因此每个测试用 _fresh_user() 独立建号。
 """
+import json
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -243,3 +245,61 @@ def test_shadow_recent_dedupes_sentence_ids():
     items = r.json()["items"]
     assert [i["sentence_id"] for i in items] == ["s2", "s1"]
     assert items[1]["weak_words"] == ["this"]
+
+
+def test_shadow_log_keeps_only_best_score_and_eval():
+    """同一句反复练：只留最高分和那次评分给出的评价内容，低分重试不新增记录。"""
+    from app.models.speak import SpeakLog
+
+    token = _fresh_user("shadowbest")
+    H = {"Authorization": f"Bearer {token}"}
+    base = {"mode": "shadow", "ref": "p1", "sentence_id": "s1", "day": 0, "turns": 1}
+    for score, issues, words in (
+        (70, ["旧评价"], [{"w": "a", "ok": False}]),
+        (92, ["漏读了 a，跟着示范逐词读完整。"], [{"w": "a", "ok": True}]),
+        (80, ["更低的评价"], []),
+    ):
+        r = client.post(
+            "/api/v1/speak/log",
+            json={**base, "score": score, "issues": issues, "words": words},
+            headers=H,
+        )
+        assert r.status_code == 200
+
+    items = client.get("/api/v1/speak/shadow/recent?limit=10", headers=H).json()["items"]
+    assert len(items) == 1
+    assert items[0]["score"] == 92
+    assert items[0]["weak_words"] == []
+
+    db = SessionLocal()
+    rows = db.query(SpeakLog).filter(SpeakLog.mode == "shadow").all()
+    assert len(rows) == 1
+    assert rows[0].score == 92
+    assert json.loads(rows[0].issues) == ["漏读了 a，跟着示范逐词读完整。"]
+    db.close()
+
+
+def test_shadow_recent_uses_best_score_across_days():
+    """计划日各写一行时，最近记录取该句历史最高分（而不是最后一行）。"""
+    from app.models.speak import SpeakLog
+
+    token = _fresh_user("shadowday")
+    H = {"Authorization": f"Bearer {token}"}
+    for day, score in ((1, 70), (2, 95), (1, 75)):
+        client.post(
+            "/api/v1/speak/log",
+            json={
+                "mode": "shadow", "ref": "p1", "sentence_id": "s1",
+                "day": day, "score": score, "words": [{"w": "x", "ok": score >= 90}],
+            },
+            headers=H,
+        )
+    items = client.get("/api/v1/speak/shadow/recent?limit=10", headers=H).json()["items"]
+    assert len(items) == 1
+    assert items[0]["score"] == 95
+    assert items[0]["weak_words"] == []
+    # 每天仍然只有一条记录（第 1 天取较高的 75，第 2 天 95）
+    db = SessionLocal()
+    rows = db.query(SpeakLog).filter(SpeakLog.mode == "shadow").all()
+    assert sorted((r.day, r.score) for r in rows) == [(1, 75), (2, 95)]
+    db.close()

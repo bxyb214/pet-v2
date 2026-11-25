@@ -141,16 +141,48 @@ class LogIn(BaseModel):
     transcript: list[dict] = Field(default_factory=list, max_length=100)
 
 
+def _shadow_log(db: Session, user_id: int, body: LogIn) -> SpeakLog | None:
+    """同一句（同天）只保留一条跟读记录：优先按 sentence_id，旧数据按 ref。"""
+    q = db.query(SpeakLog).filter(
+        SpeakLog.user_id == user_id,
+        SpeakLog.mode == "shadow",
+        SpeakLog.day == body.day,
+    )
+    if body.sentence_id:
+        q = q.filter(SpeakLog.sentence_id == body.sentence_id)
+    else:
+        q = q.filter(SpeakLog.sentence_id == "", SpeakLog.ref == body.ref)
+    return q.order_by(SpeakLog.id.desc()).first()
+
+
 @router.post("/log")
 def log(body: LogIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    row = SpeakLog(
-        user_id=user.id, mode=body.mode, ref=body.ref, sentence_id=body.sentence_id, day=body.day,
-        turns=body.turns, score=body.score,
-        issues=json.dumps(body.issues, ensure_ascii=False),
-        words=json.dumps(body.words, ensure_ascii=False),
-        transcript=json.dumps(body.transcript, ensure_ascii=False),
-    )
-    db.add(row)
+    if body.mode == "shadow":
+        # 跟读只记录最高分和那次评分给出的评价内容；低分重试不新增记录
+        row = _shadow_log(db, user.id, body)
+        if row is None:
+            row = SpeakLog(
+                user_id=user.id, mode=body.mode, ref=body.ref,
+                sentence_id=body.sentence_id, day=body.day,
+                turns=body.turns, score=body.score,
+                issues=json.dumps(body.issues, ensure_ascii=False),
+                words=json.dumps(body.words, ensure_ascii=False),
+                transcript=json.dumps(body.transcript, ensure_ascii=False),
+            )
+            db.add(row)
+        elif body.score > row.score:
+            row.score = body.score
+            row.issues = json.dumps(body.issues, ensure_ascii=False)
+            row.words = json.dumps(body.words, ensure_ascii=False)
+    else:
+        row = SpeakLog(
+            user_id=user.id, mode=body.mode, ref=body.ref, sentence_id=body.sentence_id, day=body.day,
+            turns=body.turns, score=body.score,
+            issues=json.dumps(body.issues, ensure_ascii=False),
+            words=json.dumps(body.words, ensure_ascii=False),
+            transcript=json.dumps(body.transcript, ensure_ascii=False),
+        )
+        db.add(row)
     if body.day > 0:
         d = db.get(SpeakDay, (user.id, body.day))
         if d is None:
@@ -258,13 +290,18 @@ def shadow_recent(
         .all()
     )
     items = []
-    seen: set[str] = set()
+    seen: dict[str, SpeakLog] = {}
+    order: list[str] = []
     for r in rows:
-        # 计划日会为同一句写多条日志（day=0 + 来源日）：按句子去重，保证选句样本多样
+        # 计划日会为同一句写多条日志（day=0 + 来源日）：按句子去重，取该句最高分那条
         key = r.sentence_id or f"log-{r.id}"
-        if key in seen:
-            continue
-        seen.add(key)
+        if key not in seen:
+            seen[key] = r
+            order.append(key)
+        elif r.score > seen[key].score:
+            seen[key] = r
+    for key in order[:limit]:
+        r = seen[key]
         try:
             words = json.loads(r.words or "[]")
         except json.JSONDecodeError:
@@ -279,8 +316,6 @@ def shadow_recent(
                 "created_at": r.created_at.isoformat() if r.created_at else None,
             }
         )
-        if len(items) >= limit:
-            break
     return {"items": items}
 
 

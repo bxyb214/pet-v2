@@ -7,7 +7,7 @@
     </h1>
     <p class="sub">
       {{ hasPlan
-        ? "听示范 → 点「跟读评分」→ 朗读 → 提交，看分数和读不准的词 · 今天目标 5 分钟"
+        ? "听示范 → 点「跟读评分」→ 朗读 → 点小绿下方的「提交」，看分数和改进建议 · 今天目标 5 分钟"
         : "没有计划：按你的水平从题库选句子，不计时、不打卡。" }}
     </p>
 
@@ -75,33 +75,39 @@
 
       <div class="ctrl card">
         <div class="status">{{ status }}</div>
-        <div v-if="!busy" class="ctrlbtns">
-          <template v-if="!soe">
-            <PaidActionButton :status="aiStatus" @click="start">
-              跟读评分
-            </PaidActionButton>
-          </template>
-          <template v-else>
-            <n-button type="primary" size="large" @click="submit">提交</n-button>
-            <n-button size="large" quaternary @click="stop">结束练习</n-button>
-          </template>
+        <!-- 录音中的「提交 / 取消」都在数字人小绿面板上；页内只保留开始入口 -->
+        <div v-if="!busy && !soe" class="ctrlbtns">
+          <PaidActionButton :status="aiStatus" @click="start">
+            跟读评分
+          </PaidActionButton>
         </div>
       </div>
 
       <div v-if="result" class="result card" :class="{ good: result.score >= 85, ok: result.score >= 60 }">
         <div class="score">{{ result.score }}<small>/100</small></div>
         <div class="engine">跟读评分 · 腾讯云智聆</div>
-        <div class="words">
-          <n-tag v-for="(w, i) in result.words" :key="i" size="small" :bordered="false" :type="w.ok ? 'default' : 'error'" round>
-            {{ w.w }}
-          </n-tag>
+        <div v-if="metrics.length" class="metrics">
+          <span v-for="m in metrics" :key="m.label" class="metric" :class="{ low: m.value < 60 }">
+            <b>{{ m.value }}</b>{{ m.label }}
+          </span>
         </div>
+        <div v-if="result.words.length" class="words">
+          <button
+            v-for="(w, i) in result.words" :key="i" type="button"
+            class="wchip" :class="{ bad: !w.ok }"
+            :title="`${w.w}${w.acc != null ? ' · 准确度 ' + w.acc : ''} · 点击听发音`"
+            @click="sayWord(w.w)"
+          >
+            {{ w.w }}<i v-if="w.acc != null">{{ w.acc }}</i>
+          </button>
+        </div>
+        <p v-if="result.tips.length" class="tips-h">改进建议</p>
         <ul v-if="result.tips.length" class="tips">
           <li v-for="(t, i) in result.tips" :key="i">{{ t }}</li>
         </ul>
+        <p v-if="result.words.some((w) => !w.ok)" class="whint">橙色词读得不准，点词可以听发音。</p>
         <div class="res-actions">
           <n-button type="primary" @click="next">下一句 →</n-button>
-          <n-button quaternary @click="stop">{{ hasPlan ? "结束练习（保存记录）" : "结束练习" }}</n-button>
         </div>
       </div>
     </template>
@@ -111,14 +117,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { NButton, NTag } from "naive-ui";
+import { NButton } from "naive-ui";
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
 import {
   loadSpeak, sourceRangeText, splitSpeakPlan,
   type PlanDayView, type ShadowItem, type SpeakData,
 } from "../core/speak";
-import { SoeEval, type SoeWord } from "../core/soe";
+import { SoeEval, soeTips, type SoeResult } from "../core/soe";
 import { micBlockedReason } from "../core/micSupport";
 import { useSpeakTime } from "../core/speakTime";
 import {
@@ -135,7 +141,7 @@ import EmptyState from "../components/EmptyState.vue";
 import PaidActionButton from "../components/PaidActionButton.vue";
 import PaidAiNotice from "../components/PaidAiNotice.vue";
 
-type ShadowResult = { score: number; words: SoeWord[]; tips: string[] };
+type ShadowResult = SoeResult & { tips: string[] };
 
 const route = useRoute();
 const router = useRouter();
@@ -249,6 +255,21 @@ const clock = useSpeakTime("shadow", currentSpeech, () => hasPlan.value);
 const elapsed = clock.total;
 const overGoal = computed(() => elapsed.value >= 300);
 
+/** 结果页的三项分维度（腾讯没返回的维度不显示） */
+const metrics = computed(() => {
+  const r = result.value;
+  if (!r) return [];
+  const out: { label: string; value: number }[] = [];
+  if (r.accuracy != null) out.push({ label: "准确度", value: r.accuracy });
+  if (r.fluency != null) out.push({ label: "流利度", value: r.fluency });
+  if (r.completion != null) out.push({ label: "完整度", value: r.completion });
+  return out;
+});
+
+function sayWord(w: string): void {
+  if (w) say(w);
+}
+
 function currentSpeech(): number {
   return speechBase.value + (soe.value?.speechSec() ?? 0);
 }
@@ -272,7 +293,7 @@ onMounted(async () => {
   }
   status.value = locked.value
     ? "跟读评分需要开通付费 AI；可以先点「听示范（浏览器朗读）」听句子。"
-    : micBlockedReason() || "点「跟读评分」，允许麦克风后朗读，读完点「提交」";
+    : micBlockedReason() || "点「跟读评分」，允许麦克风后朗读，读完点小绿下面的「提交」";
 });
 onBeforeUnmount(() => {
   soe.value?.stop();
@@ -293,13 +314,10 @@ function start(): void {
     onStatus: (s) => (status.value = s),
     onBusy: (b) => (busy.value = b),
     onResult: (r) => {
-      const bad = r.words.filter((w) => !w.ok).map((w) => w.w);
-      result.value = {
-        score: r.score,
-        words: r.words,
-        tips: bad.length ? [`读不准的词：${bad.join("、")}，多听几遍示范再试试`] : [],
-      };
-      void logPractice(item.value!, r);
+      const tips = soeTips(r);
+      result.value = { ...r, tips };
+      // 只落最高分和那次评分给出的评价（服务端按句去重）
+      void logPractice(item.value!, r, tips);
     },
     onError: (m) => {
       status.value = "出错：" + m;
@@ -320,20 +338,6 @@ function start(): void {
     soe.value = null;
   });
 }
-function submit(): void {
-  soe.value?.submit();
-}
-
-function stop(): void {
-  soe.value?.stop();
-  soe.value = null;
-  if (!hasPlan.value) {
-    status.value = "已结束本次练习，可换一组重新开始";
-    return;
-  }
-  void router.push("/english/speak");
-}
-
 function pickPack(id: string): void {
   if (id === packId.value) return;
   soe.value?.stop();
@@ -341,7 +345,7 @@ function pickPack(id: string): void {
   packId.value = id;
   itemIdx.value = 0;
   result.value = null;
-  status.value = "点「跟读评分」，允许麦克风后朗读，读完点「提交」";
+  status.value = "点「跟读评分」，允许麦克风后朗读，读完点小绿下面的「提交」";
 }
 function resort(): void {
   pickNonce.value += 1;
@@ -349,15 +353,18 @@ function resort(): void {
   result.value = null;
 }
 
-/** 每次评分落一条历史（day=0，带 sentence_id/words）；计划日摘要单独写。 */
-async function logPractice(it: ShadowItem, r: { score: number; words: SoeWord[] }): Promise<void> {
+/**
+ * 每次评分落一条记录（day=0，带 sentence_id/words/issues），计划日再写打卡用记录。
+ * 服务端按「用户 + 天 + 句」去重：只保留最高分和那次评分给出的评价内容。
+ */
+async function logPractice(it: ShadowItem, r: SoeResult, tips: string[]): Promise<void> {
   try {
     await api("/speak/log", {
       method: "POST",
       body: JSON.stringify({
         mode: "shadow", ref: it.pack, sentence_id: it.id,
         day: 0, turns: 1, score: r.score,
-        issues: [], words: r.words, transcript: [],
+        issues: tips, words: r.words, transcript: [],
       }),
     });
   } catch { /* 离线不阻塞 */ }
@@ -369,7 +376,7 @@ async function logPractice(it: ShadowItem, r: { score: number; words: SoeWord[] 
         body: JSON.stringify({
           mode: "shadow", ref: it.pack, sentence_id: it.id,
           day: sourceDay, turns: 1, score: r.score,
-          issues: [], words: r.words, transcript: [],
+          issues: tips, words: r.words, transcript: [],
         }),
       });
     } catch { /* 离线不阻塞 */ }
@@ -380,7 +387,7 @@ function next(): void {
   if (!orderedItems.value.length) return;
   itemIdx.value = (itemIdx.value + 1) % orderedItems.value.length;
   result.value = null;
-  status.value = "点「跟读评分」，允许麦克风后朗读，读完点「提交」";
+  status.value = "点「跟读评分」，允许麦克风后朗读，读完点小绿下面的「提交」";
 }
 async function tts(): Promise<void> {
   const text = item.value?.en ?? "";
@@ -457,7 +464,17 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .score { font-size: 36px; font-weight: 800; color: var(--c-primary); }
 .score small { font-size: var(--fs-sub); color: var(--c-text-2); }
 .engine { font-size: var(--fs-sub); color: var(--c-text-2); margin-top: 2px; }
-.words { margin-top: 10px; }
-.tips { color: var(--c-text-2); font-size: var(--fs-sub); margin: 8px 0 0; padding-left: 18px; }
+.metrics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.metric { display: inline-flex; align-items: baseline; gap: 5px; padding: 5px 12px; border-radius: 999px; background: var(--c-mint-bg, #f6faf7); color: var(--c-text-2); font-size: 12.5px; font-weight: 600; }
+.metric b { font-size: 16px; color: var(--c-primary-strong, #15803d); font-variant-numeric: tabular-nums; }
+.metric.low b { color: var(--c-accent, #b45309); }
+.words { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.wchip { display: inline-flex; align-items: baseline; gap: 5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--c-line); background: #fff; color: var(--c-text); font: inherit; font-size: 13px; cursor: pointer; }
+.wchip:hover { border-color: var(--c-primary); }
+.wchip i { font-style: normal; font-size: 11px; color: var(--c-text-3); }
+.wchip.bad { background: var(--c-accent-soft, #fff7ed); border-color: var(--c-accent, #d97706); color: #b45309; }
+.tips-h { margin: 14px 0 0; font-weight: 700; color: var(--c-text); font-size: 14px; }
+.tips { color: var(--c-text-2); font-size: var(--fs-sub); margin: 6px 0 0; padding-left: 18px; line-height: 1.7; }
+.whint { margin: 8px 0 0; color: var(--c-text-3); font-size: 12px; }
 .res-actions { margin-top: 12px; display: flex; gap: 8px; }
 </style>
