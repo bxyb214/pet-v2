@@ -5,7 +5,7 @@
 import { api } from "./api";
 import { ensureDevMode } from "./devMode";
 import { createDevSpeakConn } from "./devSpeak";
-import { holdMic } from "./micPresence";
+import { holdMic, type MicAction } from "./micPresence";
 import { micBlockedReason, micErrorText } from "./micSupport";
 
 export type SpeakMsg = Record<string, unknown> & { type: string };
@@ -29,6 +29,16 @@ export type SpeakConnOpts = {
   onPraise?: (text: string) => void;
   /** 用户点数字人下的「关闭麦克风」：先回调页面清理状态，再由 core 关闭连接 */
   onMicClosed?: () => void;
+  /** 数字人面板按钮：造句/跟读用「提交 + 取消」；不传为「关闭麦克风」 */
+  micAction?: MicAction;
+  /** 数字人「提交」：由页面接管本轮提交（连接保持不变） */
+  onMicSubmit?: () => void;
+  /** 数字人「取消」：由页面放弃本轮录音 */
+  onMicCancel?: () => void;
+  /** 本地录音：开启后每次连接可取出一个 Blob（造句回放用） */
+  recordAudio?: boolean;
+  /** 麦克风挂好后的状态文案；默认按模式给出「准备好就开口吧 / 点开始朗读」 */
+  readyText?: string;
 };
 
 export type SpeakConn = {
@@ -47,6 +57,10 @@ export type SpeakConn = {
   /** 服务端返回的会话上限与剩余额度（P0-1） */
   sessionId?: number;
   maxSessionSec?: number;
+  /** 提交后摘掉数字人按钮（麦克风与连接保留，等 AI 结果） */
+  detachMic?: () => void;
+  /** 结束并取出本次录音；未开启录音或浏览器不支持时返回 null（幂等） */
+  stopRecording?: () => Promise<Blob | null>;
 };
 
 // talk 模式客户端工具：屏幕提示卡 + 奖励（§5 屏幕辅助区）
@@ -89,6 +103,10 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
 
   const pc = new RTCPeerConnection({ iceServers: [] });
   const startedAt = Date.now();
+  // 先声明一路音频收发：Offer 里必须带 m=audio，否则服务端直接 400
+  // 「SDP format and content error」。麦克风轨道等 session.updated 后再
+  // replaceTrack 挂上（不重新协商），避免音频先于 session.update 到达。
+  const audioTx = pc.addTransceiver("audio", { direction: "sendrecv" });
   let speechMs = 0;
   let meter: ReturnType<typeof setInterval> | null = null;
   /** AI 说话期间暂停的本地麦克风轨道（P2-1 半双工） */
@@ -103,7 +121,96 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
   let meterCtx: AudioContext | null = null;
   /** 麦克风占用登记；关闭连接时释放，数字人随之消失 */
   let releaseMic: (() => void) | null = null;
+  /** 本地录音（造句回放用），仅 recordAudio 开启 */
+  let localStream: MediaStream | null = null;
+  let recorder: MediaRecorder | null = null;
+  let recordedChunks: BlobPart[] = [];
+  let takePromise: Promise<Blob | null> | null = null;
+
+  const pickRecorderType = (): string | undefined => {
+    try {
+      return ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"].find((t) =>
+        MediaRecorder.isTypeSupported(t),
+      );
+    } catch {
+      return undefined;
+    }
+  };
+
+  const startRecording = (stream: MediaStream): void => {
+    if (!opts.recordAudio || typeof MediaRecorder === "undefined") return;
+    try {
+      const type = pickRecorderType();
+      recorder = type ? new MediaRecorder(stream, { mimeType: type }) : new MediaRecorder(stream);
+      recordedChunks = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+      };
+      recorder.start();
+    } catch {
+      recorder = null;
+    }
+  };
+
+  /** 结束录音并交出 Blob；重复调用返回同一个结果 */
+  const stopRecording = (): Promise<Blob | null> => {
+    if (takePromise) return takePromise;
+    const rec = recorder;
+    if (!rec || rec.state === "inactive") {
+      takePromise = Promise.resolve(null);
+      return takePromise;
+    }
+    takePromise = new Promise<Blob | null>((resolve) => {
+      rec.onstop = () => {
+        const type = rec.mimeType || "audio/webm";
+        const blob = recordedChunks.length ? new Blob(recordedChunks, { type }) : null;
+        recordedChunks = [];
+        recorder = null;
+        resolve(blob);
+      };
+      try { rec.stop(); } catch { resolve(null); }
+    });
+    return takePromise;
+  };
+
+  /** 结束本地麦克风（提交后调用）：摘掉数字人、停表、断开轨道，连接保留等 AI 结果 */
+  const stopInput = (): void => {
+    releaseMic?.();
+    releaseMic = null;
+    if (meter) clearInterval(meter);
+    meter = null;
+    try { void meterCtx?.close(); } catch { /* noop */ }
+    meterCtx = null;
+    micTracks = [];
+    if (localStream) {
+      try {
+        Promise.resolve(audioTx.sender.replaceTrack(null)).catch(() => { /* noop */ });
+      } catch { /* noop */ }
+      try { localStream.getTracks().forEach((t) => t.stop()); } catch { /* noop */ }
+    }
+    localStream = null;
+  };
+  /** AI 说话的回流音频（talk）；shadow 只要文本，接住也无副作用 */
+  const remoteAudio = new Audio();
+  remoteAudio.autoplay = true;
+  pc.ontrack = (ev: RTCTrackEvent) => {
+    const stream = ev.streams[0];
+    if (!stream) return;
+    remoteAudio.srcObject = stream;
+    void remoteAudio.play().catch(() => { /* 自动播放被拦截时静默 */ });
+  };
   const dc = pc.createDataChannel("oai-events");
+  /** 数据通道还没 open 时先排队：否则紧跟 SDP 的 session.update 会被静默丢掉 */
+  const pendingSends: string[] = [];
+  dc.onopen = () => {
+    for (const raw of pendingSends.splice(0)) {
+      try { dc.send(raw); } catch { /* noop */ }
+    }
+  };
+  const sendRaw = (raw: string): void => {
+    if (dc.readyState === "open") dc.send(raw);
+    else if (dc.readyState === "connecting") pendingSends.push(raw);
+  };
   const conn: SpeakConn & { text: string; lastReply: string } = {
     ready: false,
     text: "",
@@ -117,7 +224,7 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
       conn.send({ type: "input_audio_buffer.clear" });
     },
     send(m) {
-      if (dc.readyState === "open") dc.send(JSON.stringify(m));
+      sendRaw(JSON.stringify(m));
     },
     commitAndRespond(instr) {
       conn.send({ type: "input_audio_buffer.commit" });
@@ -129,14 +236,17 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
         try { if (!conn.closed) conn.send({ type: "input_audio_buffer.clear" }); } catch { /* noop */ }
       }, 600);
     },
-    close() {
-      conn.closed = true;
+    detachMic() {
       releaseMic?.();
       releaseMic = null;
-      if (meter) clearInterval(meter);
-      meter = null;
-      try { void meterCtx?.close(); } catch { /* noop */ }
-      meterCtx = null;
+    },
+    stopRecording,
+    close() {
+      conn.closed = true;
+      try { if (recorder && recorder.state !== "inactive") recorder.stop(); } catch { /* noop */ }
+      recorder = null;
+      stopInput();
+      try { remoteAudio.pause(); remoteAudio.srcObject = null; } catch { /* noop */ }
       try { pc.getSenders().forEach((s) => s.track?.stop()); } catch { /* noop */ }
       try { dc.close(); } catch { /* noop */ }
       try { pc.close(); } catch { /* noop */ }
@@ -276,14 +386,34 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
-      stream.getTracks().forEach((tr) => pc.addTrack(tr, stream));
+      localStream = stream;
       micTracks = stream.getAudioTracks();
+      // 先下发会话配置（手动模式要先把 turn_detection 关掉），再挂麦克风
+      applySession(opts.instructions);
+      // 挂到已协商好的 transceiver 上：不需要重新协商，麦克风才真的发得出去
+      const track = micTracks[0];
+      if (track) await audioTx.sender.replaceTrack(track);
+      startRecording(stream);
       // 麦克风真正拿到后才登记：数字人只在采集期间出现
-      releaseMic = holdMic(() => {
-        opts.onMicClosed?.();
-        conn.close();
-        if (!opts.onMicClosed) opts.onStatus("麦克风已关闭");
-      });
+      releaseMic = holdMic(
+        () => {
+          // 造句：页面接管「提交」，由页面决定几时摘掉数字人、停麦克风
+          if (opts.onMicSubmit) {
+            opts.onMicSubmit();
+            return;
+          }
+          conn.detachMic?.();
+          opts.onMicClosed?.();
+          conn.close();
+          if (!opts.onMicClosed) opts.onStatus("麦克风已关闭");
+        },
+        opts.micAction,
+        opts.onMicCancel
+          ? () => {
+            opts.onMicCancel?.();
+          }
+          : undefined,
+      );
       // 本地能量检测：只累计孩子真正开口的时长（AI 声音被回声消除过滤）
       try {
         meterCtx = new AudioContext();
@@ -303,8 +433,9 @@ export async function createSpeakConn(opts: SpeakConnOpts): Promise<SpeakConn> {
           if (Math.sqrt(sum / buf.length) > 0.02) speechMs += 200;
         }, 200);
       } catch { /* 环境不支持能量检测时只记 0 秒 */ }
-      applySession(opts.instructions);
-      opts.onStatus(opts.mode === "talk" ? "准备好就开口吧" : "点「开始朗读」");
+      opts.onStatus(
+        opts.readyText ?? (opts.mode === "talk" ? "准备好就开口吧" : "点「开始朗读」"),
+      );
     } catch (e) {
       releaseMic?.();
       releaseMic = null;

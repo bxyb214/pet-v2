@@ -50,21 +50,20 @@ def test_set_user_ai_quota_and_restore_default():
 
     r = client.put(
         f"/api/v1/admin/users/{uid}/ai",
-        json={"enabled": True, "daily_milli": 1000, "monthly_milli": 5000},
+        json={"enabled": True, "credit_milli": 1000},
         headers=H,
     )
     assert r.status_code == 200, r.text
     row = r.json()
     assert row["ai_enabled"] is True
-    assert row["ai_daily_budget_milli"] == 1000
-    assert row["daily_budget_milli"] == 1000
-    assert row["monthly_budget_milli"] == 5000
+    assert row["ai_credit_milli"] == 1000
+    assert row["credit_budget_milli"] == 1000
 
     # 显式 null 恢复全局默认
-    r = client.put(f"/api/v1/admin/users/{uid}/ai", json={"daily_milli": None}, headers=H)
+    r = client.put(f"/api/v1/admin/users/{uid}/ai", json={"credit_milli": None}, headers=H)
     row = r.json()
-    assert row["ai_daily_budget_milli"] is None
-    assert row["daily_budget_milli"] == budget.DEFAULT_BUDGET["daily_milli"]
+    assert row["ai_credit_milli"] is None
+    assert row["credit_budget_milli"] == budget.DEFAULT_BUDGET["credit_milli"]
 
     # 关闭 AI
     r = client.put(f"/api/v1/admin/users/{uid}/ai", json={"enabled": False}, headers=H)
@@ -90,8 +89,7 @@ def test_prices_and_budget_config():
         json={
             "prices": {"soe": 0.002, "tts_per_kchar": 0.1},
             "budget": {
-                "daily_milli": 1234,
-                "monthly_milli": 9999,
+                "credit_milli": 1234,
                 "alert_ratio": 0.5,
                 "hard_stop": False,
             },
@@ -103,14 +101,13 @@ def test_prices_and_budget_config():
     body = r.json()
     assert body["prices"]["soe"] == 0.002
     assert body["prices"]["tts_per_kchar"] == 0.1
-    assert body["budget"]["daily_milli"] == 1234
-    assert body["budget"]["monthly_milli"] == 9999
+    assert body["budget"]["credit_milli"] == 1234
     assert body["budget"]["alert_ratio"] == 0.5
     assert body["budget"]["hard_stop"] is False
     assert body["tts_cache"]["max_mb"] == 64
 
     again = client.get("/api/v1/admin/ai/prices", headers=H).json()
-    assert again["budget"]["daily_milli"] == 1234
+    assert again["budget"]["credit_milli"] == 1234
     db = SessionLocal()
     assert usage_svc.prices(db)["soe"] == 0.002
     assert budget.budget_cfg(db)["hard_stop"] is False
@@ -122,8 +119,8 @@ def test_overview_report_export_and_alerts():
     _, uid = _register_kid()
     H = _h(admin)
 
-    # 给 kid 一个很小的日预算，制造一条 80% 告警
-    client.put(f"/api/v1/admin/users/{uid}/ai", json={"enabled": True, "daily_milli": 100}, headers=H)
+    # 给 kid 一个很小的总额度，制造一条 80% 告警
+    client.put(f"/api/v1/admin/users/{uid}/ai", json={"enabled": True, "credit_milli": 100}, headers=H)
     db = SessionLocal()
     usage_svc.record(db, uid, soe_calls=80, tts_chars=100)
     kid = db.get(User, uid)

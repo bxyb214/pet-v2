@@ -4,7 +4,7 @@
       <div>
         <p class="adm-eyebrow">Admin Console</p>
         <h1>管理后台</h1>
-        <p class="adm-sub">AI 能力与预算 · 账号额度 · 用量账本</p>
+        <p class="adm-sub">AI 能力与额度 · 账号额度 · 用量账本</p>
       </div>
       <div class="adm-actions">
         <span class="adm-chip">{{ todayText }}</span>

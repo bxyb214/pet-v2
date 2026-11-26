@@ -175,12 +175,11 @@ def _user_row(db: Session, u: User) -> dict:
         "is_admin": u.is_admin,
         "created_at": u.created_at.isoformat() if getattr(u, "created_at", None) else None,
         "ai_enabled": bool(u.ai_enabled),
-        "ai_daily_budget_milli": u.ai_daily_budget_milli,
-        "ai_monthly_budget_milli": u.ai_monthly_budget_milli,
-        "today_used_milli": st["daily"]["used_milli"],
-        "month_used_milli": st["monthly"]["used_milli"],
-        "daily_budget_milli": st["daily"]["budget_milli"],
-        "monthly_budget_milli": st["monthly"]["budget_milli"],
+        "unlimited": st["unlimited"],
+        "ai_credit_milli": u.ai_credit_milli,
+        "credit_used_milli": st["credit"]["used_milli"],
+        "credit_budget_milli": st["credit"]["budget_milli"],
+        "remaining_milli": st["remaining_milli"],
         "alert_stage": st["alert_stage"],
     }
 

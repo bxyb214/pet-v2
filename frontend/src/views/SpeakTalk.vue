@@ -29,7 +29,7 @@
         </template>
         <template v-else-if="phase === 'talk'">
           <n-button type="primary" size="large" secondary @click="endTalk">结束对话，进入复盘</n-button>
-          <n-button size="large" quaternary @click="askHelp">怎么说？</n-button>
+          <PaidActionButton :status="aiStatus" variant="secondary" @click="askHelp">怎么说？</PaidActionButton>
         </template>
       </div>
     </div>
@@ -81,7 +81,12 @@
               :dims="m.improved.dims"
               @scored="onInlineScored(m, $event)"
             />
-            <button v-else type="button" class="improve-btn" @click="requestImprove(m.text, true)">
+            <button
+              v-else type="button" class="improve-btn"
+              :class="{ 'is-locked': locked }"
+              :title="locked ? lockText : ''"
+              @click="improveClick(m)"
+            >
               帮我改
             </button>
           </div>
@@ -344,6 +349,7 @@ function pushLine(who: "me" | "ai", text: string): void {
 
 /** 每轮孩子说完 → 立即请求 PET 优化句，穿插在对话里 */
 async function requestImprove(text: string, force = false): Promise<void> {
+  if (locked.value) return; // 额度用尽/未开通：不发起付费请求
   if (!force && !shouldAutoImprove(text)) return; // P1-3：少于 4 个词不自动调用
   if (!improveGuard.take(text)) return;
   const line = [...lines.value].reverse().find((l) => l.who === "me" && l.text === text);
@@ -491,6 +497,10 @@ function recentPatterns(): string[] {
 }
 
 async function askHelp(): Promise<void> {
+  if (locked.value) {
+    status.value = lockText.value || "AI 总额度已用完，免费功能仍可用。";
+    return;
+  }
   const lastAi = [...lines.value].reverse().find((l) => l.who === "ai")?.text ?? "";
   try {
     const r = await api<{ cn: string; en: string; en_cn: string }>("/speak/help", {
@@ -504,7 +514,17 @@ async function askHelp(): Promise<void> {
     hint.value = [r.cn, r.en, r.en_cn].filter(Boolean).join(" · ");
   } catch (e) {
     status.value = "求助失败：" + (e as Error).message;
+    void loadAiStatus(true).then((s) => (aiStatus.value = s));
   }
+}
+
+/** 手动点「帮我改」：额度用尽时只提示原因，不发起付费请求。 */
+function improveClick(m: Line): void {
+  if (locked.value) {
+    status.value = lockText.value || "AI 总额度已用完，免费功能仍可用。";
+    return;
+  }
+  void requestImprove(m.text, true);
 }
 
 function finishSession(): void {
@@ -629,6 +649,8 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .improving { display: inline-block; color: var(--c-text-2); font-size: var(--fs-sub); padding: 4px 2px; }
 .improve-btn { border: 1px dashed var(--c-line); background: var(--c-surface); color: var(--c-primary-strong); border-radius: var(--r-pill); padding: 5px 12px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .improve-btn:hover { background: var(--c-primary-soft); }
+.improve-btn.is-locked { border-color: #dce4df; background: #eef2f0; color: #8a958e; cursor: not-allowed; }
+.improve-btn.is-locked:hover { background: #eef2f0; }
 .review { margin-top: 18px; padding: 16px; }
 .review-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; color: var(--c-text); }
 .review-time { color: var(--c-primary); font-variant-numeric: tabular-nums; font-weight: 700; }

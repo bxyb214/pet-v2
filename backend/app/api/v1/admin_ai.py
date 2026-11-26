@@ -85,9 +85,8 @@ def put_prices(
         ai_enrich.set_cfg(db, "usage.prices", json.dumps(merged, ensure_ascii=False))
     if body.budget is not None:
         merged = budget.budget_cfg(db)
-        for k in ("daily_milli", "monthly_milli"):
-            if body.budget.get(k) is not None:
-                merged[k] = max(0, int(body.budget[k]))
+        if body.budget.get("credit_milli") is not None:
+            merged["credit_milli"] = max(0, int(body.budget["credit_milli"]))
         if body.budget.get("alert_ratio") is not None:
             merged["alert_ratio"] = min(1.0, max(0.1, float(body.budget["alert_ratio"])))
         if isinstance(body.budget.get("hard_stop"), bool):
@@ -104,8 +103,7 @@ def put_prices(
 
 class AiQuotaIn(BaseModel):
     enabled: bool | None = None
-    daily_milli: int | None = Field(default=None, ge=0, le=1_000_000)
-    monthly_milli: int | None = Field(default=None, ge=0, le=10_000_000)
+    credit_milli: int | None = Field(default=None, ge=0, le=1_000_000)
 
 
 @router.post("/users/{user_id}/reset_password")
@@ -134,17 +132,15 @@ def set_user_ai(
     _admin: object = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """开通/关闭付费 AI，并可按人覆盖日/月预算（传 null 恢复全局默认）。"""
+    """开通/关闭付费 AI，并可按人覆盖一次性总额度（传 null 恢复全局默认）。"""
     u = db.get(User, user_id)
     if u is None:
         raise HTTPException(404, "用户不存在")
     fields = body.model_fields_set
     if body.enabled is not None:
         u.ai_enabled = bool(body.enabled)
-    if "daily_milli" in fields:
-        u.ai_daily_budget_milli = body.daily_milli
-    if "monthly_milli" in fields:
-        u.ai_monthly_budget_milli = body.monthly_milli
+    if "credit_milli" in fields:
+        u.ai_credit_milli = body.credit_milli
     db.commit()
     return _user_row(db, u)
 

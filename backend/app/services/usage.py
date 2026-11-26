@@ -239,6 +239,16 @@ def month_used(db: Session, user_id: int, month: str) -> int:
     return int(value or 0)
 
 
+def total_used(db: Session, user_id: int) -> int:
+    """某用户账号生命周期内累计已用预估费用（0.001 元）。"""
+    value = (
+        db.query(func.sum(Usage.est_cost_milli))
+        .filter(Usage.user_id == user_id)
+        .scalar()
+    )
+    return int(value or 0)
+
+
 def _username(db: Session, user_id: int) -> str:
     from app.models.user import User
 

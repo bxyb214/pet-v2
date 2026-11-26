@@ -5,6 +5,7 @@ from app.db import SessionLocal
 from app.main import app
 from app.models.usage import Usage
 from app.models.user import InviteCode, User
+from app.services import budget
 from app.services import usage as usage_svc
 
 client = TestClient(app)
@@ -47,8 +48,10 @@ def test_new_user_returns_zeroes():
     d = client.get("/api/v1/usage/me", headers=_h(token)).json()
 
     assert d["month"] == usage_svc.today()[:7]
-    assert d["status"]["ai_enabled"] is False
-    assert d["status"]["daily"]["used_milli"] == 0
+    assert d["status"]["ai_enabled"] is True
+    assert d["status"]["unlimited"] is False
+    assert d["status"]["credit"]["used_milli"] == 0
+    assert d["status"]["credit"]["budget_milli"] == budget.DEFAULT_BUDGET["credit_milli"]
     assert d["totals"]["today"]["est_cost_milli"] == 0
     assert d["totals"]["week"]["active_days"] == 0
     assert d["totals"]["month"]["active_days"] == 0
@@ -103,7 +106,8 @@ def test_totals_and_user_isolation():
         if usage_svc.week_start() <= day <= today
     )
     assert d["totals"]["week"]["est_cost_milli"] == expected_week
-    assert d["status"]["daily"]["used_milli"] == 12
+    # 总额度按账号生命周期累计（含去年那笔 500）
+    assert d["status"]["credit"]["used_milli"] == 519
 
     # B 只能看到自己的 999
     db = client.get("/api/v1/usage/me", headers=_h(token_b)).json()

@@ -40,7 +40,7 @@ def _register(username: str) -> str:
 
 
 def test_speak_free_endpoints_open_without_perm():
-    """口语不再按人限制：没有 perms、未开 AI 的普通账号也能用免费接口。"""
+    """口语不再按人限制：普通账号默认开通付费 AI，免费接口始终可用。"""
     token = _register("nospeak")
     H = {"Authorization": f"Bearer {token}"}
 
@@ -48,11 +48,28 @@ def test_speak_free_endpoints_open_without_perm():
     assert client.get("/api/v1/speak/days", headers=H).status_code == 200
     assert client.get("/api/v1/speak/plan", headers=H).status_code == 200
     assert client.get("/api/v1/speak/ai_status", headers=H).status_code == 200
+    assert client.post("/api/v1/speak/boot", json={"mode": "talk"}, headers=H).status_code == 200
 
-    # 付费 AI 仍受 ai_enabled 控制
+    # 管理员显式关闭后，付费接口仍 403
+    db = SessionLocal()
+    from app.models.user import User
+
+    u = db.query(User).filter(User.username == "nospeak").one()
+    u.ai_enabled = False
+    db.commit()
+    db.close()
     r = client.post("/api/v1/speak/boot", json={"mode": "talk"}, headers=H)
     assert r.status_code == 403
     assert r.json()["detail"]["code"] == "AI_NOT_ENABLED"
+
+
+def test_help_available_to_ordinary_user_with_credit():
+    """普通账号默认有总额度，「怎么说？」不再 403/429；未配 Key 时才是 503。"""
+    token = _register("helper")
+    r = client.post(
+        "/api/v1/speak/help", json={}, headers={"Authorization": f"Bearer {token}"}
+    )
+    assert r.status_code == 503
 
 
 def test_auth_me_has_no_perms_field():

@@ -270,7 +270,7 @@ def usage_today(user: User = Depends(get_current_user), db: Session = Depends(ge
 
 @router.get("/ai_status")
 def ai_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    """付费 AI 状态：开关、日/月预算、剩余额度、单次会话上限（前端横幅与锁定用）。"""
+    """付费 AI 状态：开关、一次性总额度、剩余额度、单次会话上限（前端横幅与锁定用）。"""
     return budget.status(db, user)
 
 

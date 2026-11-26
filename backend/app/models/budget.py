@@ -13,7 +13,7 @@ def _now() -> datetime:
 
 
 class UsageAlert(Base):
-    """按日/月周期去重的告警记录：同一周期同一档只记一次。"""
+    """按总额度阶段去重的告警记录：同一账号同一阶段只记一次。"""
 
     __tablename__ = "usage_alerts"
     __table_args__ = (
@@ -22,8 +22,8 @@ class UsageAlert(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(Integer, index=True)
-    period: Mapped[str] = mapped_column(String(8))  # day | month
-    period_key: Mapped[str] = mapped_column(String(10))  # YYYY-MM-DD / YYYY-MM
+    period: Mapped[str] = mapped_column(String(8))  # total（总额度）
+    period_key: Mapped[str] = mapped_column(String(10))  # all
     stage: Mapped[int] = mapped_column(Integer)  # 1=80%，2=100%
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 

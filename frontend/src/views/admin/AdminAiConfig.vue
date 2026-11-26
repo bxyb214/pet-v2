@@ -60,8 +60,7 @@
     <AiPriceForm
       v-else-if="group === 'price'"
       v-model:prices="prices"
-      v-model:daily="dailyYuan"
-      v-model:monthly="monthlyYuan"
+      v-model:credit="creditYuan"
       v-model:alert="alertPct"
       v-model:hard="hardStop"
       :save-msg="saveMsg.price || ''"
@@ -97,7 +96,7 @@ const GROUPS = [
   { id: "realtime", name: "实时对话" },
   { id: "tts", name: "语音合成" },
   { id: "soe", name: "发音评测" },
-  { id: "price", name: "单价与预算" },
+  { id: "price", name: "单价与默认额度" },
   { id: "cache", name: "TTS 缓存" },
 ];
 
@@ -120,8 +119,7 @@ const soe = reactive<SoeCfg>({
 });
 
 const prices = reactive<Record<string, number>>({});
-const dailyYuan = ref<number | null>(5);
-const monthlyYuan = ref<number | null>(100);
+const creditYuan = ref<number | null>(0.5);
 const alertPct = ref<number | null>(80);
 const hardStop = ref(true);
 const cacheMax = ref<number | null>(512);
@@ -157,8 +155,7 @@ async function saveGroup(g: string): Promise<void> {
         body: JSON.stringify({
           prices: clean,
           budget: {
-            daily_milli: Math.round((dailyYuan.value ?? 0) * 1000),
-            monthly_milli: Math.round((monthlyYuan.value ?? 0) * 1000),
+            credit_milli: Math.round((creditYuan.value ?? 0) * 1000),
             alert_ratio: (alertPct.value ?? 80) / 100,
             hard_stop: hardStop.value,
           },
@@ -254,13 +251,12 @@ onMounted(async () => {
   try {
     const p = await api<{
       prices: Record<string, number>;
-      budget: { daily_milli: number; monthly_milli: number; alert_ratio: number; hard_stop: boolean };
+      budget: { credit_milli: number; alert_ratio: number; hard_stop: boolean };
       tts_cache: { max_mb: number };
     }>("/admin/ai/prices");
     Object.assign(prices, p.prices ?? {});
     if (p.budget) {
-      dailyYuan.value = p.budget.daily_milli / 1000;
-      monthlyYuan.value = p.budget.monthly_milli / 1000;
+      creditYuan.value = p.budget.credit_milli / 1000;
       alertPct.value = Math.round(p.budget.alert_ratio * 100);
       hardStop.value = p.budget.hard_stop;
     }

@@ -85,14 +85,14 @@
       <div class="adm-panel-h row">
         <div>
           <h2>额度告警</h2>
-          <p>同一用户同一周期同一阶段只记一次；可在「用户与额度」里清除。</p>
+          <p>同一账号同一阶段只记一次；可在「用户与额度」里清除。</p>
         </div>
       </div>
       <div v-if="alerts.length" class="adm-rows">
         <div class="adm-thead al"><span>用户</span><span>周期</span><span>阶段</span><span>时间</span></div>
         <div v-for="a in alerts" :key="a.id" class="adm-row al">
           <span class="adm-name">{{ a.username }}</span>
-          <span>{{ a.period === "day" ? "日" : "月" }} · {{ a.period_key }}</span>
+          <span>{{ a.period === "total" ? "总额 · 全部时间" : `${a.period === "day" ? "日" : "月"} · ${a.period_key}` }}</span>
           <span>
             <i class="adm-tag" :class="a.stage >= 2 ? 'danger' : 'warn'">{{ a.stage >= 2 ? "已用尽" : "达到阈值" }}</i>
           </span>

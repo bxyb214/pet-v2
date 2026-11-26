@@ -60,7 +60,7 @@ export async function api<T>(
       const body = await res.json();
       detail = body?.detail;
       if (typeof body?.detail === "string") message = body.detail;
-      // 额度/开通类错误：detail 为对象（{code, message, reset_at}）
+      // 额度/开通类错误：detail 为对象（{code, message}）
       else if (detail && typeof (detail as { message?: unknown }).message === "string") {
         message = (detail as { message: string }).message;
       }

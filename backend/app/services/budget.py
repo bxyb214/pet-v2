@@ -1,14 +1,16 @@
-"""AI 预算、告警与 Realtime 会话跟踪（P0-1 / P0-2）。
+"""AI 总额度、告警与 Realtime 会话跟踪（P0-1 / P0-2）。
 
-- 每条付费请求先过 `check_access`：未开通 403；日/月额度用尽 429。
-- 告警按日/月周期去重写入 `usage_alerts`（80% 与 100% 各一条）。
+- 每个账号有一笔**一次性总额度**（默认 0.5 元）；用完后付费 AI 暂停，直到管理员调高。
+- 每条付费请求先过 `check_access`：未开通 403；总额度用尽 429。
+- 管理员账号不受总额度拦截（仍记账并展示），避免把自己锁死。
+- 告警按总额度的 80% / 100% 去重写入 `usage_alerts`（period=total）。
 - `ai_sessions` 跟踪 Realtime 会话；超过 30 分钟未结束的，按上限估算补记，避免白用。
 """
 
 import json
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.budget import AiSession, UsageAlert
@@ -19,13 +21,14 @@ from app.services.ai_enrich import get_cfg
 
 _CST = timezone(timedelta(hours=8))
 DEFAULT_BUDGET = {
-    "daily_milli": 500,
-    "monthly_milli": 10000,
+    "credit_milli": 500,  # 普通账号默认一次性总额度：0.5 元
     "alert_ratio": 0.8,
     "hard_stop": True,
     "currency": "CNY",
-    "timezone": "Asia/Shanghai",
 }
+# 总额度告警的周期键：一次账号生命周期只记一次
+CREDIT_PERIOD = "total"
+CREDIT_PERIOD_KEY = "all"
 # 一次 Realtime 会话的上限（秒）：15–30 分钟，防止漏记时无限补记
 MAX_SESSION_SEC = 1800
 # 超过该时长仍未收到 session_end，视为异常结束
@@ -33,15 +36,15 @@ STALE_MINUTES = 30
 
 
 def budget_cfg(db: Session) -> dict:
+    """全局默认额度配置（兼容旧日/月预算 JSON，读不到新键时用默认）。"""
     raw = get_cfg(db, "ai.budget", "")
     cfg = dict(DEFAULT_BUDGET)
     if raw:
         try:
             d = json.loads(raw)
             if isinstance(d, dict):
-                for k in ("daily_milli", "monthly_milli"):
-                    if d.get(k) is not None:
-                        cfg[k] = max(0, int(d[k]))
+                if d.get("credit_milli") is not None:
+                    cfg["credit_milli"] = max(0, int(d["credit_milli"]))
                 if d.get("alert_ratio") is not None:
                     cfg["alert_ratio"] = min(1.0, max(0.1, float(d["alert_ratio"])))
                 if isinstance(d.get("hard_stop"), bool):
@@ -55,24 +58,18 @@ def budget_cfg(db: Session) -> dict:
 
 def user_limits(db: Session, user: User) -> dict:
     cfg = budget_cfg(db)
-    daily = user.ai_daily_budget_milli
-    monthly = user.ai_monthly_budget_milli
+    credit = user.ai_credit_milli
     return {
-        "daily_milli": cfg["daily_milli"] if daily is None else max(0, int(daily)),
-        "monthly_milli": cfg["monthly_milli"] if monthly is None else max(0, int(monthly)),
+        "credit_milli": cfg["credit_milli"] if credit is None else max(0, int(credit)),
         "alert_ratio": cfg["alert_ratio"],
         "hard_stop": cfg["hard_stop"],
         "currency": cfg["currency"],
     }
 
 
-def used_today(db: Session, user_id: int) -> int:
-    row = db.get(Usage, (user_id, usage_svc.today()))
-    return int(row.est_cost_milli or 0) if row else 0
-
-
-def used_month(db: Session, user_id: int) -> int:
-    return usage_svc.month_used(db, user_id, usage_svc.today()[:7])
+def used_total(db: Session, user_id: int) -> int:
+    """账号生命周期内累计预估费用（0.001 元）。"""
+    return usage_svc.total_used(db, user_id)
 
 
 def _stage(used: int, budget: int, ratio: float) -> int:
@@ -81,20 +78,6 @@ def _stage(used: int, budget: int, ratio: float) -> int:
     if used >= budget:
         return 2
     return 1 if used >= budget * ratio else 0
-
-
-def _reset_at(period: str) -> str:
-    now = datetime.now(_CST)
-    if period == "day":
-        nxt = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    else:
-        year, month = now.year, now.month + 1
-        if month > 12:
-            year, month = year + 1, 1
-        nxt = now.replace(
-            year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0
-        )
-    return nxt.isoformat()
 
 
 def _record_alerts(db: Session, user_id: int, stages: dict[str, tuple[int, str]]) -> None:
@@ -140,61 +123,44 @@ def status(db: Session, user: User) -> dict:
     """当前用户额度状态（含告警去重写入）。"""
     sweep_sessions(db, user.id)
     limits = user_limits(db, user)
-    day_used = used_today(db, user.id)
-    month_used = used_month(db, user.id)
-    today = usage_svc.today()
-    day_stage = _stage(day_used, limits["daily_milli"], limits["alert_ratio"])
-    month_stage = _stage(month_used, limits["monthly_milli"], limits["alert_ratio"])
-    _record_alerts(
-        db,
-        user.id,
-        {
-            "day": (day_stage, today),
-            "month": (month_stage, today[:7]),
-        },
-    )
-    day_remaining = max(0, limits["daily_milli"] - day_used)
-    month_remaining = max(0, limits["monthly_milli"] - month_used)
-    remaining = min(day_remaining, month_remaining)
+    used = used_total(db, user.id)
+    stage = _stage(used, limits["credit_milli"], limits["alert_ratio"])
     enabled = bool(getattr(user, "ai_enabled", False))
+    # 管理员是额度管理者，不受总额度拦截，也不写额度告警，但仍展示用量
+    unlimited = bool(getattr(user, "is_admin", False))
+    if not unlimited:
+        _record_alerts(db, user.id, {CREDIT_PERIOD: (stage, CREDIT_PERIOD_KEY)})
+    remaining = max(0, limits["credit_milli"] - used)
     reason = ""
     message = ""
     if not enabled:
         reason = "not_enabled"
         message = "此功能调用外部 AI 接口，有费用，需要找小淏开通。"
-    elif day_stage >= 2:
-        reason = "daily_exhausted"
-        message = "今日 AI 额度已用完，免费功能仍可用。"
-    elif month_stage >= 2:
-        reason = "monthly_exhausted"
-        message = "本月 AI 额度已用完，免费功能仍可用。"
+    elif stage >= 2 and not unlimited:
+        reason = "credit_exhausted"
+        message = "AI 总额度已用完，免费功能仍可用；需要更多额度请联系小淏。"
     blocked = bool(reason) and (not enabled or limits["hard_stop"])
     per_sec = cost_per_sec_milli(db)
     return {
         "ai_enabled": enabled,
         "speak_enabled": True,
-        "daily": {
-            "used_milli": day_used,
-            "budget_milli": limits["daily_milli"],
-            "ratio": round(day_used / limits["daily_milli"], 3) if limits["daily_milli"] else 1.0,
-            "stage": day_stage,
-            "reset_at": _reset_at("day"),
-        },
-        "monthly": {
-            "used_milli": month_used,
-            "budget_milli": limits["monthly_milli"],
-            "ratio": round(month_used / limits["monthly_milli"], 3)
-            if limits["monthly_milli"]
+        "unlimited": unlimited,
+        "credit": {
+            "used_milli": used,
+            "budget_milli": limits["credit_milli"],
+            "ratio": round(used / limits["credit_milli"], 3)
+            if limits["credit_milli"]
             else 1.0,
-            "stage": month_stage,
-            "reset_at": _reset_at("month"),
+            "stage": stage,
         },
         "remaining_milli": remaining,
-        "max_session_sec": max_session_sec(remaining, per_sec),
+        "max_session_sec": MAX_SESSION_SEC
+        if unlimited
+        else max_session_sec(remaining, per_sec),
         "blocked": blocked,
         "reason": reason,
         "message": message,
-        "alert_stage": max(day_stage, month_stage),
+        "alert_stage": stage,
     }
 
 
@@ -333,11 +299,39 @@ def reset_alerts(db: Session, user_id: int, period: str = "") -> int:
     return n
 
 
+def _month_range_utc(month: str) -> tuple[datetime, datetime]:
+    """北京时间的自然月 → UTC 的 [start, end) 片刻（库里的 created_at 为 UTC）。"""
+    try:
+        year, mon = int(month[:4]), int(month[5:7])
+        if not 1 <= mon <= 12:
+            raise ValueError
+    except (TypeError, ValueError):
+        today = usage_svc.today()
+        year, mon = int(today[:4]), int(today[5:7])
+    start = datetime(year, mon, 1, tzinfo=_CST)
+    year2, mon2 = (year + 1, 1) if mon == 12 else (year, mon + 1)
+    end = datetime(year2, mon2, 1, tzinfo=_CST)
+    return (
+        start.astimezone(timezone.utc).replace(tzinfo=None),
+        end.astimezone(timezone.utc).replace(tzinfo=None),
+    )
+
+
 def alert_rows(db: Session, month: str = "") -> list[dict]:
     month = month or usage_svc.today()[:7]
+    start, end = _month_range_utc(month)
     rows = (
         db.query(UsageAlert)
-        .filter(UsageAlert.period_key.like(f"{month}%"))
+        .filter(
+            or_(
+                UsageAlert.period_key.like(f"{month}%"),
+                (
+                    (UsageAlert.period == CREDIT_PERIOD)
+                    & (UsageAlert.created_at >= start)
+                    & (UsageAlert.created_at < end)
+                ),
+            )
+        )
         .order_by(UsageAlert.created_at.desc())
         .all()
     )
@@ -418,9 +412,13 @@ def export_rows(db: Session, month: str) -> list[list[str]]:
 
 
 def count_alerts_today(db: Session) -> int:
+    """今日（北京时间）新产生的额度告警数。"""
+    now = datetime.now(_CST)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_utc = start.astimezone(timezone.utc).replace(tzinfo=None)
     return int(
         db.query(func.count(UsageAlert.id))
-        .filter(UsageAlert.period == "day", UsageAlert.period_key == usage_svc.today())
+        .filter(UsageAlert.created_at >= start_utc)
         .scalar()
         or 0
     )

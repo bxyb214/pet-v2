@@ -57,5 +57,5 @@ Docker（`cd deploy`）
 - 数据默认存 localStorage，联网后增量同步；冲突返回 409，客户端合并后重试。
 - 路由 meta（subject/module/crumbs/tabs/width）驱动布局与导航，新增页面必须补 meta。
 - AI Key 存 `app_cfg` 表，在 `/admin` 配置，服务端只回显尾 4 位；不入 env 文件、不入 git。
-- 付费 AI 由 `users.ai_enabled` + 日/月预算闸门控制（403/429）；前端置灰只负责提示，不是安全边界。
+- 付费 AI 由 `users.ai_enabled` + 一次性总额度闸门控制（403/429，管理员账号不限）；前端置灰只负责提示，不是安全边界。
 - 组件用 `<script setup lang="ts">`；后端模块 snake_case、类 PascalCase；单文件 ≤400 行。

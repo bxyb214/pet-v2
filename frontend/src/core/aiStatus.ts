@@ -1,23 +1,23 @@
-/** 付费 AI 状态：额度横幅、锁定态与降级文案（P0-1 / P2-4）。 */
+/** 付费 AI 状态：一次性总额度、横幅、锁定态与降级文案（P0-1 / P2-4）。 */
 import { api } from "./api";
 
-export type BudgetPeriod = {
+export type AiCredit = {
   used_milli: number;
   budget_milli: number;
   ratio: number;
   stage: number;
-  reset_at: string;
 };
 
 export type AiStatus = {
   ai_enabled: boolean;
   speak_enabled: boolean;
-  daily: BudgetPeriod;
-  monthly: BudgetPeriod;
+  /** 管理员账号：不受总额度拦截，但仍展示用量 */
+  unlimited: boolean;
+  credit: AiCredit;
   remaining_milli: number;
   max_session_sec: number;
   blocked: boolean;
-  reason: "" | "not_enabled" | "daily_exhausted" | "monthly_exhausted";
+  reason: "" | "not_enabled" | "credit_exhausted";
   message: string;
   alert_stage: number;
 };
@@ -49,15 +49,14 @@ export function paidBlocked(st: AiStatus | null | undefined): boolean {
   return !st.ai_enabled || st.blocked;
 }
 
-/** 顶部横幅：80% 黄色、100% 红色；未开通只锁按钮不弹横幅。 */
+/** 顶部横幅：80% 黄色、100% 红色；未开通与管理员不限额度不弹。 */
 export function budgetBanner(st: AiStatus | null | undefined): { tone: "warn" | "danger"; text: string } | null {
-  if (!st || !st.ai_enabled) return null;
-  if (st.daily.stage >= 2 || st.monthly.stage >= 2) {
-    const which = st.daily.stage >= 2 ? "今日" : "本月";
-    return { tone: "danger", text: `${which} AI 额度已用完，免费功能仍可用。` };
+  if (!st || !st.ai_enabled || st.unlimited) return null;
+  if (st.credit.stage >= 2) {
+    return { tone: "danger", text: "AI 总额度已用完，免费功能仍可用。" };
   }
-  if (st.daily.stage === 1 || st.monthly.stage === 1) {
-    return { tone: "warn", text: "AI 额度已用 80%，用完将暂停付费功能。" };
+  if (st.credit.stage === 1) {
+    return { tone: "warn", text: "AI 总额度已用 80%，用完将暂停付费功能。" };
   }
   return null;
 }
@@ -70,7 +69,7 @@ export const PAID_AI_FREE_TEXT = "免费功能：题库浏览、浏览器朗读�
 export function paidLockText(st: AiStatus | null | undefined): string {
   if (!st) return "";
   if (!st.ai_enabled) return PAID_AI_NOT_ENABLED_BODY;
-  if (st.blocked) return st.message || "AI 额度已用完，免费功能仍可用。";
+  if (st.blocked) return st.message || "AI 总额度已用完，免费功能仍可用。";
   return "";
 }
 
@@ -78,7 +77,7 @@ export function paidLockText(st: AiStatus | null | undefined): string {
 export function paidClickHint(st: AiStatus | null | undefined): string {
   if (!st) return "";
   if (!st.ai_enabled) return `${PAID_AI_NOT_ENABLED_BODY}${PAID_AI_FREE_TEXT}`;
-  if (st.blocked) return st.message || "AI 额度已用完，免费功能仍可用。";
+  if (st.blocked) return st.message || "AI 总额度已用完，免费功能仍可用。";
   return "";
 }
 

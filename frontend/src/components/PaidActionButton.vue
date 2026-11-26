@@ -1,6 +1,8 @@
 <template>
   <n-button
-    type="primary"
+    :type="props.variant === 'primary' ? 'primary' : 'default'"
+    :secondary="props.variant === 'secondary'"
+    :quaternary="props.variant === 'quaternary'"
     size="large"
     :disabled="props.disabled"
     :class="['paid-action-btn', { 'is-locked': locked }]"
@@ -19,7 +21,8 @@ import { paidBlocked, paidClickHint, type AiStatus } from "../core/aiStatus";
 const props = withDefaults(defineProps<{
   status: AiStatus | null | undefined;
   disabled?: boolean;
-}>(), { disabled: false });
+  variant?: "primary" | "secondary" | "quaternary";
+}>(), { disabled: false, variant: "primary" });
 const emit = defineEmits<{ (e: "click"): void }>();
 
 const message = useMessage();

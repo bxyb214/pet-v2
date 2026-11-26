@@ -8,7 +8,7 @@
     <n-card size="small" class="card">
       <div class="sect-head">
         <h2>AI 额度</h2>
-        <span class="sect-hint">北京时间 · 每日 / 每月自动重置</span>
+        <span class="sect-hint">一次性总额度 · 用完需管理员调整</span>
       </div>
 
       <LoadingBlock v-if="loading && !data" plain />
@@ -22,11 +22,15 @@
         <p v-if="!data.status.ai_enabled" class="notice neutral">
           尚未开通付费 AI。免费功能（单词、阅读、听力、题库）不受影响；下面是历史用量。
         </p>
-        <p v-else-if="data.status.daily.stage >= 2 || data.status.monthly.stage >= 2" class="notice danger">
-          {{ data.status.message || "AI 额度已用完，免费功能仍可用。" }}
+        <p v-else-if="data.status.unlimited" class="notice ok">
+          管理员账号不受总额度限制；累计已用 {{ fmtMilli(data.status.credit.used_milli) }}。
+          单次 AI 对话上限约 {{ fmtMinutes(data.status.max_session_sec) }}。
         </p>
-        <p v-else-if="data.status.daily.stage === 1 || data.status.monthly.stage === 1" class="notice warn">
-          AI 额度已用 80%，用完将暂停付费功能。
+        <p v-else-if="data.status.credit.stage >= 2" class="notice danger">
+          {{ data.status.message || "AI 总额度已用完，免费功能仍可用。" }}
+        </p>
+        <p v-else-if="data.status.credit.stage === 1" class="notice warn">
+          AI 总额度已用 80%，用完将暂停付费功能。
         </p>
         <p v-else class="notice ok">
           额度可用，剩余 {{ fmtMilli(data.status.remaining_milli) }}；单次 AI 对话上限约
@@ -37,19 +41,11 @@
         <div v-if="data.status.ai_enabled" class="budget">
           <div class="budget-row">
             <div class="budget-label">
-              <span>今日</span>
-              <b class="tnum">{{ fmtMilli(data.status.daily.used_milli) }} / {{ fmtMilli(data.status.daily.budget_milli) }}</b>
+              <span>总额度</span>
+              <b class="tnum">{{ fmtMilli(data.status.credit.used_milli) }} / {{ fmtMilli(data.status.credit.budget_milli) }}</b>
             </div>
-            <span class="reset">{{ fmtReset(data.status.daily.reset_at) }} 重置</span>
-            <div class="bar"><i :class="tone(data.status.daily.stage)" :style="{ width: pct(data.status.daily.ratio) + '%' }"></i></div>
-          </div>
-          <div class="budget-row">
-            <div class="budget-label">
-              <span>本月</span>
-              <b class="tnum">{{ fmtMilli(data.status.monthly.used_milli) }} / {{ fmtMilli(data.status.monthly.budget_milli) }}</b>
-            </div>
-            <span class="reset">{{ fmtReset(data.status.monthly.reset_at) }} 重置</span>
-            <div class="bar"><i :class="tone(data.status.monthly.stage)" :style="{ width: pct(data.status.monthly.ratio) + '%' }"></i></div>
+            <span class="reset">{{ data.status.unlimited ? "管理员不限额度" : "用尽后付费 AI 暂停" }}</span>
+            <div class="bar"><i :class="tone(data.status.credit.stage)" :style="{ width: pct(data.status.credit.ratio) + '%' }"></i></div>
           </div>
         </div>
         <p v-else class="meta">未开通期间不会产生新的 AI 费用；历史用量仍会保留。</p>
@@ -104,7 +100,7 @@
 
     <p class="foot">
       费用由服务端按记账单价估算，仅用于对账与参考；TTS 缓存命中不计费，免费功能（单词、阅读、听力、题库）不计费。
-      日/月额度用尽后付费接口会被服务端拦截，免费功能仍可正常使用。
+      AI 总额度用尽后付费接口会被服务端拦截，免费功能仍可正常使用；需要更多额度请联系管理员。
     </p>
   </div>
 </template>
@@ -147,16 +143,6 @@ function pct(ratio: number): number {
 
 function tone(stage: number): "ok" | "warn" | "danger" {
   return stage >= 2 ? "danger" : stage === 1 ? "warn" : "ok";
-}
-
-function fmtReset(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  return `${mm}/${dd} ${hh}:${mi}`;
 }
 
 async function fetchUsage(month: string): Promise<void> {

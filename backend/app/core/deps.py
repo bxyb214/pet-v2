@@ -43,10 +43,9 @@ def check_paid_or_raise(db: Session, user: User) -> dict:
             status.HTTP_403_FORBIDDEN,
             {"code": "AI_NOT_ENABLED", "message": st["message"]},
         )
-    reset_at = st["daily"]["reset_at"] if st["reason"] == "daily_exhausted" else st["monthly"]["reset_at"]
     raise HTTPException(
         status.HTTP_429_TOO_MANY_REQUESTS,
-        {"code": "AI_BUDGET_EXHAUSTED", "message": st["message"], "reset_at": reset_at},
+        {"code": "AI_CREDIT_EXHAUSTED", "message": st["message"]},
     )
 
 
@@ -54,10 +53,10 @@ def require_paid_ai(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> User:
-    """付费 AI 闸门：管理员开通 AI + 日/月预算未用尽。
+    """付费 AI 闸门：账号已开通 + 一次性总额度未用尽。
 
-    未开通 → 403 AI_NOT_ENABLED；额度用尽 → 429 AI_BUDGET_EXHAUSTED。
-    detail 为对象，前端统一读取 code/message。
+    未开通 → 403 AI_NOT_ENABLED；额度用尽 → 429 AI_CREDIT_EXHAUSTED。
+    管理员账号不受总额度拦截。detail 为对象，前端统一读取 code/message。
     """
     check_paid_or_raise(db, user)
     return user

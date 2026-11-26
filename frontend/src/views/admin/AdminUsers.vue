@@ -34,7 +34,7 @@
       <div class="adm-panel-h row">
         <div>
           <h2>账号与额度</h2>
-          <p>共 {{ users.length }} 个；AI 开关是唯一付费闸门，关闭时付费接口一律 403。</p>
+          <p>共 {{ users.length }} 个；AI 开关是付费总闸门，关闭时付费接口一律 403；总额度用尽后自动暂停付费 AI。</p>
         </div>
         <n-button size="small" secondary :loading="loading" @click="loadUsers">刷新</n-button>
       </div>
@@ -57,11 +57,11 @@
               title="付费 AI 总开关：关闭后不调用外部模型"
               @update:value="(v: boolean) => toggleAi(u, v)"
             />
-            <span class="adm-use tnum" :class="{ over: u.today_used_milli >= u.daily_budget_milli }">
-              今日 {{ fmtYuanShort(u.today_used_milli) }} / {{ fmtYuanShort(u.daily_budget_milli) }}
+            <span class="adm-use tnum" :class="{ over: !u.unlimited && u.credit_used_milli >= u.credit_budget_milli }">
+              {{ u.unlimited ? "管理员 · 不限额度" : `总额 ${fmtYuanShort(u.credit_used_milli)} / ${fmtYuanShort(u.credit_budget_milli)}` }}
             </span>
-            <i v-if="u.alert_stage >= 2" class="adm-tag danger">已用尽</i>
-            <i v-else-if="u.alert_stage === 1" class="adm-tag warn">接近上限</i>
+            <i v-if="!u.unlimited && u.alert_stage >= 2" class="adm-tag danger">已用尽</i>
+            <i v-else-if="!u.unlimited && u.alert_stage === 1" class="adm-tag warn">接近上限</i>
             <n-button size="tiny" secondary @click="openQuota(u)">额度</n-button>
             <n-button size="tiny" secondary @click="openImport(u)">导入生词</n-button>
             <n-button size="tiny" secondary :loading="resetBusy === u.id" @click="resetPwd(u)">重置密码</n-button>
@@ -71,7 +71,8 @@
       </div>
       <p v-else class="adm-empty">还没有账号。</p>
       <p class="adm-foot">
-        口语对所有账号开放，无需单独开通。额度按人可覆盖：留空表示跟随全局默认。日/月预算用尽后服务端返回 429，免费功能（单词、听力、题库）不受影响。
+        口语对所有账号开放，普通账号默认获赠一次性总额度（默认 0.5 元）。额度按人可覆盖：留空表示跟随全局默认。
+        总额度用尽后服务端返回 429，调高额度即可继续；免费功能（单词、听力、题库）不受影响。管理员账号不受总额度限制。
       </p>
     </section>
 
@@ -79,15 +80,14 @@
       <div v-if="editing" class="quota">
         <p class="quota-u">@{{ editing.username }}</p>
         <label class="adm-field">
-          <span class="adm-flabel">每日预算 <i class="adm-opt">元</i></span>
-          <n-input-number v-model:value="qDaily" :min="0" :step="1" :precision="2" clearable placeholder="留空 = 全局默认" style="width: 100%" />
-          <span class="adm-fhint">当前生效：{{ fmtYuan(editing.daily_budget_milli) }}（今日已用 {{ fmtYuan(editing.today_used_milli) }}）</span>
+          <span class="adm-flabel">一次性总额度 <i class="adm-opt">元</i></span>
+          <n-input-number v-model:value="qCredit" :min="0" :step="0.5" :precision="2" clearable placeholder="留空 = 全局默认" style="width: 100%" />
+          <span class="adm-fhint">
+            当前生效：{{ fmtYuan(editing.credit_budget_milli) }}（累计已用 {{ fmtYuan(editing.credit_used_milli) }}）
+            <template v-if="editing.unlimited"> · 管理员账号不受总额度限制</template>
+          </span>
         </label>
-        <label class="adm-field">
-          <span class="adm-flabel">每月预算 <i class="adm-opt">元</i></span>
-          <n-input-number v-model:value="qMonthly" :min="0" :step="10" :precision="2" clearable placeholder="留空 = 全局默认" style="width: 100%" />
-          <span class="adm-fhint">当前生效：{{ fmtYuan(editing.monthly_budget_milli) }}（本月已用 {{ fmtYuan(editing.month_used_milli) }}）</span>
-        </label>
+        <p class="adm-fhint">额度用完即暂停付费 AI；调高此值即可继续使用，无需按日/月恢复。</p>
         <div class="quota-actions">
           <n-button quaternary @click="quotaOpen = false">取消</n-button>
           <n-button type="primary" :loading="quotaBusy" @click="saveQuota">保存</n-button>
@@ -143,12 +143,11 @@ type UserRow = {
   is_admin: boolean;
   created_at: string | null;
   ai_enabled: boolean;
-  ai_daily_budget_milli: number | null;
-  ai_monthly_budget_milli: number | null;
-  today_used_milli: number;
-  month_used_milli: number;
-  daily_budget_milli: number;
-  monthly_budget_milli: number;
+  unlimited: boolean;
+  ai_credit_milli: number | null;
+  credit_used_milli: number;
+  credit_budget_milli: number;
+  remaining_milli: number;
   alert_stage: number;
 };
 
@@ -228,13 +227,11 @@ async function toggleAi(u: UserRow, on: boolean): Promise<void> {
 const quotaOpen = ref(false);
 const quotaBusy = ref(false);
 const editing = ref<UserRow | null>(null);
-const qDaily = ref<number | null>(null);
-const qMonthly = ref<number | null>(null);
+const qCredit = ref<number | null>(null);
 
 function openQuota(u: UserRow): void {
   editing.value = u;
-  qDaily.value = u.ai_daily_budget_milli === null ? null : u.ai_daily_budget_milli / 1000;
-  qMonthly.value = u.ai_monthly_budget_milli === null ? null : u.ai_monthly_budget_milli / 1000;
+  qCredit.value = u.ai_credit_milli === null ? null : u.ai_credit_milli / 1000;
   quotaOpen.value = true;
 }
 
@@ -246,8 +243,7 @@ async function saveQuota(): Promise<void> {
     patch(await api<UserRow>(`/admin/users/${u.id}/ai`, {
       method: "PUT",
       body: JSON.stringify({
-        daily_milli: qDaily.value === null ? null : Math.round(qDaily.value * 1000),
-        monthly_milli: qMonthly.value === null ? null : Math.round(qMonthly.value * 1000),
+        credit_milli: qCredit.value === null ? null : Math.round(qCredit.value * 1000),
       }),
     }));
     quotaOpen.value = false;

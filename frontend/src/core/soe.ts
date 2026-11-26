@@ -7,6 +7,7 @@ import { api } from "./api";
 import { ensureDevMode } from "./devMode";
 import { holdMic } from "./micPresence";
 import { micBlockedReason, micErrorText } from "./micSupport";
+import { pcmToWav } from "./takes";
 
 export type SoeWord = { w: string; ok: boolean; acc?: number; tag?: number };
 export type SoeResult = {
@@ -241,6 +242,8 @@ export class SoeEval {
   private node: AudioWorkletNode | ScriptProcessorNode | null = null;
   /** 录音期间的完整 PCM（提交时才连服务上传，避免长连接在朗读中途被断开） */
   private chunks: Int16Array[] = [];
+  /** 提交时裁掉首尾静音后的整段录音（本地回放用，转 WAV 存 IndexedDB） */
+  private takePcm: Int16Array | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private closed = false;
   private final = false;
@@ -431,6 +434,7 @@ export class SoeEval {
     }
     this.chunks = [];
     const audio = trimSilence(raw);
+    this.takePcm = audio.length ? audio : null;
 
     let url: string;
     try {
@@ -559,6 +563,11 @@ export class SoeEval {
     this.opts.onStatus("正在连接评测服务…");
     void this.connectAndSend();
     return true;
+  }
+
+  /** 本次跟读的整段录音（WAV）；开发环境或没录到声音时返回 null */
+  takeAudio(): Blob | null {
+    return this.takePcm && this.takePcm.length ? pcmToWav(this.takePcm) : null;
   }
 
   stop(): void {

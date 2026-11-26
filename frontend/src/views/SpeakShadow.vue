@@ -110,6 +110,23 @@
           <n-button type="primary" @click="next">下一句 →</n-button>
         </div>
       </div>
+
+      <div v-if="takes.length" class="takes card">
+        <div class="takes-h">
+          <b>我的录音</b>
+          <span>这句保留最近 3 次 + 最高分</span>
+        </div>
+        <div v-for="t in takes" :key="t.id" class="take">
+          <button
+            type="button" class="tk-play"
+            :title="playingId === t.id ? '停止播放' : '播放我的录音'"
+            @click="togglePlay(t)"
+          >{{ playingId === t.id ? "❚❚" : "▶" }}</button>
+          <b class="tk-score" :class="{ best: t.id === bestId }">{{ t.score }} 分</b>
+          <i v-if="t.id === bestId" class="tk-tag">最高分</i>
+          <span class="tk-time">{{ hhmm(t.at) }}</span>
+        </div>
+      </div>
     </template>
   </main>
 </template>
@@ -125,6 +142,8 @@ import {
   type PlanDayView, type ShadowItem, type SpeakData,
 } from "../core/speak";
 import { SoeEval, soeTips, type SoeResult } from "../core/soe";
+import { addTake, newTakeId, takeStorageKey } from "../core/takes";
+import { useTakeList } from "../core/takeList";
 import { micBlockedReason } from "../core/micSupport";
 import { useSpeakTime } from "../core/speakTime";
 import {
@@ -239,6 +258,12 @@ const item = computed<ShadowItem | null>(() => {
   return orderedItems.value[itemIdx.value % orderedItems.value.length];
 });
 
+// ---- 我的录音：每句保留最近 3 次 + 该句最高分
+const takeKey = computed(() =>
+  takeStorageKey(auth.username, item.value ? `shadow:${item.value.id}` : ""),
+);
+const { takes, playingId, bestId, togglePlay, refresh: refreshTakes } = useTakeList(takeKey);
+
 const soe = ref<SoeEval | null>(null);
 const status = ref("");
 const result = ref<ShadowResult | null>(null);
@@ -309,15 +334,18 @@ function start(): void {
   result.value = null;
   busy.value = false;
   settleSpeech();
+  const it = item.value;
   const ev = new SoeEval({
-    refText: item.value.en,
+    refText: it.en,
     onStatus: (s) => (status.value = s),
     onBusy: (b) => (busy.value = b),
     onResult: (r) => {
       const tips = soeTips(r);
       result.value = { ...r, tips };
       // 只落最高分和那次评分给出的评价（服务端按句去重）
-      void logPractice(item.value!, r, tips);
+      void logPractice(it, r, tips);
+      // 录音同时存本机（每题最近 3 次 + 最高分）
+      void saveTake(it, r, ev.takeAudio());
     },
     onError: (m) => {
       status.value = "出错：" + m;
@@ -389,6 +417,27 @@ function next(): void {
   result.value = null;
   status.value = "点「跟读评分」，允许麦克风后朗读，读完点小绿下面的「提交」";
 }
+
+/** 评分后把本地录音存进 IndexedDB（按账号 + 句子，最近 3 次 + 最高分） */
+async function saveTake(it: ShadowItem, r: SoeResult, blob: Blob | null): Promise<void> {
+  if (!blob || blob.size === 0) return;
+  const promptId = `shadow:${it.id}`;
+  const key = takeStorageKey(auth.username, promptId);
+  const at = Date.now();
+  try {
+    await addTake({
+      id: newTakeId(at),
+      key,
+      promptKey: promptId,
+      at,
+      score: Math.round(r.score),
+      transcript: it.en,
+      mime: blob.type || "audio/wav",
+      blob,
+    });
+    if (key === takeKey.value) await refreshTakes();
+  } catch { /* 存不进（隐私模式/配额）不影响练习 */ }
+}
 async function tts(): Promise<void> {
   const text = item.value?.en ?? "";
   if (!text) return;
@@ -415,6 +464,10 @@ function mmss(s: number): string {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}:${String(r).padStart(2, "0")}`;
+}
+function hhmm(at: number): string {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 </script>
 
@@ -477,4 +530,15 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .tips { color: var(--c-text-2); font-size: var(--fs-sub); margin: 6px 0 0; padding-left: 18px; line-height: 1.7; }
 .whint { margin: 8px 0 0; color: var(--c-text-3); font-size: 12px; }
 .res-actions { margin-top: 12px; display: flex; gap: 8px; }
+.takes { margin-top: 12px; padding: 16px; }
+.takes-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.takes-h b { color: var(--c-text); font-size: 14px; }
+.takes-h span { color: var(--c-text-2); font-size: 12px; }
+.take { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 8px 10px; border-radius: var(--r-btn); background: var(--c-mint-bg); }
+.tk-play { width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--c-line, #d1d5db); background: var(--c-surface); color: var(--c-primary); font-size: 12px; cursor: pointer; }
+.tk-play:hover { border-color: var(--c-primary); }
+.tk-score { font-size: 13px; color: var(--c-text); font-variant-numeric: tabular-nums; }
+.tk-score.best { color: var(--c-primary); }
+.tk-tag { font-style: normal; font-size: 11px; font-weight: 700; color: var(--c-primary); background: var(--c-primary-soft); border-radius: 999px; padding: 2px 8px; }
+.tk-time { font-size: 12px; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
 </style>

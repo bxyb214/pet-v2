@@ -3,19 +3,18 @@
 from pydantic import BaseModel
 
 
-class BudgetPeriodOut(BaseModel):
+class CreditOut(BaseModel):
     used_milli: int
     budget_milli: int
     ratio: float
     stage: int
-    reset_at: str
 
 
 class AiStatusOut(BaseModel):
     ai_enabled: bool
     speak_enabled: bool
-    daily: BudgetPeriodOut
-    monthly: BudgetPeriodOut
+    unlimited: bool
+    credit: CreditOut
     remaining_milli: int
     max_session_sec: int
     blocked: bool

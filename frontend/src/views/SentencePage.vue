@@ -47,23 +47,15 @@
 
         <div v-if="prompt" class="practice">
           <div class="prompt-big">{{ prompt.prompt_cn }}</div>
-          <div class="hint">点「开始说」，用英文把这句意思说出来；说完点「说完了」。</div>
+          <div class="hint">点「开始说」，用英文把这句意思说出来；说完点小绿下面的「提交」。</div>
 
           <div class="saybar">
-            <template v-if="!conn">
-              <PaidActionButton :status="aiStatus" :disabled="checking" @click="startSpeak">
-                {{ mine ? "🎤 再说一次" : "🎤 开始说" }}
-              </PaidActionButton>
-              <n-button v-if="locked" size="large" secondary @click="play(prompt?.answer ?? '')">
-                听标准答案（浏览器朗读）
-              </n-button>
-            </template>
-            <template v-else>
-              <n-button type="primary" size="large" :loading="listening" @click="finishSpeak">
-                {{ listening ? "AI 正在听…" : "说完了，提交" }}
-              </n-button>
-              <n-button size="large" quaternary @click="stopSpeak">取消</n-button>
-            </template>
+            <PaidActionButton v-if="!conn" :status="aiStatus" :disabled="checking" @click="startSpeak">
+              {{ mine ? "🎤 再说一次" : "🎤 开始说" }}
+            </PaidActionButton>
+            <n-button v-if="!conn && locked" size="large" secondary @click="play(prompt?.answer ?? '')">
+              听标准答案（浏览器朗读）
+            </n-button>
             <span class="status">{{ status }}</span>
           </div>
 
@@ -90,6 +82,26 @@
               <n-button size="tiny" secondary @click="play(fb.improved)">听示范</n-button>
             </div>
           </div>
+
+          <div v-if="takes.length" class="takes">
+            <div class="takes-h">
+              <b>我的录音</b>
+              <span>这道题保留最近 3 次 + 最高分</span>
+            </div>
+            <div v-for="t in takes" :key="t.id" class="take">
+              <button
+                type="button" class="tk-play"
+                :title="playingId === t.id ? '停止播放' : '播放我的录音'"
+                @click="togglePlay(t)"
+              >{{ playingId === t.id ? "❚❚" : "▶" }}</button>
+              <b class="tk-score" :class="{ best: t.id === bestId }">
+                {{ t.score > 0 ? `${t.score} 分` : "未评分" }}
+              </b>
+              <i v-if="t.id === bestId" class="tk-tag">最高分</i>
+              <span class="tk-time">{{ hhmm(t.at) }}</span>
+              <span class="tk-text">{{ t.transcript }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -101,12 +113,15 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { NButton, NSelect, NTag } from "naive-ui";
 import { api, apiBeacon } from "../core/api";
+import { useAuthStore } from "../stores/auth";
 import {
   loadSpeak, parseShadowReply, planDayDone, splitSpeakPlan,
   type DayCheck, type PlanDayView, type Scene, type SpeakData,
 } from "../core/speak";
 import { createSpeakConn, type SpeakConn } from "../core/speakRTC";
 import { useSpeakTime } from "../core/speakTime";
+import { addTake, newTakeId, takeStorageKey } from "../core/takes";
+import { useTakeList } from "../core/takeList";
 import {
   budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
 } from "../core/aiStatus";
@@ -151,6 +166,16 @@ const scenes = computed<Scene[]>(() => data.value?.scenes ?? []);
 const scene = computed(() => scenes.value.find((s) => s.id === sceneId.value) ?? null);
 const prompts = computed(() => scene.value?.make ?? []);
 const prompt = computed(() => prompts.value[pi.value] ?? null);
+
+// ---- 我的录音：按账号 + 题目存本机 IndexedDB，保留最近 3 次 + 最高分
+const auth = useAuthStore();
+const attemptScore = ref(0);
+let attemptBlob: Promise<Blob | null> | null = null;
+
+const promptKey = computed(() => (prompt.value ? `${sceneId.value}:${prompt.value.id}` : ""));
+const takeKey = computed(() => takeStorageKey(auth.username, promptKey.value));
+const { takes, playingId, bestId, togglePlay, refresh: refreshTakes } = useTakeList(takeKey);
+
 const partFilters = [
   { id: 0, name: "全部" },
   { id: 1, name: "Part 1" },
@@ -225,8 +250,9 @@ function resetAttempt(): void {
   answerShown.value = false;
   fb.value = null;
   status.value = "";
-  if (listening.value) closeConn();
-  else conn.value = null;
+  attemptScore.value = 0;
+  attemptBlob = null;
+  closeConn();
 }
 
 function voiceInstructions(p: { prompt_cn: string }): string {
@@ -252,24 +278,27 @@ async function startSpeak(): Promise<void> {
   heard.value = "";
   fb.value = null;
   answerShown.value = false;
-  // P1-5：同一场景复用连接，只更新提示词，不再重复 SDP 握手
-  if (connLocal && !connLocal.closed) {
-    connLocal.updateInstructions?.(voiceInstructions(prompt.value));
-    conn.value = connLocal;
-    status.value = "可以开始说，说完点「说完了」";
-    return;
-  }
+  attemptScore.value = 0;
+  attemptBlob = null;
   status.value = "连接语音服务…";
   try {
     const c = await createSpeakConn({
       mode: "shadow",
       turnDetection: "manual",
       instructions: voiceInstructions(prompt.value),
+      recordAudio: true,
+      micAction: { label: "提交", tone: "submit", cancelLabel: "取消" },
+      onMicSubmit: submitAttempt,
+      onMicCancel: cancelAttempt,
+      readyText: "可以开始说，说完点小绿下面的「提交」",
       onStatus: (s) => { status.value = s; },
       onUserTranscript: (t) => { if (t) heard.value = t; },
       onReply: (t) => {
         const r = parseShadowReply(t);
-        if (r?.transcript) heard.value = r.transcript;
+        if (r) {
+          if (r.transcript) heard.value = r.transcript;
+          attemptScore.value = r.score;
+        }
         if (!finished) void finishWithTranscript();
       },
       onError: (msg) => {
@@ -285,11 +314,35 @@ async function startSpeak(): Promise<void> {
   }
 }
 
+/** 数字人「提交」：没开口时提醒继续读，有声音才结束录音去评分 */
+function submitAttempt(): void {
+  const c = connLocal;
+  if (!c || listening.value || finished) return;
+  if (c.speechSec() <= 0) {
+    status.value = "还没听到声音，对着麦克风说一遍再点「提交」";
+    return;
+  }
+  finishSpeak();
+}
+
+/** 数字人「取消」：放弃这次录音，不评分 */
+function cancelAttempt(): void {
+  closeConn();
+  heard.value = "";
+  fb.value = null;
+  answerShown.value = false;
+  status.value = "已取消本次造句，点「开始说」重新开始";
+}
+
 function finishSpeak(): void {
-  if (!connLocal) return;
+  const c = connLocal;
+  if (!c || listening.value) return;
   listening.value = true;
   status.value = "AI 正在听…";
-  connLocal.commitAndRespond();
+  attemptBlob = c.stopRecording?.() ?? Promise.resolve(null);
+  c.commitAndRespond();
+  // 只摘掉数字人；麦克风保持到 AI 回复到达，提前断开会丢掉已提交的音频
+  c.detachMic?.();
   window.setTimeout(() => {
     if (!listening.value) return;
     if (heard.value.trim()) {
@@ -303,17 +356,24 @@ function finishSpeak(): void {
 }
 
 async function finishWithTranscript(): Promise<void> {
+  if (finished) return;
   finished = true;
   listening.value = false;
+  const key = takeKey.value;
+  const promptId = promptKey.value;
+  const score = Math.round(attemptScore.value);
   const said = heard.value.trim();
-  conn.value = null; // 释放界面按钮，但保留 connLocal 供下一句复用
+  conn.value = null;
   if (!said) {
     status.value = "没有听清，请再说一次。";
+    closeConn();
     return;
   }
   mine.value = said;
   status.value = "已转写，正在请 AI 点评…";
   await check();
+  void saveTake(key, promptId, score, said);
+  closeConn();
 }
 
 function stopSpeak(): void {
@@ -413,6 +473,35 @@ function mmss(s: number): string {
   const r = s % 60;
   return `${m}:${String(r).padStart(2, "0")}`;
 }
+
+// ---------------------------------------------------------------- 我的录音
+
+/** 评完分落库：题目 + 时间 + 分数 + 转写 + 录音 Blob（key/promptId 在提交时捕获，避免中途切题写错） */
+async function saveTake(key: string, promptId: string, score: number, transcript: string): Promise<void> {
+  const blobPromise = attemptBlob;
+  if (!key || !promptId || !transcript || !blobPromise) return;
+  const blob = await blobPromise;
+  if (!blob || blob.size === 0) return;
+  const at = Date.now();
+  try {
+    await addTake({
+      id: newTakeId(at),
+      key,
+      promptKey: promptId,
+      at,
+      score,
+      transcript,
+      mime: blob.type || "audio/webm",
+      blob,
+    });
+    if (key === takeKey.value) await refreshTakes();
+  } catch { /* 存不进（隐私模式/配额）不影响练习 */ }
+}
+
+function hhmm(at: number): string {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 </script>
 
 <style scoped>
@@ -466,4 +555,16 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .fb-comment { color: var(--c-text); font-size: var(--fs-sub); line-height: 1.6; }
 .fb-better { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .better { font-weight: 700; color: var(--c-text); }
+.takes { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--c-line, #e5e7eb); }
+.takes-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.takes-h b { color: var(--c-text); font-size: 14px; }
+.takes-h span { color: var(--c-text-2); font-size: 12px; }
+.take { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 8px 10px; border-radius: var(--r-btn); background: var(--c-mint-bg); }
+.tk-play { width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--c-line, #d1d5db); background: var(--c-surface); color: var(--c-primary); font-size: 12px; cursor: pointer; }
+.tk-play:hover { border-color: var(--c-primary); }
+.tk-score { font-size: 13px; color: var(--c-text); font-variant-numeric: tabular-nums; }
+.tk-score.best { color: var(--c-primary); }
+.tk-tag { font-style: normal; font-size: 11px; font-weight: 700; color: var(--c-primary); background: var(--c-primary-soft); border-radius: 999px; padding: 2px 8px; }
+.tk-time { font-size: 12px; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+.tk-text { flex: 1; min-width: 160px; font-size: var(--fs-sub); color: var(--c-text); }
 </style>
