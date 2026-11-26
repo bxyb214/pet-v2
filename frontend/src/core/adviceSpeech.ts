@@ -32,10 +32,6 @@ function setBusy(on: boolean): void {
   }
 }
 
-function finishIf(my: number): void {
-  if (my === seq) setBusy(false);
-}
-
 function supported(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
@@ -93,17 +89,28 @@ export function stopAdvice(): void {
 }
 
 /**
- * 读一遍改进建议：本地中文 TTS → 浏览器 zh-CN。
+ * 读一遍改进建议：本地中文 TTS → 浏览器 zh-CN 兜底。
+ * `fallback: false` 时只用本地 TTS（造句页 AI 反馈要求，失败就不出声）。
+ * `onDone` 在正常读完时回调；被停止/被新朗读取代时不回调。
  * 每次评分调用一次；再次调用会取消上一段。
  */
-export async function readAdvice(tips: string[]): Promise<void> {
+export async function readAdvice(
+  tips: string[],
+  opts: { fallback?: boolean; onDone?: () => void } = {},
+): Promise<void> {
   const text = adviceText(tips);
   if (!text) return;
+  const fallback = opts.fallback !== false;
   const my = ++seq;
   setBusy(true);
   stopSpeaking();
   unlockAudio();
   const done = beginAudioPending(text);
+  const end = (): void => {
+    if (my !== seq) return;
+    setBusy(false);
+    opts.onDone?.();
+  };
   try {
     try {
       const cfg = await loadTtsConfig();
@@ -114,13 +121,17 @@ export async function readAdvice(tips: string[]): Promise<void> {
           body: JSON.stringify({ text }),
         });
         if (my !== seq) return;
-        if (await playAudioUrl(out.url, "", () => finishIf(my))) return;
+        if (await playAudioUrl(out.url, "", end)) return;
       }
     } catch {
-      /* 本地未启用/失败：用浏览器中文兜底 */
+      /* 本地未启用/失败：按需走浏览器中文兜底 */
     }
     if (my !== seq) return;
-    browserSayZh(text, () => finishIf(my));
+    if (!fallback) {
+      end();
+      return;
+    }
+    browserSayZh(text, end);
   } finally {
     done();
   }

@@ -6,7 +6,7 @@
       <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天 · {{ sourceRangeText(planDay) }}</span>
     </h1>
     <p class="sub">
-      看中文，用英文说出来。按住「标准答案」可以边看边听，AI 会告诉你怎么说得更好。
+      看中文，用英文说出来。按住「参考答案」可以边看边听，AI 会给出建议和一句更好的示范句，跟读示范句还能评分存档。
       <template v-if="hasPlan">今天目标 10 分钟。</template>
     </p>
 
@@ -75,7 +75,7 @@
                 <button
                   type="button" class="peek-btn" :class="{ on: answerPeek }"
                   :disabled="!prompt || recording"
-                  title="按住显示标准答案并朗读，松手停止"
+                  title="按住显示参考答案并朗读，松手停止"
                   @pointerdown.prevent="startPeek"
                   @pointerup="endPeek"
                   @pointercancel="endPeek"
@@ -86,55 +86,44 @@
                   @keyup.enter.prevent="endPeek"
                   @blur="endPeek"
                   @contextmenu.prevent
-                >标准答案</button>
+                >参考答案</button>
               </template>
               <div class="peek">
-                <b>标准答案</b>
+                <b>参考答案</b>
                 <span class="ans">{{ prompt?.answer }}</span>
                 <i>松手收起并停止朗读</i>
               </div>
             </n-popover>
           </div>
 
-          <!-- 我的这次录音：回放 + 跟读标准答案评分（与跟读页一致，评分后存档） -->
-          <div v-if="attemptUrl" class="myrec">
-            <div class="myrec-row">
-              <button
-                type="button" class="tk-play"
-                :title="playingMine ? '停止播放' : '听我说的'"
-                @click="toggleMinePlay"
-              >{{ playingMine ? "❚❚" : "▶" }}</button>
-              <b class="myrec-label">听我说的</b>
-              <span class="myrec-hint">本次录音 · 评分时重读标准答案</span>
-            </div>
-            <SpeakEvalBlock
-              v-if="prompt"
-              :ref-text="prompt.answer"
-              :ai-status="aiStatus"
-              @starting="silencePlayback"
-              @scored="onAnswerScored"
-            />
-          </div>
-
-          <!-- AI 点评：文字意见 + 优化句跟读（评分统一在标准答案旁） -->
+          <!-- AI 点评：中文建议 + PET 优秀示范句；只对示范句提供跟读评分与存档 -->
           <div v-if="fb" class="fb" :class="{ good: fb.ok }">
             <div class="fb-head">
               <div class="fb-title">{{ fb.ok ? "意思说到了！" : "再改一点就更好了" }}</div>
-              <n-button size="tiny" secondary @click="toggleAdvice">
+              <n-button v-if="ttsReady" size="tiny" secondary @click="toggleAdvice">
                 {{ adviceBusy ? "❚❚ 停止朗读" : "🔊 朗读建议" }}
               </n-button>
             </div>
             <div v-if="mine" class="heard">AI 听到的是：{{ mine }}</div>
             <div class="fb-comment">{{ fb.comment }}</div>
-            <SpeakImproveCard
-              v-if="fb.improved && !fb.ok"
-              :child-said="mine"
-              :improved-en="fb.improved"
-              :improved-cn="''"
-              show-child
-              compact
-              :eval="false"
-            />
+            <div v-if="fb.improved" class="model">
+              <div class="model-label">AI 示范句 <span>PET 优秀水平以上</span></div>
+              <SpeakImproveCard
+                :child-said="mine"
+                :improved-en="fb.improved"
+                :improved-cn="''"
+                compact
+                local-only
+                :eval="false"
+              />
+              <SpeakEvalBlock
+                :ref-text="fb.improved"
+                :ai-status="aiStatus"
+                local-advice
+                @starting="silencePlayback"
+                @scored="onModelScored"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -142,7 +131,7 @@
       <section v-if="myTakes.length" class="card takes-panel">
         <div class="takes-h">
           <b>我的本地录音</b>
-          <span>保存在这台设备 · 共 {{ myTakes.length }} 条 · 换设备不同步</span>
+          <span>保存在这台设备 · 共 {{ myTakes.length }} 条 · 跟读 AI 示范句后存档 · 换设备不同步</span>
         </div>
         <div class="take-list">
           <div v-for="t in myTakes" :key="t.id" class="take">
@@ -185,6 +174,7 @@ import {
 import { say, stopAudioUrl, stopSpeaking } from "../core/say";
 import { adviceBusy, readAdvice, stopAdvice } from "../core/adviceSpeech";
 import { loadTtsConfig } from "../core/ttsConfig";
+import { playLocalTts } from "../core/tts";
 import { devMode } from "../core/devMode";
 import BackButton from "../components/BackButton.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
@@ -229,12 +219,10 @@ const scene = computed(() => scenes.value.find((s) => s.id === sceneId.value) ??
 const prompts = computed(() => scene.value?.make ?? []);
 const prompt = computed(() => prompts.value[pi.value] ?? null);
 
-// ---- 我的录音：本次尝试只在页面内存保留（不评分不落库，刷新/切题即删）；
-// 在标准答案旁点「跟读评分」后才进 IndexedDB 存档（最近 3 次 + 最高分）
+// ---- 我的录音：只有跟读 AI 示范句并评分后才进 IndexedDB 存档
+// （最近 3 次 + 最高分）
 const auth = useAuthStore();
-const attemptUrl = ref("");
-const playingMine = ref(false);
-let mineAudio: HTMLAudioElement | null = null;
+const ttsReady = ref(false);
 
 const promptKey = computed(() => (prompt.value ? `${sceneId.value}:${prompt.value.id}` : ""));
 const takeKey = computed(() => takeStorageKey(auth.username, promptKey.value));
@@ -254,26 +242,15 @@ const bestTakeIds = computed(() => {
   return new Set([...best.values()].map((t) => t.id));
 });
 
-/** 单实例回放：再点一次停止，切题/重录/离开页面时立即停，避免叠音 */
-function stopMinePlay(): void {
-  const el = mineAudio;
-  mineAudio = null;
-  playingMine.value = false;
-  if (el) {
-    try { el.pause(); } catch { /* noop */ }
-    el.src = "";
-  }
-}
 /** 开始录音/评分或播放另一段声音前：先停掉所有回放，避免麦克风收到叠音 */
 function silencePlayback(): void {
-  stopMinePlay();
   stopTakePlay();
   stopAdvice();
   stopAudioUrl();
   stopSpeaking();
 }
 
-/** 播放一条本地录音：先停掉标准答案/建议/本次录音，避免叠音。 */
+/** 播放一条本地录音：先停掉参考答案/建议，避免叠音。 */
 function playTake(t: TakeView): void {
   if (playingId.value === t.id) {
     togglePlay(t);
@@ -283,7 +260,7 @@ function playTake(t: TakeView): void {
   togglePlay(t);
 }
 
-// ---- 标准答案：按住显示 + 朗读，松手收起并停止
+// ---- 参考答案：按住显示 + 朗读，松手收起并停止
 function startPeek(e: Event): void {
   const p = prompt.value;
   if (!p || recording.value) return;
@@ -312,29 +289,6 @@ function closePeek(): void {
   holdPointer = null;
   if (wasOpen) stopSpeaking();
 }
-function toggleMinePlay(): void {
-  if (!attemptUrl.value) return;
-  if (playingMine.value) {
-    stopMinePlay();
-    return;
-  }
-  silencePlayback();
-  const el = new Audio(attemptUrl.value);
-  mineAudio = el;
-  el.onended = () => { if (mineAudio === el) stopMinePlay(); };
-  el.onerror = () => { if (mineAudio === el) stopMinePlay(); };
-  void el.play()
-    .then(() => { if (mineAudio === el) playingMine.value = true; })
-    .catch(() => { if (mineAudio === el) stopMinePlay(); });
-}
-
-function dropAttempt(): void {
-  stopMinePlay();
-  if (attemptUrl.value) {
-    try { URL.revokeObjectURL(attemptUrl.value); } catch { /* noop */ }
-  }
-  attemptUrl.value = "";
-}
 
 const partFilters = [
   { id: 0, name: "全部" },
@@ -353,7 +307,8 @@ onMounted(async () => {
   data.value = await loadSpeak();
   loading.value = false;
   aiStatus.value = await loadAiStatus();
-  void loadTtsConfig(); // 预热本地发音配置，首次按住标准答案即可本地朗读
+  // 预热本地发音配置：参考答案与 AI 反馈都只用本地 TTS，按钮按配置显隐
+  ttsReady.value = (await loadTtsConfig()).enabled;
   try {
     const [p, d] = await Promise.all([
       api<{ length: number }>("/speak/plan"),
@@ -381,7 +336,7 @@ onBeforeUnmount(() => {
   window.removeEventListener("pagehide", onPageHide);
   if (timer) clearInterval(timer);
   stopSpeak();
-  stopMinePlay();
+  stopTakePlay();
   stopAdvice();
   closePeek();
 });
@@ -409,7 +364,6 @@ function resetAttempt(): void {
   finished = false;
   closePeek();
   stopAdvice();
-  dropAttempt();
   rec?.close();
   rec = null;
 }
@@ -425,7 +379,6 @@ async function startSpeak(): Promise<void> {
   finished = false;
   mine.value = "";
   fb.value = null;
-  dropAttempt();
   status.value = "开启麦克风…";
   try {
     rec = await startMakeRecording({
@@ -459,7 +412,6 @@ function submitAttempt(): void {
 
 /** 数字人「取消」：放弃这次录音，不评分 */
 function cancelAttempt(): void {
-  dropAttempt();
   rec?.close();
   rec = null;
   recording.value = false;
@@ -467,7 +419,7 @@ function cancelAttempt(): void {
   status.value = "已取消本次造句，点「开始说」重新开始";
 }
 
-/** 提交：结束录音 → 上传 ASR 转写 → 文字点评。录音 Blob 只留页面内存。 */
+/** 提交：结束录音 → 上传 ASR 转写 → 文字点评。录音 Blob 用完即弃（只有跟读示范句才存档）。 */
 async function finishSpeak(): Promise<void> {
   const r = rec;
   if (!r || listening.value) return;
@@ -477,10 +429,6 @@ async function finishSpeak(): Promise<void> {
     const blob = await r.stop();
     rec = null;
     recording.value = false;
-    if (blob && blob.size > 0) {
-      dropAttempt();
-      attemptUrl.value = URL.createObjectURL(blob);
-    }
     const said = await transcribe(blob);
     if (!said.trim()) {
       listening.value = false;
@@ -521,8 +469,6 @@ async function transcribe(blob: Blob | null): Promise<string> {
   return String(body?.text ?? "");
 }
 
-/** 「听我说的」已改为单实例回放，见 stopMinePlay / toggleMinePlay */
-
 function stopSpeak(): void {
   rec?.close();
   rec = null;
@@ -535,7 +481,7 @@ function onPageHide(): void {
   rec?.close();
   rec = null;
   recording.value = false;
-  stopMinePlay();
+  stopTakePlay();
 }
 
 async function check(): Promise<void> {
@@ -559,19 +505,19 @@ async function check(): Promise<void> {
     });
     fb.value = res;
     status.value = "";
-    // 建议出来后自动读一遍；按钮可随时停止/重读
-    void readAdvice([res.comment]);
+    // 建议和示范句都用本地 TTS 读（不回落浏览器）；按钮可随时停止/重读
+    readFeedback(res);
   } catch (e) {
     fb.value = { ok: false, comment: "AI 暂时不可用：" + (e as Error).message, improved: "" };
   }
   checking.value = false;
 }
 
-/** 跟读标准答案评分后：这次录音 + 分数进「我的录音」（最近 3 次 + 最高分） */
-function onAnswerScored(v: { score: number; blob: Blob | null }): void {
+/** 跟读 AI 示范句评分后：这次录音 + 分数进「我的录音」（最近 3 次 + 最高分） */
+function onModelScored(v: { score: number; blob: Blob | null }): void {
   const key = takeKey.value;
   const promptId = promptKey.value;
-  const transcript = prompt.value?.answer ?? "";
+  const transcript = fb.value?.improved ?? "";
   if (!key || !promptId || !transcript || !v.blob || v.blob.size === 0) return;
   void saveTake(key, promptId, Math.round(v.score), transcript, v.blob);
 }
@@ -590,15 +536,26 @@ async function logMake(): Promise<void> {
   }
 }
 
-/** 手动停止/重读当前 AI 建议 */
+/** 本地中文读建议 → 读完再本地读 AI 示范句；全程不回落浏览器 */
+function readFeedback(res: { comment: string; improved: string }): void {
+  void readAdvice([res.comment], {
+    fallback: false,
+    onDone: () => {
+      if (fb.value === res && res.improved) void playLocalTts(res.improved);
+    },
+  });
+}
+
+/** 手动停止/重读当前 AI 建议（含示范句） */
 function toggleAdvice(): void {
-  const text = fb.value?.comment?.trim();
-  if (!text) return;
+  const cur = fb.value;
+  const text = cur?.comment?.trim();
+  if (!cur || !text) return;
   if (adviceBusy.value) {
     stopAdvice();
     return;
   }
-  void readAdvice([text]);
+  readFeedback(cur);
 }
 
 function mmss(s: number): string {  const m = Math.floor(s / 60);
@@ -608,7 +565,7 @@ function mmss(s: number): string {  const m = Math.floor(s / 60);
 
 // ---- 我的录音（评分后落库）
 
-/** 跟读评分后落库：题目 + 时间 + 分数 + 标准答案 + 录音 WAV（key/promptId 即时捕获，避免中途切题写错） */
+/** 跟读评分后落库：题目 + 时间 + 分数 + AI 示范句 + 录音 WAV（key/promptId 即时捕获，避免中途切题写错） */
 async function saveTake(
   key: string,
   promptId: string,
@@ -720,17 +677,16 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .peek b { font-size: 12px; color: var(--c-text-2); }
 .peek .ans { font-weight: 700; color: var(--c-text); line-height: 1.5; }
 .peek i { font-style: normal; font-size: 11.5px; color: var(--c-text-3); }
-.myrec { margin-top: 10px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--c-mint-bg); }
-.myrec-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.myrec-label { color: var(--c-text); font-size: 14px; }
-.myrec-hint { color: var(--c-text-2); font-size: 12px; }
 .fb { margin-top: 14px; padding: 12px; border-radius: var(--r-btn); background: #fef3c7; }
 .fb.good { background: var(--c-primary-soft); }
 .fb-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
 .fb-title { flex: 1 1 auto; font-weight: 800; color: var(--c-text); }
 .heard { color: var(--c-text-2); font-size: var(--fs-sub); margin-bottom: 6px; }
 .fb-comment { color: var(--c-text); font-size: var(--fs-sub); line-height: 1.6; }
-.fb .imp-card { max-width: 100%; margin-top: 8px; background: #fff; }
+.model { margin-top: 10px; }
+.model-label { font-size: 12.5px; font-weight: 700; color: var(--c-text); margin-bottom: 6px; }
+.model-label span { margin-left: 6px; font-weight: 600; color: var(--c-primary-strong); }
+.fb .imp-card { max-width: 100%; margin-top: 0; background: #fff; }
 .takes-panel { margin-top: 16px; padding: 16px; }
 .takes-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .takes-h b { color: var(--c-text); font-size: 14px; }

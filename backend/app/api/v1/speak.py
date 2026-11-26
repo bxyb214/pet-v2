@@ -522,7 +522,7 @@ class CheckIn(BaseModel):
 
 @router.post("/check")
 def check(body: CheckIn, user: User = Depends(require_paid_ai), db: Session = Depends(get_db)) -> dict:
-    """造句判定：孩子按中文提示说英文，LLM 判意 + 给 PET 级优化。"""
+    """造句判定：判意 + 中文点评，并给一句 PET 优秀水平的完整示范句。"""
     from app.services import ai_enrich
 
     if dev_mock.is_dev():
@@ -533,14 +533,20 @@ def check(body: CheckIn, user: User = Depends(require_paid_ai), db: Session = De
         + (f'The Chinese idea to express is: "{body.prompt_cn[:200]}". ' if body.prompt_cn else "")
         + f'The reference English answer is: "{body.pattern[:200]}". '
         + f'The student said: "{body.sentence[:200]}". '
-        + "First decide whether the student expressed the same idea, then comment on grammar and word choice. "
+        + "First decide whether the student expressed the same idea, "
+        + "then comment on grammar and word choice. "
+        + "Also write ONE complete model sentence in English: keep the student's idea, "
+        + "use the reference answer as a guide, and make it natural, accurate and "
+        + "clearly above a plain B1 answer — Cambridge PET Merit (优秀) level or above. "
+        + "Do not simply copy the reference answer, "
+        + "and do not return the student's sentence unchanged. "
         + 'Reply with ONE compact JSON object: {"ok": true/false, '
         + '"comment": "中文点评（一两句，先说意思有没有说到，再说哪里要改）", '
-        + '"improved": "PET B1 水平的优化句（保留学生原意；若已经很好则原样返回）"}. JSON only.'
+        + '"improved": "完整英文示范句（只有一句，PET 优秀水平以上）"}. JSON only.'
     )
     try:
         data, llm_usage = ai_enrich.chat(
-            db, [{"role": "user", "content": prompt}], max_tokens=220, temperature=0.2
+            db, [{"role": "user", "content": prompt}], max_tokens=280, temperature=0.3
         )
         usage.record_llm(db, user.id, llm_usage)
     except LookupError as e:
@@ -550,7 +556,7 @@ def check(body: CheckIn, user: User = Depends(require_paid_ai), db: Session = De
     return {
         "ok": bool(data.get("ok", False)),
         "comment": str(data.get("comment", "")),
-        "improved": str(data.get("improved", "")),
+        "improved": str(data.get("improved", "")).strip(),
     }
 
 

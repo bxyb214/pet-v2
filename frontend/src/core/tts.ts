@@ -15,30 +15,38 @@ type TtsOut = {
 export type DemoEngine = "qwen" | "local" | "browser";
 
 /**
+ * 只走本地 TTS（不回落浏览器）；返回是否已开始播放。
+ * 造句页 AI 示范句按需求只用本地发音，失败就保持安静。
+ */
+export async function playLocalTts(text: string): Promise<boolean> {
+  const clean = englishOnly(text);
+  if (!clean) return false;
+  stopSpeaking();
+  unlockAudio();
+  const cfg = await loadTtsConfig();
+  if (!cfg.enabled || clean.length > cfg.max_chars) return false;
+  const done = beginAudioPending(clean);
+  try {
+    const out = await api<TtsOut>("/speak/tts/local", {
+      method: "POST",
+      body: JSON.stringify({ text: clean }),
+    });
+    return await playAudioUrl(out.url, "");
+  } catch {
+    return false;
+  } finally {
+    done();
+  }
+}
+
+/**
  * 先停掉当前朗读，再按「本地 POST 合成 → 浏览器」顺序播放。
  * 本地未启用、超长或失败时都回退浏览器，不再产生云端 TTS 费用。
  */
 export async function playTts(text: string): Promise<"local" | "browser"> {
   const clean = englishOnly(text);
   if (!clean) return "browser";
-  stopSpeaking();
-  unlockAudio();
-
-  const cfg = await loadTtsConfig();
-  if (cfg.enabled && clean.length <= cfg.max_chars) {
-    const done = beginAudioPending(clean);
-    try {
-      const out = await api<TtsOut>("/speak/tts/local", {
-        method: "POST",
-        body: JSON.stringify({ text: clean }),
-      });
-      if (await playAudioUrl(out.url, "")) return "local";
-    } catch {
-      /* 继续走浏览器兜底 */
-    } finally {
-      done();
-    }
-  }
+  if (await playLocalTts(clean)) return "local";
   say(clean);
   return "browser";
 }

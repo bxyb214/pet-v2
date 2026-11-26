@@ -47,11 +47,13 @@ import { adviceText, readAdvice, stopAdvice } from "../core/adviceSpeech";
 import { type AiStatus } from "../core/aiStatus";
 import PaidActionButton from "./PaidActionButton.vue";
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   /** 要跟读/评分的参考文本 */
   refText: string;
   aiStatus: AiStatus | null | undefined;
-}>();
+  /** 建议朗读只用本地 TTS，不回落浏览器（造句页 AI 示范句） */
+  localAdvice?: boolean;
+}>(), { localAdvice: false });
 const emit = defineEmits<{
   (e: "scored", v: { score: number; blob: Blob | null }): void;
   (e: "starting"): void;
@@ -63,7 +65,7 @@ const result = ref<(SoeResult & { tips: string[] }) | null>(null);
 let soe: SoeEval | null = null;
 
 const idleHint = computed(() =>
-  "点「跟读评分」，允许麦克风后朗读标准答案，读完点小绿下面的「提交」",
+  "点「跟读评分」，允许麦克风后朗读这句，读完点小绿下面的「提交」",
 );
 
 const metrics = computed(() => {
@@ -84,7 +86,7 @@ function sayWord(w: string): void {
 }
 
 function replayTips(): void {
-  void readAdvice(tips.value);
+  void readAdvice(tips.value, { fallback: !props.localAdvice });
 }
 
 function reset(): void {
@@ -118,7 +120,7 @@ function start(): void {
     onResult: (r) => {
       const t = soeTips(r);
       result.value = { ...r, tips: t };
-      void readAdvice(t);
+      void readAdvice(t, { fallback: !props.localAdvice });
       emit("scored", { score: r.score, blob: ev.takeAudio() });
     },
     onError: (m) => (status.value = "出错：" + m),

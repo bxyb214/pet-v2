@@ -42,7 +42,7 @@ import { NButton, NTag } from "naive-ui";
 import { dimLabel, gradePlan, MIN, PASS, type GradePlan } from "../core/review";
 import { SoeEval, type SoeResult } from "../core/soe";
 import { audioPending } from "../core/say";
-import { playTts } from "../core/tts";
+import { playLocalTts, playTts } from "../core/tts";
 import { stopAdvice } from "../core/adviceSpeech";
 
 const props = withDefaults(defineProps<{
@@ -52,9 +52,11 @@ const props = withDefaults(defineProps<{
   dims?: string[];
   showChild?: boolean;
   compact?: boolean;
-  /** 是否在卡片内提供「跟读这句」评分；造句页改由标准答案旁的评分块统一处理 */
+  /** 是否在卡片内提供「跟读这句」评分；造句页改在 AI 示范句下方统一评分 */
   eval?: boolean;
-}>(), { improvedCn: "", dims: () => [], showChild: false, compact: false, eval: true });
+  /** 只用本地 TTS 听示范，不回落浏览器（造句页 AI 反馈） */
+  localOnly?: boolean;
+}>(), { improvedCn: "", dims: () => [], showChild: false, compact: false, eval: true, localOnly: false });
 
 const emit = defineEmits<{ (e: "scored", v: { score: number; dimsOk: string[] }): void }>();
 
@@ -68,6 +70,11 @@ onBeforeUnmount(() => soe?.stop());
 
 async function playDemo(): Promise<void> {
   stopAdvice();
+  if (props.localOnly) {
+    const ok = await playLocalTts(props.improvedEn);
+    if (!ok) status.value = "本地发音暂不可用，请稍后再试";
+    return;
+  }
   await playTts(props.improvedEn);
 }
 

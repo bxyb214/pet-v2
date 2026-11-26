@@ -133,6 +133,56 @@ describe("readAdvice", () => {
     expect(spoken[0].lang).toBe("zh-CN");
   });
 
+  it("fallback:false 时本地失败也不碰浏览器朗读", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: true });
+    installAudio();
+    const { spoken } = installSpeech();
+    mockedApi.mockRejectedValueOnce(new Error("503"));
+
+    await readAdvice(TIPS, { fallback: false });
+
+    expect(spoken).toHaveLength(0);
+    expect(adviceBusy.value).toBe(false); // 不能一直停在「停止朗读」
+  });
+
+  it("fallback:false 时本地未启用直接不发声", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: false });
+    const { spoken } = installSpeech();
+
+    await readAdvice(TIPS, { fallback: false });
+
+    expect(mockedApi).not.toHaveBeenCalled();
+    expect(spoken).toHaveLength(0);
+    expect(adviceBusy.value).toBe(false);
+  });
+
+  it("读完回调 onDone，手动停止则不回调", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: false });
+    const { spoken } = installSpeech();
+    let done = 0;
+
+    await readAdvice(TIPS, { onDone: () => { done += 1; } });
+    expect(done).toBe(0); // 浏览器朗读尚未结束
+    (spoken[0] as FakeUtterance & { onend?: () => void }).onend?.();
+    expect(done).toBe(1);
+
+    let cancelled = 0;
+    await readAdvice(TIPS, { onDone: () => { cancelled += 1; } });
+    stopAdvice();
+    (spoken[1] as FakeUtterance & { onerror?: () => void }).onerror?.();
+    expect(cancelled).toBe(0);
+  });
+
+  it("本地未启用且 fallback:false 时立即结束并回调 onDone", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: false });
+    let done = 0;
+
+    await readAdvice(TIPS, { fallback: false, onDone: () => { done += 1; } });
+
+    expect(done).toBe(1);
+    expect(adviceBusy.value).toBe(false);
+  });
+
   it("没有建议时不发声也不请求", async () => {
     setTtsConfig({ ...TTS_OFF, enabled: true });
     const { spoken } = installSpeech();

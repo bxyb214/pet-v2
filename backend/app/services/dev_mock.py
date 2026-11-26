@@ -52,6 +52,7 @@ def improve(text: str) -> dict:
 
 
 def check(sentence_text: str) -> dict:
+    """造例句判定：`improved` 始终是完整示范句（真实环境要求 PET 优秀水平以上）。"""
     return {
         "ok": True,
         "comment": "开发环境模拟判定：句子结构完整，表达清楚。",

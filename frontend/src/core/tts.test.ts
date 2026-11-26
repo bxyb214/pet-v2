@@ -4,7 +4,7 @@ vi.mock("./api", () => ({ api: vi.fn() }));
 
 import { api } from "./api";
 import { audioPending } from "./say";
-import { playShadowDemo, playTts } from "./tts";
+import { playLocalTts, playShadowDemo, playTts } from "./tts";
 import { setTtsConfig, TTS_OFF } from "./ttsConfig";
 
 const mockedApi = vi.mocked(api);
@@ -121,6 +121,31 @@ describe("playTts", () => {
     resolveApi({ url: "/api/v1/speak/tts/file/abc.wav" });
     await pending;
     expect(audioPending("hello")).toBe(false);
+  });
+});
+
+describe("playLocalTts", () => {
+  it("本地启用时播放并返回 true", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: true });
+    const urls = installAudio();
+    mockedApi.mockResolvedValueOnce({ url: "/api/v1/speak/tts/file/abc.wav" } as never);
+
+    expect(await playLocalTts("hello")).toBe(true);
+    expect(urls).toEqual(["/api/v1/speak/tts/file/abc.wav"]);
+  });
+
+  it("本地未启用或失败时不回落浏览器，只返回 false", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: false });
+    const spoken = installSpeech();
+
+    expect(await playLocalTts("hello")).toBe(false);
+    expect(spoken).toEqual([]);
+    expect(mockedApi).not.toHaveBeenCalled();
+
+    setTtsConfig({ ...TTS_OFF, enabled: true });
+    mockedApi.mockRejectedValueOnce(new Error("503"));
+    expect(await playLocalTts("hello")).toBe(false);
+    expect(spoken).toEqual([]);
   });
 });
 
