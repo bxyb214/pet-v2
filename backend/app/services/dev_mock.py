@@ -59,6 +59,11 @@ def check(sentence_text: str) -> dict:
     }
 
 
+def transcribe() -> str:
+    """造句页录音转写（开发环境固定返回，配合 check 模拟形成闭环）。"""
+    return "I like playing football."
+
+
 def help_payload(scene_title: str = "") -> dict:
     topic = f"「{scene_title}」" if scene_title else "这个话题"
     return {

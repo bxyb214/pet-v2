@@ -50,17 +50,17 @@
           <div class="hint">点「开始说」，用英文把这句意思说出来；说完点小绿下面的「提交」。</div>
 
           <div class="saybar">
-            <PaidActionButton v-if="!conn" :status="aiStatus" :disabled="checking" @click="startSpeak">
+            <PaidActionButton v-if="!rec" :status="aiStatus" :disabled="checking" @click="startSpeak">
               {{ mine ? "🎤 再说一次" : "🎤 开始说" }}
             </PaidActionButton>
-            <n-button v-if="!conn && locked" size="large" secondary @click="play(prompt?.answer ?? '')">
+            <n-button v-if="locked" size="large" secondary @click="play(prompt?.answer ?? '')">
               听标准答案（浏览器朗读）
             </n-button>
             <span class="status">{{ status }}</span>
           </div>
 
           <div class="actions">
-            <n-button v-if="heard" secondary @click="play(heard)">听我说的</n-button>
+            <n-button v-if="attemptUrl" secondary @click="playMine">听我说的</n-button>
             <n-button quaternary @click="answerShown = !answerShown">
               {{ answerShown ? "收起标准答案" : "看标准答案" }}
             </n-button>
@@ -72,21 +72,26 @@
             <n-button size="tiny" secondary @click="play(prompt.answer)">听示范</n-button>
           </div>
 
+          <!-- AI 点评：文字意见 + 优化句跟读（听示范 / 手动点按钮才评分） -->
           <div v-if="fb" class="fb" :class="{ good: fb.ok }">
             <div class="fb-title">{{ fb.ok ? "意思说到了！" : "再改一点就更好了" }}</div>
-            <div v-if="heard" class="heard">AI 听到的是：{{ heard }}</div>
+            <div v-if="mine" class="heard">AI 听到的是：{{ mine }}</div>
             <div class="fb-comment">{{ fb.comment }}</div>
-            <div v-if="fb.improved" class="fb-better">
-              <n-tag size="small" type="success" :bordered="false">更好的说法</n-tag>
-              <span class="better">{{ fb.improved }}</span>
-              <n-button size="tiny" secondary @click="play(fb.improved)">听示范</n-button>
-            </div>
+            <SpeakImproveCard
+              v-if="fb.improved && !fb.ok"
+              :child-said="mine"
+              :improved-en="fb.improved"
+              :improved-cn="''"
+              show-child
+              compact
+              @scored="onScored"
+            />
           </div>
 
           <div v-if="takes.length" class="takes">
             <div class="takes-h">
               <b>我的录音</b>
-              <span>这道题保留最近 3 次 + 最高分</span>
+              <span>跟读评分过的保留最近 3 次 + 最高分</span>
             </div>
             <div v-for="t in takes" :key="t.id" class="take">
               <button
@@ -112,13 +117,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { NButton, NSelect, NTag } from "naive-ui";
-import { api, apiBeacon } from "../core/api";
+import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
 import {
-  loadSpeak, parseShadowReply, planDayDone, splitSpeakPlan,
+  loadSpeak, planDayDone, splitSpeakPlan,
   type DayCheck, type PlanDayView, type Scene, type SpeakData,
 } from "../core/speak";
-import { createSpeakConn, type SpeakConn } from "../core/speakRTC";
+import { startMakeRecording, type MakeRec } from "../core/makeRecorder";
 import { useSpeakTime } from "../core/speakTime";
 import { addTake, newTakeId, takeStorageKey } from "../core/takes";
 import { useTakeList } from "../core/takeList";
@@ -126,10 +131,12 @@ import {
   budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
 } from "../core/aiStatus";
 import { say, playAudioUrl } from "../core/say";
+import { devMode } from "../core/devMode";
 import BackButton from "../components/BackButton.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
 import PaidActionButton from "../components/PaidActionButton.vue";
 import PaidAiNotice from "../components/PaidAiNotice.vue";
+import SpeakImproveCard from "../components/SpeakImproveCard.vue";
 
 const route = useRoute();
 const data = ref<SpeakData | null>(null);
@@ -138,18 +145,16 @@ const part = ref(0);
 const sceneId = ref("");
 const pi = ref(0);
 const mine = ref("");
-const heard = ref("");
 const checking = ref(false);
 const answerShown = ref(false);
 const fb = ref<{ ok: boolean; comment: string; improved: string } | null>(null);
 const status = ref("");
 const listening = ref(false);
-const conn = ref<SpeakConn | null>(null);
 const aiStatus = ref<AiStatus | null>(null);
 const banner = computed(() => budgetBanner(aiStatus.value));
 const locked = computed(() => paidBlocked(aiStatus.value));
 const lockText = computed(() => paidLockText(aiStatus.value));
-let connLocal: SpeakConn | null = null;
+let rec: MakeRec | null = null;
 let finished = false;
 
 const activeSec = ref(0);
@@ -167,14 +172,25 @@ const scene = computed(() => scenes.value.find((s) => s.id === sceneId.value) ??
 const prompts = computed(() => scene.value?.make ?? []);
 const prompt = computed(() => prompts.value[pi.value] ?? null);
 
-// ---- 我的录音：按账号 + 题目存本机 IndexedDB，保留最近 3 次 + 最高分
+// ---- 我的录音：本次尝试只在页面内存保留（不评分不落库，刷新/切题即删）；
+// 手动跟读评分后才进 IndexedDB 存档（最近 3 次 + 最高分）
 const auth = useAuthStore();
 const attemptScore = ref(0);
-let attemptBlob: Promise<Blob | null> | null = null;
+let attemptBlob: Blob | null = null;
+const attemptUrl = ref("");
 
 const promptKey = computed(() => (prompt.value ? `${sceneId.value}:${prompt.value.id}` : ""));
 const takeKey = computed(() => takeStorageKey(auth.username, promptKey.value));
 const { takes, playingId, bestId, togglePlay, refresh: refreshTakes } = useTakeList(takeKey);
+
+function dropAttempt(): void {
+  if (attemptUrl.value) {
+    try { URL.revokeObjectURL(attemptUrl.value); } catch { /* noop */ }
+  }
+  attemptUrl.value = "";
+  attemptBlob = null;
+  attemptScore.value = 0;
+}
 
 const partFilters = [
   { id: 0, name: "全部" },
@@ -234,8 +250,6 @@ function pickPart(id: number): void {
   if (first) pickScene(first.id);
 }
 function pickScene(id: string): void {
-  // 跨场景不复用语音连接：先按本次连接上报并关闭，下一场景重新握手。
-  if (id !== sceneId.value) closeConn();
   sceneId.value = id;
   pi.value = 0;
   resetAttempt();
@@ -246,167 +260,135 @@ function pickPrompt(i: number): void {
 }
 function resetAttempt(): void {
   mine.value = "";
-  heard.value = "";
   answerShown.value = false;
   fb.value = null;
   status.value = "";
-  attemptScore.value = 0;
-  attemptBlob = null;
-  closeConn();
-}
-
-function voiceInstructions(p: { prompt_cn: string }): string {
-  return [
-    "You are an English transcription assistant for a PET speaking app.",
-    "The student will say ONE English sentence to express this Chinese idea:",
-    `「${p.prompt_cn}」`,
-    "Do not chat and never ask questions. Transcribe exactly what the student says, even if it is wrong.",
-    'Reply with ONE compact JSON object: {"transcript":"what you heard","score":0-100,',
-    '"words":[],"tips":["中文建议，最多 2 条"],"say":"one short encouragement"}.',
-    "If you hear no speech, use transcript \"\" and ask the student to try again in Chinese.",
-    "Output JSON only.",
-  ].join("\n");
+  listening.value = false;
+  finished = false;
+  dropAttempt();
+  rec?.close();
+  rec = null;
 }
 
 async function startSpeak(): Promise<void> {
-  if (!prompt.value || conn.value) return;
+  if (!prompt.value || rec) return;
   if (locked.value) {
     status.value = lockText.value;
     return;
   }
   finished = false;
-  heard.value = "";
+  mine.value = "";
   fb.value = null;
   answerShown.value = false;
-  attemptScore.value = 0;
-  attemptBlob = null;
-  status.value = "连接语音服务…";
+  dropAttempt();
+  status.value = "开启麦克风…";
   try {
-    const c = await createSpeakConn({
-      mode: "shadow",
-      turnDetection: "manual",
-      instructions: voiceInstructions(prompt.value),
-      recordAudio: true,
-      micAction: { label: "提交", tone: "submit", cancelLabel: "取消" },
-      onMicSubmit: submitAttempt,
-      onMicCancel: cancelAttempt,
-      readyText: "可以开始说，说完点小绿下面的「提交」",
+    rec = await startMakeRecording({
       onStatus: (s) => { status.value = s; },
-      onUserTranscript: (t) => { if (t) heard.value = t; },
-      onReply: (t) => {
-        const r = parseShadowReply(t);
-        if (r) {
-          if (r.transcript) heard.value = r.transcript;
-          attemptScore.value = r.score;
-        }
-        if (!finished) void finishWithTranscript();
-      },
       onError: (msg) => {
         status.value = msg;
-        closeConn();
+        rec = null;
       },
+      onSubmit: submitAttempt,
+      onCancel: cancelAttempt,
     });
-    connLocal = c;
-    conn.value = c;
+    status.value = "可以开始说，说完点小绿下面的「提交」";
   } catch (e) {
     status.value = "语音不可用：" + (e as Error).message + "（请检查麦克风后重试）";
-    closeConn();
+    rec = null;
   }
 }
 
-/** 数字人「提交」：没开口时提醒继续读，有声音才结束录音去评分 */
+/** 数字人「提交」：没开口时提醒继续读，有声音才结束录音去转写 */
 function submitAttempt(): void {
-  const c = connLocal;
-  if (!c || listening.value || finished) return;
-  if (c.speechSec() <= 0) {
+  if (!rec || listening.value || finished) return;
+  if (rec.speechSec() <= 0) {
     status.value = "还没听到声音，对着麦克风说一遍再点「提交」";
     return;
   }
-  finishSpeak();
+  void finishSpeak();
 }
 
 /** 数字人「取消」：放弃这次录音，不评分 */
 function cancelAttempt(): void {
-  closeConn();
-  heard.value = "";
+  dropAttempt();
+  rec?.close();
+  rec = null;
   fb.value = null;
   answerShown.value = false;
   status.value = "已取消本次造句，点「开始说」重新开始";
 }
 
-function finishSpeak(): void {
-  const c = connLocal;
-  if (!c || listening.value) return;
+/** 提交：结束录音 → 上传 ASR 转写 → 文字点评。录音 Blob 只留页面内存。 */
+async function finishSpeak(): Promise<void> {
+  const r = rec;
+  if (!r || listening.value) return;
   listening.value = true;
-  status.value = "AI 正在听…";
-  attemptBlob = c.stopRecording?.() ?? Promise.resolve(null);
-  c.commitAndRespond();
-  // 只摘掉数字人；麦克风保持到 AI 回复到达，提前断开会丢掉已提交的音频
-  c.detachMic?.();
-  window.setTimeout(() => {
-    if (!listening.value) return;
-    if (heard.value.trim()) {
-      void finishWithTranscript();
+  status.value = "正在转写…";
+  try {
+    const blob = await r.stop();
+    rec = null;
+    if (blob && blob.size > 0) {
+      dropAttempt();
+      attemptBlob = blob;
+      attemptUrl.value = URL.createObjectURL(blob);
+    }
+    const said = await transcribe(blob);
+    if (!said.trim()) {
+      listening.value = false;
+      status.value = "没有听清，请再说一次。";
       return;
     }
+    mine.value = said.trim();
+    status.value = "已转写，正在请 AI 点评…";
+    await check();
+  } catch (e) {
+    status.value = (e as Error).message || "转写失败，请重试";
+  } finally {
     listening.value = false;
-    status.value = "没有听清，请再说一次。";
-    closeConn();
-  }, 8000);
+  }
 }
 
-async function finishWithTranscript(): Promise<void> {
-  if (finished) return;
-  finished = true;
-  listening.value = false;
-  const key = takeKey.value;
-  const promptId = promptKey.value;
-  const score = Math.round(attemptScore.value);
-  const said = heard.value.trim();
-  conn.value = null;
-  if (!said) {
-    status.value = "没有听清，请再说一次。";
-    closeConn();
-    return;
+/** 录音上传 → ASR 转写英文（multipart：api() 走 JSON，这里裸 fetch 带鉴权头） */
+async function transcribe(blob: Blob | null): Promise<string> {
+  // 开发环境没有真实录音：空表单直接拿后端 mock 转写，链路可点通
+  if (!blob || blob.size === 0) {
+    if (devMode.value) {
+      const r = await api<{ text: string }>("/speak/transcribe", { method: "POST" });
+      return r.text;
+    }
+    return "";
   }
-  mine.value = said;
-  status.value = "已转写，正在请 AI 点评…";
-  await check();
-  void saveTake(key, promptId, score, said);
-  closeConn();
+  const token = localStorage.getItem("pet_access") ?? "";
+  const form = new FormData();
+  const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("wav") ? "wav" : "webm";
+  form.append("file", blob, `take.${ext}`);
+  const res = await fetch("/api/v1/speak/transcribe", {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(body?.detail ?? `转写失败 (${res.status})`);
+  return String(body?.text ?? "");
+}
+
+/** 「听我说的」：回放本次真实录音（内存 object URL，刷新/切题即失） */
+function playMine(): void {
+  if (!attemptUrl.value) return;
+  void new Audio(attemptUrl.value).play().catch(() => { /* 自动播放被拦截时静默 */ });
 }
 
 function stopSpeak(): void {
-  closeConn();
+  rec?.close();
+  rec = null;
   status.value = "";
 }
 
-/** 关闭连接前按服务端会话补报一次（幂等；页面关闭走 keepalive）。 */
-function reportConn(c: SpeakConn | null): void {
-  if (!c || !c.sessionId) return;
-  apiBeacon("/speak/session_end", {
-    seconds: c.elapsedSec(),
-    ai_seconds: c.speechSec(),
-    mode: "make",
-    session_id: c.sessionId,
-  });
-}
-
+/** 页面关闭时停掉麦克风（录音本就不持久化，无需补报会话）。 */
 function onPageHide(): void {
-  const c = connLocal;
-  connLocal = null;
-  conn.value = null;
-  reportConn(c);
-  try { c?.close(); } catch { /* noop */ }
-}
-
-function closeConn(): void {
-  const c = connLocal;
-  connLocal = null;
-  conn.value = null;
-  listening.value = false;
-  reportConn(c);
-  try { c?.close(); } catch { /* noop */ }
+  rec?.close();
+  rec = null;
 }
 
 async function check(): Promise<void> {
@@ -435,6 +417,12 @@ async function check(): Promise<void> {
     fb.value = { ok: false, comment: "AI 暂时不可用：" + (e as Error).message, improved: "" };
   }
   checking.value = false;
+}
+
+/** 跟读优化句评分后：分数落到本次录音，进入「最近 3 次 + 最高分」存档 */
+function onScored(v: { score: number }): void {
+  attemptScore.value = v.score;
+  void saveTake(takeKey.value, promptKey.value, Math.round(v.score), mine.value.trim());
 }
 
 /** 造句任务打卡：标记当天计划日包含的原始天 make_done（每页只写一次） */
@@ -474,14 +462,12 @@ function mmss(s: number): string {
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
-// ---------------------------------------------------------------- 我的录音
+// ---- 我的录音（评分后落库）
 
-/** 评完分落库：题目 + 时间 + 分数 + 转写 + 录音 Blob（key/promptId 在提交时捕获，避免中途切题写错） */
+/** 手动跟读评分后落库：题目 + 时间 + 分数 + 转写 + 录音 Blob（key/promptId 即时捕获，避免中途切题写错） */
 async function saveTake(key: string, promptId: string, score: number, transcript: string): Promise<void> {
-  const blobPromise = attemptBlob;
-  if (!key || !promptId || !transcript || !blobPromise) return;
-  const blob = await blobPromise;
-  if (!blob || blob.size === 0) return;
+  const blob = attemptBlob;
+  if (!key || !promptId || !transcript || !blob || blob.size === 0) return;
   const at = Date.now();
   try {
     await addTake({
@@ -553,8 +539,7 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .fb-title { font-weight: 800; margin-bottom: 4px; color: var(--c-text); }
 .heard { color: var(--c-text-2); font-size: var(--fs-sub); margin-bottom: 6px; }
 .fb-comment { color: var(--c-text); font-size: var(--fs-sub); line-height: 1.6; }
-.fb-better { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
-.better { font-weight: 700; color: var(--c-text); }
+.fb .imp-card { max-width: 100%; margin-top: 8px; background: #fff; }
 .takes { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--c-line, #e5e7eb); }
 .takes-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .takes-h b { color: var(--c-text); font-size: 14px; }

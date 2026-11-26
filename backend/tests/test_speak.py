@@ -151,6 +151,56 @@ def test_tts_without_key_503():
     assert r.status_code == 503
 
 
+def test_transcribe_requires_login_and_ai():
+    """造句录音转写：未登录 401；AI 关闭 403；未配 Key 503。"""
+    token = _register("noasr")
+    H = {"Authorization": f"Bearer {token}"}
+    assert client.post("/api/v1/speak/transcribe").status_code == 401
+    # 录音 bytes：webm/opus 一句话 100KB 量级，这里用合法占位内容
+    r = client.post(
+        "/api/v1/speak/transcribe",
+        headers=H,
+        files={"file": ("take.webm", b"\x1aE\xdf\xa3" + b"0" * 2000, "audio/webm")},
+    )
+    assert r.status_code == 503
+
+    db = SessionLocal()
+    from app.models.user import User
+
+    u = db.query(User).filter(User.username == "noasr").one()
+    u.ai_enabled = False
+    db.commit()
+    db.close()
+    r2 = client.post(
+        "/api/v1/speak/transcribe",
+        headers=H,
+        files={"file": ("take.webm", b"\x1aE\xdf\xa3" + b"0" * 2000, "audio/webm")},
+    )
+    assert r2.status_code == 403
+    assert r2.json()["detail"]["code"] == "AI_NOT_ENABLED"
+
+
+def test_dev_transcribe_mock(monkeypatch):
+    """开发环境：转写返回固定文本，走 dev mock 不请求外部 ASR。"""
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("PET_DEV_MODE", "1")
+    get_settings.cache_clear()
+    try:
+        token = _fresh_user("devasr")
+        H = {"Authorization": f"Bearer {token}"}
+        r = client.post(
+            "/api/v1/speak/transcribe",
+            headers=H,
+            files={"file": ("take.webm", b"\x1aE\xdf\xa3" + b"0" * 2000, "audio/webm")},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json() == {"text": "I like playing football."}
+    finally:
+        monkeypatch.delenv("PET_DEV_MODE", raising=False)
+        get_settings.cache_clear()
+
+
 def test_instructions_pure_functions():
     from app.services.qwen_speak import build_instructions
     s = build_instructions("shadow", 0, "Hello world.")

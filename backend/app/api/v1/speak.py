@@ -5,7 +5,7 @@ TTS 已拆到 `speak_media.py`（静态 URL + 缓存治理）。
 """
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -552,4 +552,30 @@ def check(body: CheckIn, user: User = Depends(require_paid_ai), db: Session = De
         "comment": str(data.get("comment", "")),
         "improved": str(data.get("improved", "")),
     }
+
+
+@router.post("/transcribe")
+def transcribe(
+    file: UploadFile | None = File(default=None),
+    user: User = Depends(require_paid_ai),
+    db: Session = Depends(get_db),
+) -> dict:
+    """造句页：本地录音上传 → ASR 转写英文文本（确定性，替代 Realtime 兼职转写）。
+
+    file 允许为空：开发环境没有真实录音，前端发空表单直接拿 mock 转写跑通链路。
+    """
+    if dev_mock.is_dev():
+        return {"text": dev_mock.transcribe()}
+    if file is None:
+        raise HTTPException(400, "缺少录音文件")
+    try:
+        text = qwen_speak.transcribe(db, file.file.read(), file.content_type or "")
+    except PermissionError as e:
+        raise HTTPException(503, str(e))
+    except RuntimeError as e:
+        raise HTTPException(502, str(e))
+    # 计量：按录音时长折算音频输入 token（与 Realtime 同口径 7 tok/s），走 rt_audio_in
+    seconds = max(1, round(file.size / 32_000)) if file.size else 1  # webm/opus ≈32 kbps
+    usage.record(db, user.id, rt_audio_in_tok=round(seconds * usage.AUDIO_IN_TPS))
+    return {"text": text}
 

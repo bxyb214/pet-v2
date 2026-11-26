@@ -63,6 +63,8 @@ def qwen_cfg(db: Session) -> dict:
         "mcp": pick("mcp").lower() in ("1", "true", "yes", "on"),
         "tts_model": pick("tts_model", "qwen3-tts-flash"),
         "tts_voice": pick("tts_voice", "Ryan"),
+        # 造句页转写（V11 流程重做）：录一句传一次，OpenAI 兼容 audio/transcriptions
+        "asr_model": pick("asr_model", "qwen3-asr-flash"),
     }
 
 
@@ -366,3 +368,39 @@ def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
         "cached": cached,
         "chars": len(text),
     }
+
+
+def transcribe(db: Session, audio: bytes, mime: str) -> str:
+    """造句页录音转英文文本（OpenAI 兼容 audio/transcriptions，multipart 上传）。
+
+    确定性 ASR，替代原先「让 Realtime 模型兼职转写」的不可靠路径。
+    没听到语音时返回空串；失败抛 RuntimeError（端点转 502）。
+    """
+    cfg = qwen_cfg(db)
+    keys = _api_keys(db, cfg)
+    if not keys:
+        raise PermissionError("管理员还没有配置 Qwen API Key")
+    if not audio or len(audio) < 800:  # <0.1s 的录音当没说话
+        return ""
+    filename = "take.webm" if "webm" in mime else ("take.mp4" if "mp4" in mime else "take.wav")
+    last_error = ""
+    for api_key in keys:
+        try:
+            resp = httpx.post(
+                f"{cfg['base'].rstrip('/')}/compatible-mode/v1/audio/transcriptions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                files={"file": (filename, audio, mime or "audio/webm")},
+                data={"model": cfg["asr_model"], "language": "en"},
+                timeout=30.0,
+            )
+        except httpx.HTTPError as e:
+            raise RuntimeError(f"转写服务连接失败：{e}") from e
+        if 200 <= resp.status_code < 300:
+            try:
+                return str(resp.json().get("text", "")).strip()
+            except (json.JSONDecodeError, AttributeError):
+                return ""
+        last_error = f"转写失败（HTTP {resp.status_code}）：{resp.text[:160]}"
+        if resp.status_code not in (401, 403):
+            break  # 不是 Key 的问题，不再换 Key 重试
+    raise RuntimeError(last_error or "转写失败")
