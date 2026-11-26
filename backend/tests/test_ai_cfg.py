@@ -128,3 +128,50 @@ def test_403_error_explains_workspace_access(monkeypatch):
         raise AssertionError("应当抛 RuntimeError")
     finally:
         db.close()
+
+
+class _AsrResp:
+    def __init__(self, status_code: int, body: dict):
+        self.status_code = status_code
+        self._body = body
+        self.text = str(body)
+
+    def json(self) -> dict:
+        return self._body
+
+
+def test_transcribe_uses_chat_completions_input_audio(monkeypatch):
+    """百炼没有 /audio/transcriptions：转写走 chat/completions + input_audio data URI。
+
+    speak Key 失效（401）时应回退 llm Key；返回 content 即转写文本。
+    """
+    db = SessionLocal()
+    _put(db, "llm.api_key", "good-key")
+    _put(
+        db,
+        "speak.qwen",
+        '{"base": "https://dashscope.aliyuncs.com", "api_key": "bad-key"}',
+    )
+    seen: dict = {}
+    used: list[str] = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        used.append(headers["Authorization"])
+        seen.update({"url": url, "json": json})
+        if headers["Authorization"].endswith("bad-key"):
+            return _AsrResp(401, {"error": {"message": "invalid api key"}})
+        return _AsrResp(200, {"choices": [{"message": {"content": "I usually say hello."}}]})
+
+    monkeypatch.setattr(qwen_speak.httpx, "post", fake_post)
+    text = qwen_speak.transcribe(db, b"\x00" * 1600, "audio/webm;codecs=opus")
+    db.close()
+
+    assert text == "I usually say hello."
+    assert used == ["Bearer bad-key", "Bearer good-key"]
+    assert seen["url"] == "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+    payload = seen["json"]
+    assert payload["model"] == "qwen3-asr-flash"
+    assert payload["asr_options"]["language"] == "en"
+    content = payload["messages"][0]["content"][0]
+    assert content["type"] == "input_audio"
+    assert content["input_audio"]["data"].startswith("data:audio/webm;base64,")

@@ -1,14 +1,16 @@
 <template>
   <main class="page">
     <BackButton to="/english/speak" label="返回口语" />
-    <h1>造句练习</h1>
+    <h1>
+      造句练习
+      <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天 · {{ sourceRangeText(planDay) }}</span>
+    </h1>
     <p class="sub">
-      看中文，用英文说出来。说完可以看标准答案，AI 会告诉你怎么说得更好。
+      看中文，用英文说出来。按住「标准答案」可以边看边听，AI 会告诉你怎么说得更好。
       <template v-if="hasPlan">今天目标 10 分钟。</template>
     </p>
 
     <div v-if="banner" class="banner" :class="banner.tone">{{ banner.text }}</div>
-    <PaidAiNotice :status="aiStatus" />
 
     <div v-if="hasPlan" class="card targetbar" :class="{ over: overGoal }">
       <span class="target-label">今日造句</span>
@@ -22,14 +24,25 @@
     <LoadingBlock v-if="loading" />
     <template v-else>
       <div class="filters">
-        <button
-          v-for="f in partFilters" :key="f.id" type="button"
-          class="gbtn" :class="{ on: part === f.id }" @click="pickPart(f.id)"
-        >{{ f.name }}</button>
-        <n-select
-          v-model:value="sceneId" class="scene-select" :options="sceneOptions"
-          placeholder="选择场景" filterable @update:value="pickScene"
-        />
+        <template v-if="hasPlan">
+          <span class="topics-label">今日话题</span>
+          <button
+            v-for="s in planScenes" :key="s.id" type="button"
+            class="gbtn" :class="{ on: sceneId === s.id }"
+            @click="pickScene(s.id)"
+          >{{ s.cn }}<i>{{ s.title }}</i></button>
+          <span v-if="!planScenes.length" class="muted">今天没有可用的造句话题。</span>
+        </template>
+        <template v-else>
+          <button
+            v-for="f in partFilters" :key="f.id" type="button"
+            class="gbtn" :class="{ on: part === f.id }" @click="pickPart(f.id)"
+          >{{ f.name }}</button>
+          <n-select
+            v-model:value="sceneId" class="scene-select" :options="sceneOptions"
+            placeholder="选择场景" filterable @update:value="pickScene"
+          />
+        </template>
       </div>
 
       <div v-if="scene" class="card panel">
@@ -50,31 +63,67 @@
           <div class="hint">点「开始说」，用英文把这句意思说出来；说完点小绿下面的「提交」。</div>
 
           <div class="saybar">
-            <PaidActionButton v-if="!rec" :status="aiStatus" :disabled="checking" @click="startSpeak">
+            <PaidActionButton v-if="!recording" :status="aiStatus" :disabled="checking" @click="startSpeak">
               {{ mine ? "🎤 再说一次" : "🎤 开始说" }}
             </PaidActionButton>
-            <n-button v-if="locked" size="large" secondary @click="play(prompt?.answer ?? '')">
-              听标准答案（浏览器朗读）
-            </n-button>
             <span class="status">{{ status }}</span>
+            <n-popover
+              v-model:show="answerPeek" trigger="manual" placement="top-end"
+              :disabled="!prompt || recording"
+            >
+              <template #trigger>
+                <button
+                  type="button" class="peek-btn" :class="{ on: answerPeek }"
+                  :disabled="!prompt || recording"
+                  title="按住显示标准答案并朗读，松手停止"
+                  @pointerdown.prevent="startPeek"
+                  @pointerup="endPeek"
+                  @pointercancel="endPeek"
+                  @lostpointercapture="endPeek"
+                  @keydown.space.prevent="startPeek"
+                  @keyup.space.prevent="endPeek"
+                  @keydown.enter.prevent="startPeek"
+                  @keyup.enter.prevent="endPeek"
+                  @blur="endPeek"
+                  @contextmenu.prevent
+                >标准答案</button>
+              </template>
+              <div class="peek">
+                <b>标准答案</b>
+                <span class="ans">{{ prompt?.answer }}</span>
+                <i>松手收起并停止朗读</i>
+              </div>
+            </n-popover>
           </div>
 
-          <div class="actions">
-            <n-button v-if="attemptUrl" secondary @click="playMine">听我说的</n-button>
-            <n-button quaternary @click="answerShown = !answerShown">
-              {{ answerShown ? "收起标准答案" : "看标准答案" }}
-            </n-button>
+          <!-- 我的这次录音：回放 + 跟读标准答案评分（与跟读页一致，评分后存档） -->
+          <div v-if="attemptUrl" class="myrec">
+            <div class="myrec-row">
+              <button
+                type="button" class="tk-play"
+                :title="playingMine ? '停止播放' : '听我说的'"
+                @click="toggleMinePlay"
+              >{{ playingMine ? "❚❚" : "▶" }}</button>
+              <b class="myrec-label">听我说的</b>
+              <span class="myrec-hint">本次录音 · 评分时重读标准答案</span>
+            </div>
+            <SpeakEvalBlock
+              v-if="prompt"
+              :ref-text="prompt.answer"
+              :ai-status="aiStatus"
+              @starting="silencePlayback"
+              @scored="onAnswerScored"
+            />
           </div>
 
-          <div v-if="answerShown" class="answer">
-            <n-tag size="small" type="info" :bordered="false">标准答案</n-tag>
-            <span class="ans">{{ prompt.answer }}</span>
-            <n-button size="tiny" secondary @click="play(prompt.answer)">听示范</n-button>
-          </div>
-
-          <!-- AI 点评：文字意见 + 优化句跟读（听示范 / 手动点按钮才评分） -->
+          <!-- AI 点评：文字意见 + 优化句跟读（评分统一在标准答案旁） -->
           <div v-if="fb" class="fb" :class="{ good: fb.ok }">
-            <div class="fb-title">{{ fb.ok ? "意思说到了！" : "再改一点就更好了" }}</div>
+            <div class="fb-head">
+              <div class="fb-title">{{ fb.ok ? "意思说到了！" : "再改一点就更好了" }}</div>
+              <n-button size="tiny" secondary @click="toggleAdvice">
+                {{ adviceBusy ? "❚❚ 停止朗读" : "🔊 朗读建议" }}
+              </n-button>
+            </div>
             <div v-if="mine" class="heard">AI 听到的是：{{ mine }}</div>
             <div class="fb-comment">{{ fb.comment }}</div>
             <SpeakImproveCard
@@ -84,31 +133,34 @@
               :improved-cn="''"
               show-child
               compact
-              @scored="onScored"
+              :eval="false"
             />
-          </div>
-
-          <div v-if="takes.length" class="takes">
-            <div class="takes-h">
-              <b>我的录音</b>
-              <span>跟读评分过的保留最近 3 次 + 最高分</span>
-            </div>
-            <div v-for="t in takes" :key="t.id" class="take">
-              <button
-                type="button" class="tk-play"
-                :title="playingId === t.id ? '停止播放' : '播放我的录音'"
-                @click="togglePlay(t)"
-              >{{ playingId === t.id ? "❚❚" : "▶" }}</button>
-              <b class="tk-score" :class="{ best: t.id === bestId }">
-                {{ t.score > 0 ? `${t.score} 分` : "未评分" }}
-              </b>
-              <i v-if="t.id === bestId" class="tk-tag">最高分</i>
-              <span class="tk-time">{{ hhmm(t.at) }}</span>
-              <span class="tk-text">{{ t.transcript }}</span>
-            </div>
           </div>
         </div>
       </div>
+
+      <section v-if="myTakes.length" class="card takes-panel">
+        <div class="takes-h">
+          <b>我的本地录音</b>
+          <span>保存在这台设备 · 共 {{ myTakes.length }} 条 · 换设备不同步</span>
+        </div>
+        <div class="take-list">
+          <div v-for="t in myTakes" :key="t.id" class="take">
+            <button
+              type="button" class="tk-play"
+              :title="playingId === t.id ? '停止播放' : '播放我的录音'"
+              @click="playTake(t)"
+            >{{ playingId === t.id ? "❚❚" : "▶" }}</button>
+            <b class="tk-score" :class="{ best: bestTakeIds.has(t.id) }">
+              {{ t.score > 0 ? `${t.score} 分` : "未评分" }}
+            </b>
+            <i v-if="bestTakeIds.has(t.id)" class="tk-tag">最高分</i>
+            <span class="tk-time">{{ fmtTakeTime(t.at) }}</span>
+            <span class="tk-label">{{ takeLabel(t.promptKey) }}</span>
+            <span class="tk-text">{{ t.transcript }}</span>
+          </div>
+        </div>
+      </section>
     </template>
   </main>
 </template>
@@ -116,26 +168,28 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
-import { NButton, NSelect, NTag } from "naive-ui";
+import { NButton, NPopover, NSelect } from "naive-ui";
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
 import {
-  loadSpeak, planDayDone, splitSpeakPlan,
+  loadSpeak, planDayScenes, resolvePlanDay, sourceRangeText, splitSpeakPlan,
   type DayCheck, type PlanDayView, type Scene, type SpeakData,
 } from "../core/speak";
 import { startMakeRecording, type MakeRec } from "../core/makeRecorder";
 import { useSpeakTime } from "../core/speakTime";
 import { addTake, newTakeId, takeStorageKey } from "../core/takes";
-import { useTakeList } from "../core/takeList";
+import { useUserTakeList, type TakeView } from "../core/takeList";
 import {
   budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
 } from "../core/aiStatus";
-import { say, playAudioUrl } from "../core/say";
+import { say, stopAudioUrl, stopSpeaking } from "../core/say";
+import { adviceBusy, readAdvice, stopAdvice } from "../core/adviceSpeech";
+import { loadTtsConfig } from "../core/ttsConfig";
 import { devMode } from "../core/devMode";
 import BackButton from "../components/BackButton.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
 import PaidActionButton from "../components/PaidActionButton.vue";
-import PaidAiNotice from "../components/PaidAiNotice.vue";
+import SpeakEvalBlock from "../components/SpeakEvalBlock.vue";
 import SpeakImproveCard from "../components/SpeakImproveCard.vue";
 
 const route = useRoute();
@@ -146,16 +200,18 @@ const sceneId = ref("");
 const pi = ref(0);
 const mine = ref("");
 const checking = ref(false);
-const answerShown = ref(false);
+const answerPeek = ref(false);
 const fb = ref<{ ok: boolean; comment: string; improved: string } | null>(null);
 const status = ref("");
 const listening = ref(false);
+const recording = ref(false);
 const aiStatus = ref<AiStatus | null>(null);
 const banner = computed(() => budgetBanner(aiStatus.value));
 const locked = computed(() => paidBlocked(aiStatus.value));
 const lockText = computed(() => paidLockText(aiStatus.value));
 let rec: MakeRec | null = null;
 let finished = false;
+let holdPointer: number | null = null;
 
 const activeSec = ref(0);
 const planLength = ref(0);
@@ -168,28 +224,116 @@ let timer = 0;
 let makeLogged = false;
 
 const scenes = computed<Scene[]>(() => data.value?.scenes ?? []);
+const planScenes = computed<Scene[]>(() => planDayScenes(data.value, planDay.value));
 const scene = computed(() => scenes.value.find((s) => s.id === sceneId.value) ?? null);
 const prompts = computed(() => scene.value?.make ?? []);
 const prompt = computed(() => prompts.value[pi.value] ?? null);
 
 // ---- 我的录音：本次尝试只在页面内存保留（不评分不落库，刷新/切题即删）；
-// 手动跟读评分后才进 IndexedDB 存档（最近 3 次 + 最高分）
+// 在标准答案旁点「跟读评分」后才进 IndexedDB 存档（最近 3 次 + 最高分）
 const auth = useAuthStore();
-const attemptScore = ref(0);
-let attemptBlob: Blob | null = null;
 const attemptUrl = ref("");
+const playingMine = ref(false);
+let mineAudio: HTMLAudioElement | null = null;
 
 const promptKey = computed(() => (prompt.value ? `${sceneId.value}:${prompt.value.id}` : ""));
 const takeKey = computed(() => takeStorageKey(auth.username, promptKey.value));
-const { takes, playingId, bestId, togglePlay, refresh: refreshTakes } = useTakeList(takeKey);
+const username = computed(() => auth.username);
+const { takes: myTakes, playingId, togglePlay, stopPlay: stopTakePlay, refresh: refreshMyTakes } = useUserTakeList(username);
+
+/** 跨题目列表里按题目分别标出最高分，避免拿别的题分数比较。 */
+const bestTakeIds = computed(() => {
+  const best = new Map<string, TakeView>();
+  for (const t of myTakes.value) {
+    if (t.score <= 0) continue;
+    const cur = best.get(t.promptKey);
+    if (!cur || t.score > cur.score || (t.score === cur.score && t.at > cur.at)) {
+      best.set(t.promptKey, t);
+    }
+  }
+  return new Set([...best.values()].map((t) => t.id));
+});
+
+/** 单实例回放：再点一次停止，切题/重录/离开页面时立即停，避免叠音 */
+function stopMinePlay(): void {
+  const el = mineAudio;
+  mineAudio = null;
+  playingMine.value = false;
+  if (el) {
+    try { el.pause(); } catch { /* noop */ }
+    el.src = "";
+  }
+}
+/** 开始录音/评分或播放另一段声音前：先停掉所有回放，避免麦克风收到叠音 */
+function silencePlayback(): void {
+  stopMinePlay();
+  stopTakePlay();
+  stopAdvice();
+  stopAudioUrl();
+  stopSpeaking();
+}
+
+/** 播放一条本地录音：先停掉标准答案/建议/本次录音，避免叠音。 */
+function playTake(t: TakeView): void {
+  if (playingId.value === t.id) {
+    togglePlay(t);
+    return;
+  }
+  silencePlayback();
+  togglePlay(t);
+}
+
+// ---- 标准答案：按住显示 + 朗读，松手收起并停止
+function startPeek(e: Event): void {
+  const p = prompt.value;
+  if (!p || recording.value) return;
+  if (typeof PointerEvent !== "undefined" && e instanceof PointerEvent) {
+    holdPointer = e.pointerId;
+    try { (e.currentTarget as HTMLElement | null)?.setPointerCapture?.(e.pointerId); } catch { /* noop */ }
+  }
+  if (answerPeek.value) return;
+  answerPeek.value = true;
+  silencePlayback();
+  say(p.answer);
+}
+
+function endPeek(e?: Event): void {
+  const isPointer = typeof PointerEvent !== "undefined" && e instanceof PointerEvent;
+  if (isPointer && holdPointer !== null && e.pointerId !== holdPointer) return;
+  if (isPointer && holdPointer !== null) {
+    try { (e.currentTarget as HTMLElement | null)?.releasePointerCapture?.(holdPointer); } catch { /* noop */ }
+  }
+  closePeek();
+}
+
+function closePeek(): void {
+  const wasOpen = answerPeek.value || holdPointer !== null;
+  answerPeek.value = false;
+  holdPointer = null;
+  if (wasOpen) stopSpeaking();
+}
+function toggleMinePlay(): void {
+  if (!attemptUrl.value) return;
+  if (playingMine.value) {
+    stopMinePlay();
+    return;
+  }
+  silencePlayback();
+  const el = new Audio(attemptUrl.value);
+  mineAudio = el;
+  el.onended = () => { if (mineAudio === el) stopMinePlay(); };
+  el.onerror = () => { if (mineAudio === el) stopMinePlay(); };
+  void el.play()
+    .then(() => { if (mineAudio === el) playingMine.value = true; })
+    .catch(() => { if (mineAudio === el) stopMinePlay(); });
+}
 
 function dropAttempt(): void {
+  stopMinePlay();
   if (attemptUrl.value) {
     try { URL.revokeObjectURL(attemptUrl.value); } catch { /* noop */ }
   }
   attemptUrl.value = "";
-  attemptBlob = null;
-  attemptScore.value = 0;
 }
 
 const partFilters = [
@@ -209,6 +353,7 @@ onMounted(async () => {
   data.value = await loadSpeak();
   loading.value = false;
   aiStatus.value = await loadAiStatus();
+  void loadTtsConfig(); // 预热本地发音配置，首次按住标准答案即可本地朗读
   try {
     const [p, d] = await Promise.all([
       api<{ length: number }>("/speak/plan"),
@@ -219,18 +364,12 @@ onMounted(async () => {
       const planDays = splitSpeakPlan(data.value, planLength.value);
       const checks: Record<number, DayCheck> = {};
       for (const c of d.days ?? []) checks[c.day] = c;
-      const qDay = Number(route.query.day ?? 0);
-      planDay.value = qDay
-        ? planDays[qDay - 1] ?? null
-        : planDays.find((x) => !planDayDone(x, checks)) ?? planDays[0] ?? null;
-      const sid = planDay.value?.sceneIds[0];
-      if (sid && scenes.value.some((s) => s.id === sid)) {
-        sceneId.value = sid;
-        part.value = scenes.value.find((s) => s.id === sid)?.part ?? 0;
-      }
+      planDay.value = resolvePlanDay(planDays, checks, Number(route.query.day ?? 0));
+      const sid = planDayScenes(data.value, planDay.value)[0]?.id;
+      if (sid) sceneId.value = sid;
     }
   } catch { /* 离线时不影响造句 */ }
-  if (!sceneId.value && scenes.value.length) {
+  if (!hasPlan.value && !sceneId.value && scenes.value.length) {
     sceneId.value = scenes.value[0].id;
     part.value = scenes.value[0].part;
   }
@@ -242,6 +381,9 @@ onBeforeUnmount(() => {
   window.removeEventListener("pagehide", onPageHide);
   if (timer) clearInterval(timer);
   stopSpeak();
+  stopMinePlay();
+  stopAdvice();
+  closePeek();
 });
 
 function pickPart(id: number): void {
@@ -260,11 +402,13 @@ function pickPrompt(i: number): void {
 }
 function resetAttempt(): void {
   mine.value = "";
-  answerShown.value = false;
   fb.value = null;
   status.value = "";
   listening.value = false;
+  recording.value = false;
   finished = false;
+  closePeek();
+  stopAdvice();
   dropAttempt();
   rec?.close();
   rec = null;
@@ -276,10 +420,11 @@ async function startSpeak(): Promise<void> {
     status.value = lockText.value;
     return;
   }
+  closePeek();
+  silencePlayback();
   finished = false;
   mine.value = "";
   fb.value = null;
-  answerShown.value = false;
   dropAttempt();
   status.value = "开启麦克风…";
   try {
@@ -287,14 +432,17 @@ async function startSpeak(): Promise<void> {
       onStatus: (s) => { status.value = s; },
       onError: (msg) => {
         status.value = msg;
+        recording.value = false;
         rec = null;
       },
       onSubmit: submitAttempt,
       onCancel: cancelAttempt,
     });
+    recording.value = true;
     status.value = "可以开始说，说完点小绿下面的「提交」";
   } catch (e) {
     status.value = "语音不可用：" + (e as Error).message + "（请检查麦克风后重试）";
+    recording.value = false;
     rec = null;
   }
 }
@@ -314,8 +462,8 @@ function cancelAttempt(): void {
   dropAttempt();
   rec?.close();
   rec = null;
+  recording.value = false;
   fb.value = null;
-  answerShown.value = false;
   status.value = "已取消本次造句，点「开始说」重新开始";
 }
 
@@ -328,9 +476,9 @@ async function finishSpeak(): Promise<void> {
   try {
     const blob = await r.stop();
     rec = null;
+    recording.value = false;
     if (blob && blob.size > 0) {
       dropAttempt();
-      attemptBlob = blob;
       attemptUrl.value = URL.createObjectURL(blob);
     }
     const said = await transcribe(blob);
@@ -373,22 +521,21 @@ async function transcribe(blob: Blob | null): Promise<string> {
   return String(body?.text ?? "");
 }
 
-/** 「听我说的」：回放本次真实录音（内存 object URL，刷新/切题即失） */
-function playMine(): void {
-  if (!attemptUrl.value) return;
-  void new Audio(attemptUrl.value).play().catch(() => { /* 自动播放被拦截时静默 */ });
-}
+/** 「听我说的」已改为单实例回放，见 stopMinePlay / toggleMinePlay */
 
 function stopSpeak(): void {
   rec?.close();
   rec = null;
+  recording.value = false;
   status.value = "";
 }
 
-/** 页面关闭时停掉麦克风（录音本就不持久化，无需补报会话）。 */
+/** 页面关闭时停掉麦克风与回放（录音本就不持久化，无需补报会话）。 */
 function onPageHide(): void {
   rec?.close();
   rec = null;
+  recording.value = false;
+  stopMinePlay();
 }
 
 async function check(): Promise<void> {
@@ -396,14 +543,13 @@ async function check(): Promise<void> {
   void logMake();
   if (locked.value) {
     fb.value = { ok: false, comment: lockText.value, improved: "" };
-    answerShown.value = true;
     status.value = "";
     return;
   }
   checking.value = true;
   fb.value = null;
   try {
-    fb.value = await api<{ ok: boolean; comment: string; improved: string }>("/speak/check", {
+    const res = await api<{ ok: boolean; comment: string; improved: string }>("/speak/check", {
       method: "POST",
       body: JSON.stringify({
         pattern: prompt.value.answer,
@@ -411,18 +557,23 @@ async function check(): Promise<void> {
         sentence: mine.value.trim(),
       }),
     });
-    answerShown.value = true;
+    fb.value = res;
     status.value = "";
+    // 建议出来后自动读一遍；按钮可随时停止/重读
+    void readAdvice([res.comment]);
   } catch (e) {
     fb.value = { ok: false, comment: "AI 暂时不可用：" + (e as Error).message, improved: "" };
   }
   checking.value = false;
 }
 
-/** 跟读优化句评分后：分数落到本次录音，进入「最近 3 次 + 最高分」存档 */
-function onScored(v: { score: number }): void {
-  attemptScore.value = v.score;
-  void saveTake(takeKey.value, promptKey.value, Math.round(v.score), mine.value.trim());
+/** 跟读标准答案评分后：这次录音 + 分数进「我的录音」（最近 3 次 + 最高分） */
+function onAnswerScored(v: { score: number; blob: Blob | null }): void {
+  const key = takeKey.value;
+  const promptId = promptKey.value;
+  const transcript = prompt.value?.answer ?? "";
+  if (!key || !promptId || !transcript || !v.blob || v.blob.size === 0) return;
+  void saveTake(key, promptId, Math.round(v.score), transcript, v.blob);
 }
 
 /** 造句任务打卡：标记当天计划日包含的原始天 make_done（每页只写一次） */
@@ -439,34 +590,32 @@ async function logMake(): Promise<void> {
   }
 }
 
-async function play(text: string): Promise<void> {
+/** 手动停止/重读当前 AI 建议 */
+function toggleAdvice(): void {
+  const text = fb.value?.comment?.trim();
   if (!text) return;
-  // 未开通或状态未知都不请求付费 TTS，避免产生费用 / 读到服务端缓存。
-  if (!aiStatus.value || locked.value) {
-    say(text);
+  if (adviceBusy.value) {
+    stopAdvice();
     return;
   }
-  try {
-    const r = await api<{ url: string }>("/speak/tts", {
-      method: "POST",
-      body: JSON.stringify({ text }),
-    });
-    await playAudioUrl(r.url, text);
-  } catch {
-    say(text); // 免费降级 / TTS 失败时用浏览器朗读
-  }
+  void readAdvice([text]);
 }
-function mmss(s: number): string {
-  const m = Math.floor(s / 60);
+
+function mmss(s: number): string {  const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}:${String(r).padStart(2, "0")}`;
 }
 
 // ---- 我的录音（评分后落库）
 
-/** 手动跟读评分后落库：题目 + 时间 + 分数 + 转写 + 录音 Blob（key/promptId 即时捕获，避免中途切题写错） */
-async function saveTake(key: string, promptId: string, score: number, transcript: string): Promise<void> {
-  const blob = attemptBlob;
+/** 跟读评分后落库：题目 + 时间 + 分数 + 标准答案 + 录音 WAV（key/promptId 即时捕获，避免中途切题写错） */
+async function saveTake(
+  key: string,
+  promptId: string,
+  score: number,
+  transcript: string,
+  blob: Blob,
+): Promise<void> {
   if (!key || !promptId || !transcript || !blob || blob.size === 0) return;
   const at = Date.now();
   try {
@@ -477,11 +626,30 @@ async function saveTake(key: string, promptId: string, score: number, transcript
       at,
       score,
       transcript,
-      mime: blob.type || "audio/webm",
+      mime: blob.type || "audio/wav",
       blob,
     });
-    if (key === takeKey.value) await refreshTakes();
+    await refreshMyTakes();
   } catch { /* 存不进（隐私模式/配额）不影响练习 */ }
+}
+
+function takeLabel(promptKey: string): string {
+  const i = promptKey.indexOf(":");
+  const sid = i >= 0 ? promptKey.slice(0, i) : promptKey;
+  const pid = i >= 0 ? promptKey.slice(i + 1) : "";
+  const s = scenes.value.find((x) => x.id === sid);
+  if (!s) return "";
+  const idx = (s.make ?? []).findIndex((m) => m.id === pid);
+  return idx >= 0 ? `${s.cn} · 第 ${idx + 1} 题` : s.cn;
+}
+
+/** 今天只显示时间，跨天补上日期，方便在「我的本地录音」里找。 */
+function fmtTakeTime(at: number): string {
+  const d = new Date(at);
+  const hm = hhmm(at);
+  return d.toDateString() === new Date().toDateString()
+    ? hm
+    : `${d.getMonth() + 1}-${d.getDate()} ${hm}`;
 }
 
 function hhmm(at: number): string {
@@ -494,6 +662,14 @@ function hhmm(at: number): string {
 .page { width: 100%; }
 h1 { color: var(--c-text); font-size: var(--fs-title); }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 14px; }
+.daychip {
+  margin-left: 8px; padding: 2px 10px; border-radius: 999px;
+  background: var(--c-primary-soft); color: var(--c-primary-strong);
+  font-size: 12.5px; font-weight: 700; vertical-align: middle;
+}
+.topics-label { color: var(--c-text-2); font-size: 12.5px; font-weight: 700; }
+.muted { color: var(--c-text-2); font-size: var(--fs-sub); }
+.gbtn i { margin-left: 6px; font-style: normal; font-size: 11.5px; opacity: 0.72; }
 .back { margin-bottom: 8px; }
 .card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
 .banner { margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); font-size: var(--fs-sub); font-weight: 600; }
@@ -530,26 +706,48 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .prompt-big { font-size: 17px; font-weight: 700; color: var(--c-text); line-height: 1.7; }
 .hint { color: var(--c-text-2); font-size: var(--fs-sub); margin: 4px 0 10px; }
 .saybar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-.status { color: var(--c-text-2); font-size: var(--fs-sub); }
-.actions { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-.answer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--c-mint-bg); }
-.ans { font-weight: 600; color: var(--c-text); }
+.status { flex: 1 1 180px; min-width: 0; color: var(--c-text-2); font-size: var(--fs-sub); }
+.peek-btn {
+  margin-left: auto; flex: none;
+  min-height: 34px; padding: 6px 14px; border-radius: var(--r-btn);
+  border: 1px solid var(--c-line); background: var(--c-surface); color: var(--c-text);
+  font: inherit; font-size: var(--fs-sub); font-weight: 700; cursor: pointer;
+  user-select: none; -webkit-touch-callout: none; touch-action: none;
+}
+.peek-btn:hover, .peek-btn.on { border-color: var(--c-primary); color: var(--c-primary-strong); background: var(--c-primary-soft); }
+.peek-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.peek { display: flex; flex-direction: column; gap: 4px; max-width: min(340px, 80vw); }
+.peek b { font-size: 12px; color: var(--c-text-2); }
+.peek .ans { font-weight: 700; color: var(--c-text); line-height: 1.5; }
+.peek i { font-style: normal; font-size: 11.5px; color: var(--c-text-3); }
+.myrec { margin-top: 10px; padding: 10px 12px; border-radius: var(--r-btn); background: var(--c-mint-bg); }
+.myrec-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.myrec-label { color: var(--c-text); font-size: 14px; }
+.myrec-hint { color: var(--c-text-2); font-size: 12px; }
 .fb { margin-top: 14px; padding: 12px; border-radius: var(--r-btn); background: #fef3c7; }
 .fb.good { background: var(--c-primary-soft); }
-.fb-title { font-weight: 800; margin-bottom: 4px; color: var(--c-text); }
+.fb-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.fb-title { flex: 1 1 auto; font-weight: 800; color: var(--c-text); }
 .heard { color: var(--c-text-2); font-size: var(--fs-sub); margin-bottom: 6px; }
 .fb-comment { color: var(--c-text); font-size: var(--fs-sub); line-height: 1.6; }
 .fb .imp-card { max-width: 100%; margin-top: 8px; background: #fff; }
-.takes { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--c-line, #e5e7eb); }
+.takes-panel { margin-top: 16px; padding: 16px; }
 .takes-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .takes-h b { color: var(--c-text); font-size: 14px; }
 .takes-h span { color: var(--c-text-2); font-size: 12px; }
+.take-list { max-height: 360px; overflow: auto; margin-top: 8px; padding-right: 2px; }
 .take { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; padding: 8px 10px; border-radius: var(--r-btn); background: var(--c-mint-bg); }
+.take:first-child { margin-top: 0; }
 .tk-play { width: 30px; height: 30px; border-radius: 999px; border: 1px solid var(--c-line, #d1d5db); background: var(--c-surface); color: var(--c-primary); font-size: 12px; cursor: pointer; }
 .tk-play:hover { border-color: var(--c-primary); }
 .tk-score { font-size: 13px; color: var(--c-text); font-variant-numeric: tabular-nums; }
 .tk-score.best { color: var(--c-primary); }
 .tk-tag { font-style: normal; font-size: 11px; font-weight: 700; color: var(--c-primary); background: var(--c-primary-soft); border-radius: 999px; padding: 2px 8px; }
 .tk-time { font-size: 12px; color: var(--c-text-3); font-variant-numeric: tabular-nums; }
+.tk-label { font-size: 11.5px; color: var(--c-text-2); background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 999px; padding: 1px 8px; }
 .tk-text { flex: 1; min-width: 160px; font-size: var(--fs-sub); color: var(--c-text); }
+@media (max-width: 560px) {
+  .status { flex-basis: 100%; order: 3; }
+  .tk-text { flex-basis: 100%; min-width: 0; }
+}
 </style>

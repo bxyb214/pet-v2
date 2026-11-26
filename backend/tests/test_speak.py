@@ -39,33 +39,41 @@ def _register(username: str) -> str:
     return r.json()["access_token"]
 
 
-def test_speak_free_endpoints_open_without_perm():
-    """口语不再按人限制：普通账号默认开通付费 AI，免费接口始终可用。"""
-    token = _register("nospeak")
+def test_speak_free_endpoints_open_without_ai_permission():
+    """普通账号默认未开通 AI：免费接口始终可用，talk 相关付费入口 403。"""
+    token = _register("noai")
     H = {"Authorization": f"Bearer {token}"}
 
     assert client.post("/api/v1/speak/boot", json={"mode": "shadow"}, headers=H).status_code == 200
     assert client.get("/api/v1/speak/days", headers=H).status_code == 200
     assert client.get("/api/v1/speak/plan", headers=H).status_code == 200
     assert client.get("/api/v1/speak/ai_status", headers=H).status_code == 200
-    assert client.post("/api/v1/speak/boot", json={"mode": "talk"}, headers=H).status_code == 200
-
-    # 管理员显式关闭后，付费接口仍 403
-    db = SessionLocal()
-    from app.models.user import User
-
-    u = db.query(User).filter(User.username == "nospeak").one()
-    u.ai_enabled = False
-    db.commit()
-    db.close()
     r = client.post("/api/v1/speak/boot", json={"mode": "talk"}, headers=H)
     assert r.status_code == 403
     assert r.json()["detail"]["code"] == "AI_NOT_ENABLED"
 
+    # 管理员开通后，talk 入口恢复
+    db = SessionLocal()
+    from app.models.user import User
+
+    u = db.query(User).filter(User.username == "noai").one()
+    assert u.ai_enabled is False
+    u.ai_enabled = True
+    db.commit()
+    db.close()
+    assert client.post("/api/v1/speak/boot", json={"mode": "talk"}, headers=H).status_code == 200
+
 
 def test_help_available_to_ordinary_user_with_credit():
-    """普通账号默认有总额度，「怎么说？」不再 403/429；未配 Key 时才是 503。"""
+    """普通账号开通后有总额度，「怎么说？」不再 403/429；未配 Key 时才是 503。"""
     token = _register("helper")
+    db = SessionLocal()
+    from app.models.user import User
+
+    u = db.query(User).filter(User.username == "helper").one()
+    u.ai_enabled = True
+    db.commit()
+    db.close()
     r = client.post(
         "/api/v1/speak/help", json={}, headers={"Authorization": f"Bearer {token}"}
     )
@@ -156,6 +164,14 @@ def test_transcribe_requires_login_and_ai():
     token = _register("noasr")
     H = {"Authorization": f"Bearer {token}"}
     assert client.post("/api/v1/speak/transcribe").status_code == 401
+
+    db = SessionLocal()
+    from app.models.user import User
+
+    u = db.query(User).filter(User.username == "noasr").one()
+    u.ai_enabled = True
+    db.commit()
+    db.close()
     # 录音 bytes：webm/opus 一句话 100KB 量级，这里用合法占位内容
     r = client.post(
         "/api/v1/speak/transcribe",
@@ -165,8 +181,6 @@ def test_transcribe_requires_login_and_ai():
     assert r.status_code == 503
 
     db = SessionLocal()
-    from app.models.user import User
-
     u = db.query(User).filter(User.username == "noasr").one()
     u.ai_enabled = False
     db.commit()

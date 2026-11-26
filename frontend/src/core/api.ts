@@ -48,7 +48,8 @@ function fireUnauthorized(): void {
 export async function api<T>(
   path: string,
   options: RequestInit = {},
-): Promise<T> {  const headers = new Headers(options.headers);
+): Promise<T> {
+  const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -95,6 +96,45 @@ export async function downloadFile(path: string, filename: string): Promise<void
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export type ProbeResult = {
+  status: number;
+  ok: boolean;
+  contentType: string;
+  contentLength: number;
+  contentRange: string;
+  body: string;
+};
+
+/**
+ * 调试用：探测多媒体 URL 的响应头（如本地 TTS 的 wav）。
+ * 用 Range 只取前 2 字节，避免把整段音频读进内存；404 时带回响应体方便看错误。
+ */
+export async function probeFile(url: string, timeoutMs = 15000): Promise<ProbeResult> {
+  const ctl = new AbortController();
+  const timer = window.setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { headers: { Range: "bytes=0-1" }, signal: ctl.signal });
+    let body = "";
+    if (!res.ok) {
+      try {
+        body = (await res.text()).slice(0, 200);
+      } catch {
+        /* 不是文本：忽略 */
+      }
+    }
+    return {
+      status: res.status,
+      ok: res.ok,
+      contentType: res.headers.get("Content-Type") ?? "",
+      contentLength: Number(res.headers.get("Content-Length") ?? 0),
+      contentRange: res.headers.get("Content-Range") ?? "",
+      body,
+    };
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 /**

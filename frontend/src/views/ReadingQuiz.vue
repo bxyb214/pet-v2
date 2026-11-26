@@ -86,8 +86,9 @@
             <p v-if="!lastCorrect && q.type !== 'grammar'" class="fbsent">{{ q.s.en }}</p>
             <p v-if="q.type !== 'meaning'" class="fbcn">{{ q.s.cn }}</p>
             <div class="fbactions">
-              <button class="audiobtn" @click="speak(q.s.en)">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <button class="audiobtn" :disabled="audioPending(q.s.en)" @click="say(q.s.en)">
+                <span v-if="audioPending(q.s.en)" class="audio-spin" aria-hidden="true" />
+                <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
                   <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
                 </svg>
@@ -126,9 +127,10 @@ import {
   clearReadingSession, loadReadingSession, saveReadingSession,
 } from "../core/readingQuizSession";
 import {
-  buildQuizItems, grammarIndex, itemForDim, loadReading, speak, withCustomSentences,
+  buildQuizItems, grammarIndex, itemForDim, loadReading, withCustomSentences,
   type QuizItem, type RSentence, type ReadingData,
 } from "../core/reading";
+import { audioPending, say } from "../core/say";
 import { buildReadingPlan, partKey, readingDayOf, readingParts, type ReadingPartRef } from "../core/plan";
 
 const TYPE_LABEL: Record<string, string> = { meaning: "读懂句意", blank: "选词填空", grammar: "语法选择" };

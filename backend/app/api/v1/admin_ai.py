@@ -2,18 +2,27 @@
 
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.v1.admin import _user_row
-from app.api.v1.speak_media import cache_dir
 from app.core.deps import require_admin
 from app.core.security import hash_password
 from app.db import get_db
 from app.models.user import User
-from app.services import ai_enrich, budget, qwen_speak, tencent_soe, usage as usage_svc
+from app.services import (
+    ai_enrich,
+    budget,
+    local_tts,
+    qwen_speak,
+    tencent_soe,
+    tts_cache,
+)
+from app.services import (
+    usage as usage_svc,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -31,7 +40,8 @@ def ai_overview(
     enabled = sum(1 for u in users if u.ai_enabled)
     qwen = qwen_speak.qwen_cfg(db)
     soe = tencent_soe.soe_cfg(db)
-    max_mb = qwen_speak.tts_cache_cfg(db)
+    max_mb = tts_cache.tts_cache_cfg(db)
+    local = local_tts.local_cfg(db)
     return {
         "today": day,
         "users_total": len(users),
@@ -44,8 +54,14 @@ def ai_overview(
             "qwen_model": qwen["model"],
             "fallback_model": qwen["fallback_model"],
             "soe": tencent_soe.is_configured(soe),
+            "local_tts": {
+                "enabled": local["enabled"],
+                "engine": local["engine"],
+                "voice": local["voice"],
+                "sidecar": local["sidecar"],
+            },
         },
-        "tts_cache": qwen_speak.tts_cache_stats(cache_dir(), max_mb),
+        "tts_cache": tts_cache.tts_cache_stats(tts_cache.cache_dir(), max_mb),
     }
 
 
@@ -59,7 +75,7 @@ def _prices_payload(db: Session) -> dict:
     return {
         "prices": usage_svc.prices(db),
         "budget": budget.budget_cfg(db),
-        "tts_cache": {"max_mb": qwen_speak.tts_cache_cfg(db)},
+        "tts_cache": {"max_mb": tts_cache.tts_cache_cfg(db)},
     }
 
 
@@ -205,20 +221,20 @@ def _csv_cell(v: str) -> str:
 
 
 @router.get("/tts_cache")
-def tts_cache(
+def read_tts_cache(
     _admin: object = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    return qwen_speak.tts_cache_stats(cache_dir(), qwen_speak.tts_cache_cfg(db))
+    return tts_cache.tts_cache_stats(tts_cache.cache_dir(), tts_cache.tts_cache_cfg(db))
 
 
 @router.delete("/tts_cache")
-def clear_tts_cache(
+def wipe_tts_cache(
     _admin: object = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    removed = qwen_speak.clear_tts_cache(cache_dir())
-    return {"removed": removed, **qwen_speak.tts_cache_stats(cache_dir(), qwen_speak.tts_cache_cfg(db))}
+    removed = tts_cache.clear_tts_cache(tts_cache.cache_dir())
+    return {"removed": removed, **tts_cache.tts_cache_stats(tts_cache.cache_dir(), tts_cache.tts_cache_cfg(db))}
 
 
 # ---------------------------------------------------------------- 连通性测试
@@ -227,12 +243,29 @@ def clear_tts_cache(
 @router.post("/test/{kind}")
 def test_provider(
     kind: str,
+    provider: str = Query(default="", max_length=16),
     admin: User = Depends(require_admin),
     db: Session = Depends(get_db),
 ) -> dict:
-    """最小连通性检查：LLM/TTS 会真实调用一次；SOE/Realtime 只校验配置与签名。"""
+    """最小连通性检查：LLM/TTS 会真实调用一次；SOE/Realtime 只校验配置与签名。
+
+    `provider=local` 只测本地 Piper；不传时本地已启用则测本地，否则测云端 Qwen。
+    """
     from app.services import dev_mock
 
+    local_cfg = local_tts.local_cfg(db)
+    if kind == "tts" and (provider == "local" or (not provider and local_cfg["enabled"])):
+        try:
+            out = local_tts.synthesize(db, local_cfg, "Hello. This is a local TTS test.")
+            return {
+                "ok": True,
+                "detail": "本地合成成功",
+                "provider": out.get("provider"),
+                "cached": out.get("cached"),
+                "ms": out.get("ms"),
+            }
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "detail": str(e)[:200]}
     if dev_mock.is_dev():
         return {"ok": True, "detail": "开发环境：跳过外部调用", "dev": True}
     if kind == "llm":
@@ -248,7 +281,7 @@ def test_provider(
             return {"ok": False, "detail": str(e)[:200]}
     if kind == "tts":
         try:
-            out = qwen_speak.tts(db, cache_dir(), "Hello.", "")
+            out = qwen_speak.tts(db, tts_cache.cache_dir(), "Hello.", "")
             usage_svc.record_tts(db, admin.id, int(out.get("chars", 0)), bool(out.get("cached")))
             return {"ok": True, "detail": "合成成功", "cached": out.get("cached")}
         except Exception as e:  # noqa: BLE001

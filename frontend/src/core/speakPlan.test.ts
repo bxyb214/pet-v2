@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  planDayDone, sourceRangeText, splitSpeakPlan,
+  planDayDone, planDayScenes, resolvePlanDay, sourceRangeText, splitSpeakPlan,
   type DayCheck, type SpeakData, type SpeakPlan, type SpeakSourceDay,
 } from "./speak";
 
@@ -100,5 +100,45 @@ describe("planDayDone / sourceRangeText", () => {
   it("范围文案", () => {
     expect(sourceRangeText(splitSpeakPlan(makeData(), 30)[0])).toBe("第 1–3 天");
     expect(sourceRangeText(splitSpeakPlan(makeData(), 90)[0])).toBe("第 1 天");
+  });
+});
+
+describe("resolvePlanDay / planDayScenes", () => {
+  const days = splitSpeakPlan(makeData(), 30);
+
+  it("优先使用路由里的有效 day", () => {
+    expect(resolvePlanDay(days, {}, 3)?.day).toBe(3);
+  });
+
+  it("没有 day 时取第一个未完成日，全部完成则回第 1 天", () => {
+    const checks: Record<number, DayCheck> = {};
+    // 30 天计划的第 1 天合并原始天 1–3，必须全部完成才算完成
+    for (const d of days[0].sourceDays) {
+      checks[d] = { day: d, shadow_done: true, make_done: true, talk_done: true, score: 90 };
+    }
+    expect(resolvePlanDay(days, checks)?.day).toBe(2);
+    const allDone: Record<number, DayCheck> = {};
+    for (const pd of days) {
+      for (const d of pd.sourceDays) {
+        allDone[d] = { day: d, shadow_done: true, make_done: true, talk_done: true, score: 90 };
+      }
+    }
+    expect(resolvePlanDay(days, allDone)?.day).toBe(1);
+  });
+
+  it("day 越界时回退到未完成日；空计划返回 null", () => {
+    expect(resolvePlanDay(days, {}, 999)?.day).toBe(1);
+    expect(resolvePlanDay([], {}, 1)).toBeNull();
+  });
+
+  it("按计划顺序取当天场景，自动跳过缺失 id", () => {
+    const data = makeData();
+    const pd = days[0];
+    const scenes = planDayScenes(data, pd);
+    expect(scenes.map((s) => s.id)).toEqual(pd.sceneIds);
+    const missing = { ...pd, sceneIds: ["sc1", "nope", "sc2"], sceneTitles: ["Scene 1", "?", "Scene 2"] };
+    expect(planDayScenes(data, missing).map((s) => s.id)).toEqual(["sc1", "sc2"]);
+    expect(planDayScenes(null, pd)).toEqual([]);
+    expect(planDayScenes(data, null)).toEqual([]);
   });
 });

@@ -47,6 +47,16 @@
       @save="saveGroup('tts')"
       @test="runTest('tts')"
     />
+    <AiLocalTtsForm
+      v-else-if="group === 'local'"
+      v-model:local="local"
+      :test="tests.local"
+      :save-msg="saveMsg.local || ''"
+      :busy="saving === 'local'"
+      :test-busy="testBusy === 'local'"
+      @save="saveGroup('local')"
+      @test="runTest('local')"
+    />
     <AiSoeForm
       v-else-if="group === 'soe'"
       v-model:soe="soe"
@@ -86,15 +96,17 @@ import { api } from "../../core/api";
 import AiLlmForm from "./AiLlmForm.vue";
 import AiRealtimeForm from "./AiRealtimeForm.vue";
 import AiTtsForm from "./AiTtsForm.vue";
+import AiLocalTtsForm from "./AiLocalTtsForm.vue";
 import AiSoeForm from "./AiSoeForm.vue";
 import AiPriceForm from "./AiPriceForm.vue";
 import AiCacheForm from "./AiCacheForm.vue";
-import type { CacheStats, LlmCfg, QwenCfg, SoeCfg, TestResult } from "./types";
+import type { CacheStats, LlmCfg, LocalTtsCfg, QwenCfg, SoeCfg, TestResult } from "./types";
 
 const GROUPS = [
   { id: "llm", name: "AI 加词" },
   { id: "realtime", name: "实时对话" },
   { id: "tts", name: "语音合成" },
+  { id: "local", name: "本地发音" },
   { id: "soe", name: "发音评测" },
   { id: "price", name: "单价与默认额度" },
   { id: "cache", name: "TTS 缓存" },
@@ -117,13 +129,20 @@ const qwen = reactive<QwenCfg>({
 const soe = reactive<SoeCfg>({
   appid: "", secret_id: "", secret_key: "", engine: "", coeff: 1.0,
 });
+const local = reactive<LocalTtsCfg>({
+  enabled: false, engine: "piper", voice: "en_GB-alan-medium",
+  voice_zh: "zh_CN-huayan-medium", speed: 0.95,
+  sidecar: "http://tts:8100", max_chars: 300, cache_version: "piper1", rate_per_min: 30,
+});
+/** 原始 JSON：保存时合并，保留表单里没有的键（pronounce、voices 等）。 */
+let localRaw: Record<string, unknown> = {};
 
 const prices = reactive<Record<string, number>>({});
 const creditYuan = ref<number | null>(0.5);
 const alertPct = ref<number | null>(80);
 const hardStop = ref(true);
-const cacheMax = ref<number | null>(512);
-const cache = reactive<CacheStats>({ files: 0, bytes: 0, max_mb: 512 });
+const cacheMax = ref<number | null>(1024);
+const cache = reactive<CacheStats>({ files: 0, bytes: 0, max_mb: 1024 });
 
 function qwenJson(): string {
   return JSON.stringify({ ...qwen, mcp: qwen.mcp ? "1" : "" });
@@ -147,6 +166,8 @@ async function saveGroup(g: string): Promise<void> {
       await putCfg("speak.qwen", qwenJson());
     } else if (g === "soe") {
       await putCfg("speak.soe", JSON.stringify(soe));
+    } else if (g === "local") {
+      await putCfg("speak.local", JSON.stringify({ ...localRaw, ...local, enabled: !!local.enabled }));
     } else if (g === "price") {
       const clean: Record<string, number> = {};
       for (const [k, v] of Object.entries(prices)) clean[k] = Math.max(0, Number(v) || 0);
@@ -164,7 +185,7 @@ async function saveGroup(g: string): Promise<void> {
     } else if (g === "cache") {
       const r = await api<{ tts_cache: { max_mb: number } }>("/admin/ai/prices", {
         method: "PUT",
-        body: JSON.stringify({ tts_cache: { max_mb: Math.round(cacheMax.value ?? 512) } }),
+        body: JSON.stringify({ tts_cache: { max_mb: Math.round(cacheMax.value ?? 1024) } }),
       });
       cache.max_mb = r.tts_cache.max_mb;
       cacheMax.value = r.tts_cache.max_mb;
@@ -183,7 +204,12 @@ async function runTest(kind: string): Promise<void> {
   testBusy.value = kind;
   tests[kind] = null;
   try {
-    tests[kind] = await api<TestResult>(`/admin/test/${kind}`, { method: "POST" });
+    const url = kind === "local"
+      ? "/admin/test/tts?provider=local"
+      : kind === "tts"
+        ? "/admin/test/tts?provider=qwen"
+        : `/admin/test/${kind}`;
+    tests[kind] = await api<TestResult>(url, { method: "POST" });
   } catch (e) {
     tests[kind] = { ok: false, detail: (e as Error).message };
   } finally {
@@ -206,7 +232,7 @@ async function loadCache(): Promise<void> {
 function clearCache(): void {
   dialog.warning({
     title: "清空 TTS 缓存",
-    content: "删除后再次播放会重新合成并产生费用，确定清空？",
+    content: "本地预生成音频也会一起删除，需要重跑 tools/build_tts.py；云端 TTS 再次播放会重新合成并产生费用。确定清空？",
     positiveText: "清空",
     negativeText: "取消",
     async onPositiveClick() {
@@ -242,6 +268,17 @@ onMounted(async () => {
       for (const k of Object.keys(soe)) {
         if (s[k] !== undefined && s[k] !== null) {
           (soe as unknown as Record<string, string | number>)[k] = s[k] as string | number;
+        }
+      }
+    }
+    if (raw["speak.local"]) {
+      const l = JSON.parse(raw["speak.local"]) as Record<string, unknown>;
+      localRaw = l;
+      for (const k of Object.keys(local)) {
+        if (k === "enabled") {
+          local.enabled = ["1", "true", "yes", "on"].includes(String(l.enabled ?? "").toLowerCase());
+        } else if (l[k] !== undefined && l[k] !== null) {
+          (local as unknown as Record<string, unknown>)[k] = l[k];
         }
       }
     }

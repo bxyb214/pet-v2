@@ -1,5 +1,59 @@
 <template>
   <div class="adm-page">
+    <section class="adm-stats">
+      <div class="adm-stat"><b class="tnum">{{ users.length }}</b><span>账号总数</span></div>
+      <div class="adm-stat"><b class="tnum">{{ enabledCount }}</b><span>AI 已开通</span></div>
+      <div class="adm-stat"><b class="tnum">{{ disabledCount }}</b><span>未开通</span></div>
+      <div class="adm-stat"><b class="tnum" :class="{ 'stat-danger': exhaustedCount > 0 }">{{ exhaustedCount }}</b><span>额度告罄</span></div>
+    </section>
+
+    <section class="adm-panel">
+      <div class="adm-panel-h row">
+        <div>
+          <h2>账号与 AI 权限</h2>
+          <p>AI 权限控制跟读评分与实时对话；关闭后普通功能不受影响。额度是一次性总额，用尽自动暂停付费 AI。</p>
+        </div>
+        <n-button size="small" secondary :loading="loading" @click="loadUsers">刷新</n-button>
+      </div>
+
+      <div class="users-toolbar">
+        <n-input
+          v-model:value="query" clearable class="users-search"
+          placeholder="搜索用户名 / 昵称"
+        />
+        <div class="users-filters" role="group" aria-label="账号筛选">
+          <button
+            v-for="f in FILTERS" :key="f.id" type="button"
+            class="ufilter" :class="{ on: filter === f.id }"
+            :aria-pressed="filter === f.id"
+            @click="filter = f.id"
+          >{{ f.name }} <i>{{ filterCount(f.id) }}</i></button>
+        </div>
+      </div>
+
+      <div v-if="filteredUsers.length" class="ucards">
+        <AdminUserCard
+          v-for="u in filteredUsers" :key="u.id" :u="u"
+          :busy="aiBusy === u.id" :reset-busy="resetBusy === u.id"
+          @toggle-ai="toggleAi"
+          @open-quota="openQuota"
+          @import-words="openImport"
+          @reset-password="resetPwd"
+          @reset-alert="resetAlert"
+        />
+      </div>
+      <p v-else-if="loading" class="adm-empty">加载中…</p>
+      <p v-else class="adm-empty">
+        {{ users.length ? "没有符合筛选条件的账号。" : "还没有账号。" }}
+      </p>
+
+      <p class="adm-foot">
+        新注册的普通账号默认未开通 AI，由管理员按需开启。额度按人可覆盖：留空跟随全局默认。
+        总额度用尽后付费接口返回 429，调高额度即可继续；单词、阅读、听力、题库等免费功能不受影响。
+        管理员账号不受总额度限制。
+      </p>
+    </section>
+
     <section class="adm-panel">
       <div class="adm-panel-h row">
         <div>
@@ -30,70 +84,10 @@
       <p class="adm-foot">注册路径：登录页 →「用邀请码注册」→ 填码 + 用户名 + 密码。</p>
     </section>
 
-    <section class="adm-panel">
-      <div class="adm-panel-h row">
-        <div>
-          <h2>账号与额度</h2>
-          <p>共 {{ users.length }} 个；AI 开关是付费总闸门，关闭时付费接口一律 403；总额度用尽后自动暂停付费 AI。</p>
-        </div>
-        <n-button size="small" secondary :loading="loading" @click="loadUsers">刷新</n-button>
-      </div>
-
-      <div v-if="users.length">
-        <div v-for="u in users" :key="u.id" class="adm-user">
-          <span class="adm-avatar">{{ (u.display_name || u.username || "?").slice(0, 1).toUpperCase() }}</span>
-          <span class="adm-uid">
-            <b>{{ u.display_name || u.username }}</b>
-            <i class="adm-mono">@{{ u.username }}</i>
-          </span>
-          <i v-if="u.is_admin" class="adm-tag admin">管理员</i>
-
-          <div class="adm-uops">
-            <span class="lbl">AI</span>
-            <n-switch
-              size="small"
-              :value="u.ai_enabled"
-              :loading="aiBusy === u.id"
-              title="付费 AI 总开关：关闭后不调用外部模型"
-              @update:value="(v: boolean) => toggleAi(u, v)"
-            />
-            <span class="adm-use tnum" :class="{ over: !u.unlimited && u.credit_used_milli >= u.credit_budget_milli }">
-              {{ u.unlimited ? "管理员 · 不限额度" : `总额 ${fmtYuanShort(u.credit_used_milli)} / ${fmtYuanShort(u.credit_budget_milli)}` }}
-            </span>
-            <i v-if="!u.unlimited && u.alert_stage >= 2" class="adm-tag danger">已用尽</i>
-            <i v-else-if="!u.unlimited && u.alert_stage === 1" class="adm-tag warn">接近上限</i>
-            <n-button size="tiny" secondary @click="openQuota(u)">额度</n-button>
-            <n-button size="tiny" secondary @click="openImport(u)">导入生词</n-button>
-            <n-button size="tiny" secondary :loading="resetBusy === u.id" @click="resetPwd(u)">重置密码</n-button>
-            <n-button v-if="u.alert_stage > 0" size="tiny" quaternary @click="resetAlert(u)">清除告警</n-button>
-          </div>
-        </div>
-      </div>
-      <p v-else class="adm-empty">还没有账号。</p>
-      <p class="adm-foot">
-        口语对所有账号开放，普通账号默认获赠一次性总额度（默认 0.5 元）。额度按人可覆盖：留空表示跟随全局默认。
-        总额度用尽后服务端返回 429，调高额度即可继续；免费功能（单词、听力、题库）不受影响。管理员账号不受总额度限制。
-      </p>
-    </section>
-
-    <n-modal v-model:show="quotaOpen" preset="card" title="额度设置" class="quota-modal">
-      <div v-if="editing" class="quota">
-        <p class="quota-u">@{{ editing.username }}</p>
-        <label class="adm-field">
-          <span class="adm-flabel">一次性总额度 <i class="adm-opt">元</i></span>
-          <n-input-number v-model:value="qCredit" :min="0" :step="0.5" :precision="2" clearable placeholder="留空 = 全局默认" style="width: 100%" />
-          <span class="adm-fhint">
-            当前生效：{{ fmtYuan(editing.credit_budget_milli) }}（累计已用 {{ fmtYuan(editing.credit_used_milli) }}）
-            <template v-if="editing.unlimited"> · 管理员账号不受总额度限制</template>
-          </span>
-        </label>
-        <p class="adm-fhint">额度用完即暂停付费 AI；调高此值即可继续使用，无需按日/月恢复。</p>
-        <div class="quota-actions">
-          <n-button quaternary @click="quotaOpen = false">取消</n-button>
-          <n-button type="primary" :loading="quotaBusy" @click="saveQuota">保存</n-button>
-        </div>
-      </div>
-    </n-modal>
+    <AdminQuotaModal
+      v-model:show="quotaOpen" :user="editing" :busy="quotaBusy"
+      @save="saveQuota"
+    />
 
     <!-- Excel 批量导入生词 -->
     <n-modal v-model:show="importOpen" preset="card" title="导入生词" class="quota-modal">
@@ -129,35 +123,63 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
-import { NAlert, NButton, NInputNumber, NLi, NModal, NRadioButton, NRadioGroup, NSwitch, NUl, useMessage } from "naive-ui";
-import { downloadFile } from "../../core/api";
-import { api } from "../../core/api";
-import { fmtYuan, fmtYuanShort } from "./format";
+import { computed, onMounted, ref } from "vue";
+import {
+  NAlert, NButton, NInput, NInputNumber, NLi, NModal, NRadioButton, NRadioGroup,
+  NUl, useMessage,
+} from "naive-ui";
+import { api, downloadFile } from "../../core/api";
+import AdminQuotaModal from "./AdminQuotaModal.vue";
+import AdminUserCard from "./AdminUserCard.vue";
+import type { AdminUserRow } from "./types";
 
 type CodeRow = { code: string; used: boolean; used_by: string; used_at: string | null };
-type UserRow = {
-  id: number;
-  username: string;
-  display_name: string;
-  is_admin: boolean;
-  created_at: string | null;
-  ai_enabled: boolean;
-  unlimited: boolean;
-  ai_credit_milli: number | null;
-  credit_used_milli: number;
-  credit_budget_milli: number;
-  remaining_milli: number;
-  alert_stage: number;
-};
+type FilterId = "all" | "on" | "off" | "exhausted";
+const FILTERS: { id: FilterId; name: string }[] = [
+  { id: "all", name: "全部" },
+  { id: "on", name: "已开通" },
+  { id: "off", name: "未开通" },
+  { id: "exhausted", name: "额度告罄" },
+];
 
 const message = useMessage();
 const codes = ref<CodeRow[]>([]);
-const users = ref<UserRow[]>([]);
+const users = ref<AdminUserRow[]>([]);
 const codeCount = ref(3);
 const making = ref(false);
 const loading = ref(false);
 const aiBusy = ref(0);
+const query = ref("");
+const filter = ref<FilterId>("all");
+
+const enabledCount = computed(() => users.value.filter((u) => u.ai_enabled).length);
+const disabledCount = computed(() => users.value.length - enabledCount.value);
+const exhaustedCount = computed(
+  () => users.value.filter((u) => !u.unlimited && u.ai_enabled && u.remaining_milli <= 0).length,
+);
+
+const filteredUsers = computed(() => {
+  const needle = query.value.trim().toLowerCase();
+  return users.value.filter((u) => {
+    if (needle) {
+      const hay = `${u.username} ${u.display_name}`.toLowerCase();
+      if (!hay.includes(needle)) return false;
+    }
+    if (filter.value === "on") return u.ai_enabled;
+    if (filter.value === "off") return !u.ai_enabled;
+    if (filter.value === "exhausted") {
+      return !u.unlimited && u.ai_enabled && u.remaining_milli <= 0;
+    }
+    return true;
+  });
+});
+
+function filterCount(id: FilterId): number {
+  if (id === "on") return enabledCount.value;
+  if (id === "off") return disabledCount.value;
+  if (id === "exhausted") return exhaustedCount.value;
+  return users.value.length;
+}
 
 async function copyCode(code: string): Promise<void> {
   try {
@@ -179,7 +201,7 @@ async function loadCodes(): Promise<void> {
 async function loadUsers(): Promise<void> {
   loading.value = true;
   try {
-    users.value = await api<UserRow[]>("/admin/users");
+    users.value = await api<AdminUserRow[]>("/admin/users");
   } catch {
     /* 忽略 */
   } finally {
@@ -187,7 +209,7 @@ async function loadUsers(): Promise<void> {
   }
 }
 
-function patch(data: UserRow): void {
+function patch(data: AdminUserRow): void {
   const i = users.value.findIndex((u) => u.id === data.id);
   if (i >= 0) users.value[i] = data;
 }
@@ -208,10 +230,10 @@ async function makeCodes(): Promise<void> {
   }
 }
 
-async function toggleAi(u: UserRow, on: boolean): Promise<void> {
+async function toggleAi(u: AdminUserRow, on: boolean): Promise<void> {
   aiBusy.value = u.id;
   try {
-    patch(await api<UserRow>(`/admin/users/${u.id}/ai`, {
+    patch(await api<AdminUserRow>(`/admin/users/${u.id}/ai`, {
       method: "PUT",
       body: JSON.stringify({ enabled: on }),
     }));
@@ -226,28 +248,24 @@ async function toggleAi(u: UserRow, on: boolean): Promise<void> {
 // ---------------------------------------------------------------- 额度弹窗
 const quotaOpen = ref(false);
 const quotaBusy = ref(false);
-const editing = ref<UserRow | null>(null);
-const qCredit = ref<number | null>(null);
+const editing = ref<AdminUserRow | null>(null);
 
-function openQuota(u: UserRow): void {
+function openQuota(u: AdminUserRow): void {
   editing.value = u;
-  qCredit.value = u.ai_credit_milli === null ? null : u.ai_credit_milli / 1000;
   quotaOpen.value = true;
 }
 
-async function saveQuota(): Promise<void> {
+async function saveQuota(creditMilli: number | null): Promise<void> {
   const u = editing.value;
   if (!u) return;
   quotaBusy.value = true;
   try {
-    patch(await api<UserRow>(`/admin/users/${u.id}/ai`, {
+    patch(await api<AdminUserRow>(`/admin/users/${u.id}/ai`, {
       method: "PUT",
-      body: JSON.stringify({
-        credit_milli: qCredit.value === null ? null : Math.round(qCredit.value * 1000),
-      }),
+      body: JSON.stringify({ credit_milli: creditMilli }),
     }));
     quotaOpen.value = false;
-    message.success("额度已更新");
+    message.success(creditMilli == null ? "已恢复全局默认额度" : "额度已更新");
   } catch (e) {
     message.error("保存失败：" + (e as Error).message);
   } finally {
@@ -255,7 +273,7 @@ async function saveQuota(): Promise<void> {
   }
 }
 
-async function resetAlert(u: UserRow): Promise<void> {
+async function resetAlert(u: AdminUserRow): Promise<void> {
   try {
     const r = await api<{ removed: number }>(`/admin/users/${u.id}/ai/reset_alert`, { method: "POST" });
     message.success(`已清除 ${r.removed} 条告警`);
@@ -268,7 +286,7 @@ async function resetAlert(u: UserRow): Promise<void> {
 // ---- 重置密码
 const resetBusy = ref(0);
 
-async function resetPwd(u: UserRow): Promise<void> {
+async function resetPwd(u: AdminUserRow): Promise<void> {
   resetBusy.value = u.id;
   try {
     const r = await api<{ username: string; temp_password: string }>(
@@ -295,13 +313,13 @@ onMounted(() => {
 
 // ---- Excel 导入生词
 const importOpen = ref(false);
-const importTarget = ref<UserRow | null>(null);
+const importTarget = ref<AdminUserRow | null>(null);
 const importExam = ref<"pet" | "ket" | "fce">("pet");
 const importBusy = ref(false);
 const importErr = ref("");
 const importResult = ref<{ added: number; skipped: string[]; skipped_more: number } | null>(null);
 
-function openImport(u: UserRow): void {
+function openImport(u: AdminUserRow): void {
   importTarget.value = u;
   importExam.value = "pet";
   importErr.value = "";
@@ -350,11 +368,27 @@ async function onImportFile(ev: Event): Promise<void> {
 </script>
 
 <style scoped>
-.adm-use { font-size: 12px; color: var(--c-text-2); white-space: nowrap; }
-.adm-use.over { color: var(--c-danger); font-weight: 700; }
+.stat-danger { color: var(--c-danger); }
+.users-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.users-search { flex: 1 1 200px; max-width: 300px; }
+.users-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.ufilter {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px; min-height: 32px; border-radius: 999px;
+  border: 1px solid var(--c-line); background: var(--c-surface);
+  color: var(--c-text-2); font: inherit; font-size: 12.5px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.ufilter:hover { border-color: var(--c-primary); color: var(--c-text); }
+.ufilter.on { background: var(--c-primary-strong); border-color: var(--c-primary-strong); color: #fff; }
+.ufilter i { font-style: normal; font-size: 11px; opacity: 0.65; font-variant-numeric: tabular-nums; }
+.ucards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .quota { display: flex; flex-direction: column; gap: 16px; }
 .quota-u { margin: 0; font-size: 13px; color: var(--c-text-2); }
-.quota-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .imp-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .imp-skips { max-height: 160px; overflow: auto; margin: 8px 0 0; }
+@media (max-width: 640px) {
+  .users-search { max-width: none; flex-basis: 100%; }
+  .ucards { grid-template-columns: 1fr; }
+}
 </style>

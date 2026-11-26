@@ -19,7 +19,7 @@ _SECRET_JSON_FIELDS = {"api_key", "secret_key"}
 
 class CfgIn(BaseModel):
     key: str = Field(max_length=64)
-    value: str = Field(default="", max_length=2000)
+    value: str = Field(default="", max_length=4000)
 
 
 def _mask(key: str, value: str) -> str:
@@ -168,6 +168,7 @@ def _user_row(db: Session, u: User) -> dict:
     from app.services import budget
 
     st = budget.status(db, u)
+    default_credit = budget.budget_cfg(db)["credit_milli"]
     return {
         "id": u.id,
         "username": u.username,
@@ -177,6 +178,8 @@ def _user_row(db: Session, u: User) -> dict:
         "ai_enabled": bool(u.ai_enabled),
         "unlimited": st["unlimited"],
         "ai_credit_milli": u.ai_credit_milli,
+        "credit_custom": u.ai_credit_milli is not None,
+        "default_credit_milli": default_credit,
         "credit_used_milli": st["credit"]["used_milli"],
         "credit_budget_milli": st["credit"]["budget_milli"],
         "remaining_milli": st["remaining_milli"],

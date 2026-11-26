@@ -48,7 +48,7 @@ def test_new_user_returns_zeroes():
     d = client.get("/api/v1/usage/me", headers=_h(token)).json()
 
     assert d["month"] == usage_svc.today()[:7]
-    assert d["status"]["ai_enabled"] is True
+    assert d["status"]["ai_enabled"] is False
     assert d["status"]["unlimited"] is False
     assert d["status"]["credit"]["used_milli"] == 0
     assert d["status"]["credit"]["budget_milli"] == budget.DEFAULT_BUDGET["credit_milli"]

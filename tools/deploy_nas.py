@@ -311,21 +311,22 @@ def wait_health(R: Runner, port: int, timeout: int = 120) -> bool:
 
 
 def prune_images(R: Runner, keep: int, current: str) -> None:
-    """保留 current/latest + 最近 keep 个 tag，其余删除。"""
+    """保留 current/latest + 最近 keep 个 tag，其余删除（api 与 tts 各自清理）。"""
     if keep <= 0:
         return
-    code, out = R.docker("images pet-api --format '{{.Tag}}'", timeout=60, stream=False)
-    if code != 0:
-        return
-    tags = [t for t in out.split() if t and t != "<none>"]
-    keep_set = {current, "latest", *tags[:keep]}
     removed = 0
-    for tag in tags:
-        if tag in keep_set:
+    for repo in ("pet-api", "pet-tts"):
+        code, out = R.docker("images " + repo + " --format '{{.Tag}}'", timeout=60, stream=False)
+        if code != 0:
             continue
-        code, _ = R.docker(f"rmi pet-api:{shlex.quote(tag)}", timeout=60, stream=False)
-        if code == 0:
-            removed += 1
+        tags = [t for t in out.split() if t and t != "<none>"]
+        keep_set = {current, "latest", *tags[:keep]}
+        for tag in tags:
+            if tag in keep_set:
+                continue
+            code, _ = R.docker(f"rmi {repo}:{shlex.quote(tag)}", timeout=60, stream=False)
+            if code == 0:
+                removed += 1
     if removed:
         info(f"已清理 {removed} 个旧镜像 tag")
 
@@ -415,6 +416,9 @@ def pack(dest: Path, with_audio: bool = False) -> Path:
         # 音频只在首次部署/新增素材时上传，避免每次发布重复传 85MB
         if p.parts[:3] == ("frontend", "dist", "audio") and not with_audio:
             return None
+        # Piper 模型走 sidecar 命名卷，绝不随发布包上传
+        if p.parts[:3] in (("deploy", "tts", "voices"), ("deploy", "tts", ".cache")):
+            return None
         if p.suffix in EXCLUDE_SUFFIX or p.name in EXCLUDE_NAMES:
             return None
         return ti
@@ -486,6 +490,21 @@ def run_backup(R: Runner, keep: int = 14) -> bool:
     last = out.strip().splitlines()[-1] if out.strip() else "备份完成"
     ok(f"部署前备份：{last}")
     return True
+
+
+def reload_nginx(R: Runner) -> None:
+    """compose up 会重建 api 并换 IP；nginx 启动时缓存上游域名，需 reload 重新解析。
+
+    否则旧 IP 被回收后，8088 会返回 502，而 api 容器本身仍是 healthy。
+    """
+    code, out = R.compose("exec -T nginx nginx -s reload", timeout=60, stream=False)
+    if code == 0:
+        ok("nginx 已 reload（重新解析 api 上游）")
+        return
+    info(f"nginx reload 失败，改为重启：{out.strip()[:160]}")
+    code, out = R.compose("restart nginx", timeout=120, stream=False)
+    if code != 0:
+        die(f"nginx 重启失败：{out.strip()[:300]}")
 
 
 def cmd_deploy(args, R: Runner, cli) -> None:
@@ -570,6 +589,7 @@ def cmd_deploy(args, R: Runner, cli) -> None:
     if code != 0:
         die("compose 构建/启动失败，看上面日志")
     ok("容器已启动")
+    reload_nginx(R)
 
     # 6. 健康检查
     info(f"等待健康检查（:{args.http_port}）…")
@@ -582,6 +602,9 @@ def cmd_deploy(args, R: Runner, cli) -> None:
     code, out = R.docker(f"tag pet-api:{shlex.quote(tag)} pet-api:latest", timeout=60)
     if code != 0:
         info(f"打 latest 失败：{out[:200]}")
+    code, out = R.docker(f"tag pet-tts:{shlex.quote(tag)} pet-tts:latest", timeout=60)
+    if code != 0:
+        info(f"本地 TTS 镜像打 latest 失败（未构建或名称不同）：{out[:120]}")
     prune_images(R, args.keep_images, tag)
 
     _, out = R.compose("ps", timeout=60, stream=False)
@@ -660,10 +683,15 @@ def cmd_rollback(args, R: Runner, cli) -> None:
     code, _ = R.docker(f"tag pet-api:{shlex.quote(target)} pet-api:latest", timeout=60)
     if code != 0:
         die(f"镜像 pet-api:{target} 不存在")
+    # 本地 TTS 镜像同步回滚；旧 tag 没有 tts 镜像时跳过
+    code, out = R.docker(f"tag pet-tts:{shlex.quote(target)} pet-tts:latest", timeout=60)
+    if code != 0:
+        info("本次回滚未找到同 tag 的 pet-tts 镜像，本地 TTS 保持当前版本")
     info(f"回滚 api → pet-api:{target}")
     code, _ = R.compose("up -d --no-build", timeout=600, stream=True)
     if code != 0:
         die("回滚启动失败，看上面日志")
+    reload_nginx(R)
     if not wait_health(R, args.http_port, timeout=180):
         R.compose("logs --tail 60 api", timeout=120, stream=True)
         die("回滚后健康检查失败，检查数据库迁移是否兼容旧镜像")

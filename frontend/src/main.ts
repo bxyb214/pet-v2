@@ -3,6 +3,7 @@ import { createPinia } from "pinia";
 import App from "./App.vue";
 import { router } from "./router";
 import { setUnauthorizedHandler } from "./core/api";
+import { loadTtsConfig } from "./core/ttsConfig";
 import { useAuthStore } from "./stores/auth";
 import "./tokens.css";
 
@@ -18,6 +19,9 @@ setUnauthorizedHandler(() => {
 });
 
 app.mount("#app");
+
+// 本地 TTS 配置是公开只读的；每次启动强制刷新，管理页开关不必等 10 分钟 TTL。
+void loadTtsConfig(true);
 
 // 首屏启动图：等路由完成首次导航再淡出，避免先闪登录页再跳首页
 void router.isReady().then(() => {

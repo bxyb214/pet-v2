@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { bestTake, pcmToWav, pruneTakes, takeStorageKey, type Take } from "./takes";
+import {
+  bestTake, filterMyTakes, pcmToWav, pruneTakes, takeStorageKey, type Take,
+} from "./takes";
 
 function take(id: string, at: number, score: number): Take {
   return {
@@ -63,6 +65,26 @@ describe("takeStorageKey", () => {
   it("按用户与题目隔离，未登录归 guest", () => {
     expect(takeStorageKey("amy", "c101:p1")).toBe("amy|c101:p1");
     expect(takeStorageKey("", "c101:p1")).toBe("guest|c101:p1");
+  });
+});
+
+describe("filterMyTakes", () => {
+  it("只保留当前账号，按时间倒序", () => {
+    const rows = [
+      { ...take("a", 1, 60), key: "amy|s:p" },
+      { ...take("b", 3, 80), key: "amy|s:q" },
+      { ...take("c", 2, 70), key: "ab|s:p" },
+      { ...take("d", 4, 90), key: "guest|s:p" },
+    ];
+    expect(filterMyTakes(rows, "amy").map((t) => t.id)).toEqual(["b", "a"]);
+  });
+
+  it("未登录只看 guest，不串到用户名以 guest 开头的账号", () => {
+    const rows = [
+      { ...take("a", 1, 60), key: "guest|s:p" },
+      { ...take("b", 2, 70), key: "guestie|s:p" },
+    ];
+    expect(filterMyTakes(rows, "").map((t) => t.id)).toEqual(["a"]);
   });
 });
 

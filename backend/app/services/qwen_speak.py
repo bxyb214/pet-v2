@@ -1,10 +1,35 @@
 """Qwen Realtime / TTS 服务（S 组）：配置读 app_cfg，密钥不出服务端。"""
+import base64
 import json
 
 import httpx
 from sqlalchemy.orm import Session
 
 from app.models.speak import SpeakLog
+from app.services.tts_cache import (
+    clear_tts_cache,
+    enforce_tts_cache,
+    normalize_wav,
+    tts_cache_cfg,
+    tts_cache_stats,
+)
+
+__all__ = [
+    "build_instructions",
+    "clear_tts_cache",
+    "enforce_tts_cache",
+    "pick_model",
+    "pick_vad",
+    "pick_voice",
+    "proxy_sdp",
+    "qwen_cfg",
+    "recent_issues",
+    "transcribe",
+    "tts",
+    "tts_cache_cfg",
+    "tts_cache_stats",
+    "webrtc_url",
+]
 
 _TIMEOUT = 30.0
 
@@ -255,63 +280,6 @@ def _sdp_error_message(body: str, status_code: int, model: str) -> str:
     return f"连接语音服务失败（HTTP {status_code}，{model}）：{msg}"
 
 
-def tts_cache_cfg(db: Session) -> int:
-    """TTS 缓存上限（MB），存 app_cfg 'speak.tts_cache'，默认 512。"""
-    from app.services.ai_enrich import get_cfg
-
-    raw = get_cfg(db, "speak.tts_cache", "")
-    try:
-        d = json.loads(raw) if raw else {}
-        return max(16, int(d.get("max_mb", 512)))
-    except (json.JSONDecodeError, TypeError, ValueError):
-        return 512
-
-
-def _wav_files(cache_dir: str) -> list:
-    from pathlib import Path
-
-    d = Path(cache_dir)
-    if not d.is_dir():
-        return []
-    return [p for p in d.glob("*.wav") if p.is_file()]
-
-
-def tts_cache_stats(cache_dir: str, max_mb: int) -> dict:
-    files = _wav_files(cache_dir)
-    total = sum(p.stat().st_size for p in files)
-    return {"files": len(files), "bytes": total, "max_mb": max_mb}
-
-
-def clear_tts_cache(cache_dir: str) -> int:
-    n = 0
-    for p in _wav_files(cache_dir):
-        try:
-            p.unlink()
-            n += 1
-        except OSError:
-            continue
-    return n
-
-
-def enforce_tts_cache(cache_dir: str, max_mb: int) -> int:
-    """按 mtime 做 LRU：超过上限时删最久未用的文件，直到回到上限内。"""
-    limit = max_mb * 1024 * 1024
-    files = sorted(_wav_files(cache_dir), key=lambda p: p.stat().st_mtime)
-    total = sum(p.stat().st_size for p in files)
-    removed = 0
-    for p in files:
-        if total <= limit:
-            break
-        try:
-            size = p.stat().st_size
-            p.unlink()
-            total -= size
-            removed += 1
-        except OSError:
-            continue
-    return removed
-
-
 def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
     """TTS + sha1 磁盘缓存。返回可缓存的静态 URL（不再回传 base64）。
 
@@ -360,7 +328,7 @@ def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
         audio = httpx.get(audio_url, timeout=40.0).content
         if len(audio) < 1000:
             raise RuntimeError("下载合成音频失败")
-        f.write_bytes(audio)
+        f.write_bytes(normalize_wav(audio))
         enforce_tts_cache(cache_dir, tts_cache_cfg(db))
     return {
         "url": f"/api/v1/speak/tts/file/{f.name}",
@@ -370,10 +338,27 @@ def tts(db: Session, cache_dir: str, text: str, voice: str = "") -> dict:
     }
 
 
-def transcribe(db: Session, audio: bytes, mime: str) -> str:
-    """造句页录音转英文文本（OpenAI 兼容 audio/transcriptions，multipart 上传）。
+def _transcript_text(resp: httpx.Response) -> str:
+    """从 OpenAI 兼容 chat.completion 里取转写文本（content 可能是字符串或分段数组）。"""
+    try:
+        choices = resp.json().get("choices") or []
+        message = choices[0].get("message") or {}
+    except (ValueError, AttributeError, IndexError, TypeError):
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = [str(p.get("text", "")) for p in content if isinstance(p, dict)]
+        return "".join(parts).strip()
+    return ""
 
-    确定性 ASR，替代原先「让 Realtime 模型兼职转写」的不可靠路径。
+
+def transcribe(db: Session, audio: bytes, mime: str) -> str:
+    """造句页录音转英文文本（qwen3-asr-flash）。
+
+    百炼没有 OpenAI 的 /audio/transcriptions：Qwen-ASR 走 OpenAI 兼容的
+    chat/completions，音频以 `input_audio` + base64 data URI 传入。
     没听到语音时返回空串；失败抛 RuntimeError（端点转 502）。
     """
     cfg = qwen_cfg(db)
@@ -382,24 +367,36 @@ def transcribe(db: Session, audio: bytes, mime: str) -> str:
         raise PermissionError("管理员还没有配置 Qwen API Key")
     if not audio or len(audio) < 800:  # <0.1s 的录音当没说话
         return ""
-    filename = "take.webm" if "webm" in mime else ("take.mp4" if "mp4" in mime else "take.wav")
+    if len(audio) > 10 * 1024 * 1024:
+        raise RuntimeError("录音文件超过 10MB，请缩短后重试")
+    mime = (mime or "audio/webm").split(";")[0].strip() or "audio/webm"
+    data_uri = f"data:{mime};base64,{base64.b64encode(audio).decode()}"
+    payload = {
+        "model": cfg["asr_model"],
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_audio", "input_audio": {"data": data_uri}},
+                ],
+            }
+        ],
+        "asr_options": {"language": "en", "enable_itn": True},
+    }
+    url = f"{cfg['base'].rstrip('/')}/compatible-mode/v1/chat/completions"
     last_error = ""
     for api_key in keys:
         try:
             resp = httpx.post(
-                f"{cfg['base'].rstrip('/')}/compatible-mode/v1/audio/transcriptions",
+                url,
                 headers={"Authorization": f"Bearer {api_key}"},
-                files={"file": (filename, audio, mime or "audio/webm")},
-                data={"model": cfg["asr_model"], "language": "en"},
-                timeout=30.0,
+                json=payload,
+                timeout=60.0,
             )
         except httpx.HTTPError as e:
             raise RuntimeError(f"转写服务连接失败：{e}") from e
         if 200 <= resp.status_code < 300:
-            try:
-                return str(resp.json().get("text", "")).strip()
-            except (json.JSONDecodeError, AttributeError):
-                return ""
+            return _transcript_text(resp)
         last_error = f"转写失败（HTTP {resp.status_code}）：{resp.text[:160]}"
         if resp.status_code not in (401, 403):
             break  # 不是 Key 的问题，不再换 Key 重试

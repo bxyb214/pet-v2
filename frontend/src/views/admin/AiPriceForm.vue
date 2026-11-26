@@ -21,7 +21,7 @@
       <label class="adm-field">
         <span class="adm-flabel">普通账号总额度 <i class="adm-opt">元</i></span>
         <n-input-number v-model:value="credit" :min="0" :step="0.5" :precision="2" :clearable="false" style="width: 100%" />
-        <span class="adm-fhint">一次性额度，用完暂停付费 AI；账号可在「用户与额度」单独覆盖。</span>
+        <span class="adm-fhint">普通账号默认未开通 AI；开通后使用这笔一次性额度，用完暂停付费 AI。可在「用户与额度」单独覆盖。</span>
       </label>
       <label class="adm-field">
         <span class="adm-flabel">告警阈值 <i class="adm-opt">%</i></span>

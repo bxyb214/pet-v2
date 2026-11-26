@@ -107,8 +107,9 @@
           <template v-else>
             <p class="word cn" :style="wordStyle">{{ qStem }}</p>
           </template>
-          <button v-if="q.word.en" type="button" class="stem-say" @click="playQuestionWord">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <button v-if="q.word.en" type="button" class="stem-say" :disabled="audioPending(questionAudioText())" @click="playQuestionWord">
+            <span v-if="audioPending(questionAudioText())" class="audio-spin" aria-hidden="true" />
+            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
               <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
             </svg>
@@ -197,7 +198,7 @@
             <p v-if="q.word.example" class="fbex">{{ q.word.example }}</p>
 
             <div class="fbactions">
-              <n-button secondary type="primary" @click="playAudio(q.word)">
+              <n-button secondary type="primary" :loading="audioPending(q.word.en)" @click="playAudio(q.word)">
                 <template #icon>
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
@@ -287,7 +288,7 @@ import {
   checkAnswer, DIM_LABEL, SYN_DIM_LABEL, type QuizDim, type QuizQuestion,
 } from "../core/quiz";
 import { splitPlan, type WordBanks, type BankKey, type PlanWord } from "../core/plan";
-import { englishOnly, playWordAudio, say } from "../core/say";
+import { englishOnly, audioPending, playWordAudio, say } from "../core/say";
 import {
   clearQuizSession, freeScope, loadQuizSession, planScope, pruneQuizSessions,
   resumePosition, saveQuizSession, sessionMatches,
@@ -902,11 +903,14 @@ function playAudio(word: PlanWord): void {
 }
 
 /** 题面上的发音按钮：普通词读目标英文词；同义配对读当前题面上的英文短语 */
+function questionAudioText(): string {
+  const w = q.value?.word;
+  if (!w) return "";
+  return isSynonymWord(w) ? qStem.value : stemOf(w, "w2m");
+}
+
 function playQuestionWord(): void {
-  const item = q.value;
-  if (!item) return;
-  const w = item.word;
-  playWordAudio(isSynonymWord(w) ? qStem.value : stemOf(w, "w2m"));
+  playWordAudio(questionAudioText());
 }
 
 function playExample(word: PlanWord): void {

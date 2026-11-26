@@ -125,16 +125,6 @@ export function grammarName(data: ReadingData, c: number): { name: string; day: 
   return undefined;
 }
 
-export function speak(text: string): void {
-  try {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "en-US";
-    u.rate = 0.9;
-    speechSynthesis.cancel();
-    speechSynthesis.speak(u);
-  } catch { /* 无 TTS 环境（如无头测试）忽略 */ }
-}
-
 // ---------- 自定义句（R10）与错题维度（R8） ----------
 
 import type { CustomSentenceItem } from "./merge";

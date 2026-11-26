@@ -48,6 +48,12 @@ def test_set_user_ai_quota_and_restore_default():
     _, uid = _register_kid()
     H = _h(admin)
 
+    rows = client.get("/api/v1/admin/users", headers=H).json()
+    kid_row = next(r for r in rows if r["id"] == uid)
+    assert kid_row["ai_enabled"] is False
+    assert kid_row["credit_custom"] is False
+    assert kid_row["default_credit_milli"] == budget.DEFAULT_BUDGET["credit_milli"]
+
     r = client.put(
         f"/api/v1/admin/users/{uid}/ai",
         json={"enabled": True, "credit_milli": 1000},
@@ -58,12 +64,14 @@ def test_set_user_ai_quota_and_restore_default():
     assert row["ai_enabled"] is True
     assert row["ai_credit_milli"] == 1000
     assert row["credit_budget_milli"] == 1000
+    assert row["credit_custom"] is True
 
     # 显式 null 恢复全局默认
     r = client.put(f"/api/v1/admin/users/{uid}/ai", json={"credit_milli": None}, headers=H)
     row = r.json()
     assert row["ai_credit_milli"] is None
     assert row["credit_budget_milli"] == budget.DEFAULT_BUDGET["credit_milli"]
+    assert row["credit_custom"] is False
 
     # 关闭 AI
     r = client.put(f"/api/v1/admin/users/{uid}/ai", json={"enabled": False}, headers=H)

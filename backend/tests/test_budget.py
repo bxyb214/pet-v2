@@ -61,10 +61,8 @@ def test_not_enabled_blocks_paid_endpoints():
     token = _register_kid()
     db = SessionLocal()
     kid = db.query(User).filter(User.username == "kid").one()
-    # 普通账号默认开通；管理员显式关闭后仍然 403
-    assert kid.ai_enabled is True
-    kid.ai_enabled = False
-    db.commit()
+    # 普通账号默认未开通 AI
+    assert kid.ai_enabled is False
     ok, st = budget.check_access(db, kid)
     assert ok is False
     assert st["reason"] == "not_enabled"
@@ -81,6 +79,7 @@ def test_zero_credit_returns_429():
     token = _register_kid()
     db = SessionLocal()
     kid = db.query(User).filter(User.username == "kid").one()
+    kid.ai_enabled = True
     kid.ai_credit_milli = 0
     db.commit()
     db.close()

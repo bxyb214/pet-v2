@@ -14,11 +14,13 @@
     </div>
 
     <div class="actions">
-      <n-button size="small" secondary @click="playDemo">🔊 听示范</n-button>
-      <n-button v-if="!evaluating" size="small" type="primary" @click="startEval">跟读这句</n-button>
-      <template v-else>
-        <n-button size="small" type="primary" @click="submitEval">读完了，评分</n-button>
-        <n-button size="small" quaternary @click="cancelEval">取消</n-button>
+      <n-button size="small" secondary :loading="audioPending(improvedEn)" @click="playDemo">🔊 听示范</n-button>
+      <template v-if="eval">
+        <n-button v-if="!evaluating" size="small" type="primary" @click="startEval">跟读这句</n-button>
+        <template v-else>
+          <n-button size="small" type="primary" @click="submitEval">读完了，评分</n-button>
+          <n-button size="small" quaternary @click="cancelEval">取消</n-button>
+        </template>
       </template>
     </div>
 
@@ -37,10 +39,11 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from "vue";
 import { NButton, NTag } from "naive-ui";
-import { api } from "../core/api";
 import { dimLabel, gradePlan, MIN, PASS, type GradePlan } from "../core/review";
 import { SoeEval, type SoeResult } from "../core/soe";
-import { playAudioUrl, say } from "../core/say";
+import { audioPending } from "../core/say";
+import { playTts } from "../core/tts";
+import { stopAdvice } from "../core/adviceSpeech";
 
 const props = withDefaults(defineProps<{
   childSaid: string;
@@ -49,7 +52,9 @@ const props = withDefaults(defineProps<{
   dims?: string[];
   showChild?: boolean;
   compact?: boolean;
-}>(), { improvedCn: "", dims: () => [], showChild: false, compact: false });
+  /** 是否在卡片内提供「跟读这句」评分；造句页改由标准答案旁的评分块统一处理 */
+  eval?: boolean;
+}>(), { improvedCn: "", dims: () => [], showChild: false, compact: false, eval: true });
 
 const emit = defineEmits<{ (e: "scored", v: { score: number; dimsOk: string[] }): void }>();
 
@@ -62,16 +67,8 @@ let soe: SoeEval | null = null;
 onBeforeUnmount(() => soe?.stop());
 
 async function playDemo(): Promise<void> {
-  try {
-    const r = await api<{ url: string }>("/speak/tts", {
-      method: "POST",
-      body: JSON.stringify({ text: props.improvedEn }),
-    });
-    await playAudioUrl(r.url, props.improvedEn);
-  } catch {
-    // 未开通/额度用尽或 TTS 失败：浏览器朗读兜底（P2-4）
-    say(props.improvedEn);
-  }
+  stopAdvice();
+  await playTts(props.improvedEn);
 }
 
 async function startEval(): Promise<void> {

@@ -113,11 +113,38 @@ function readAll(db: IDBDatabase, key: string): Promise<Take[]> {
   });
 }
 
+function readStore(db: IDBDatabase): Promise<Take[]> {
+  return new Promise((resolve) => {
+    try {
+      const req = db.transaction(STORE, "readonly").objectStore(STORE).getAll();
+      req.onsuccess = () => resolve((req.result as Take[]).sort((a, b) => b.at - a.at));
+      req.onerror = () => resolve([]);
+    } catch {
+      resolve([]);
+    }
+  });
+}
+
+/** 从本机全部录音里筛出某账号的记录（未登录归 guest），按时间倒序。 */
+export function filterMyTakes(rows: Take[], username: string): Take[] {
+  const prefix = `${username || "guest"}|`;
+  return rows
+    .filter((t) => t.key.startsWith(prefix))
+    .sort((a, b) => b.at - a.at);
+}
+
 /** 某道题已保留的录音（按时间倒序） */
 export async function listTakes(key: string): Promise<Take[]> {
   const db = await openDb();
   if (!db) return [];
   return pruneTakes(await readAll(db, key));
+}
+
+/** 当前账号在本机保存的全部录音（跨场景/题目，按时间倒序）。 */
+export async function listMyTakes(username: string): Promise<Take[]> {
+  const db = await openDb();
+  if (!db) return [];
+  return filterMyTakes(await readStore(db), username);
 }
 
 /** 新增一条并落库，返回该题保留后的列表 */

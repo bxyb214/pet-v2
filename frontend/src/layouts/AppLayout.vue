@@ -72,7 +72,7 @@
               <router-link
                 v-for="t in tabs"
                 :key="t.to"
-                :to="t.to"
+                :to="tabTo(t.to)"
                 class="t"
                 :class="{ active: isActiveTab(t.to) }"
                 :aria-current="isActiveTab(t.to) ? 'page' : undefined"
@@ -194,6 +194,13 @@ const crumbs = computed(() => {
 
 function isActiveTab(to: string): boolean {
   return activeTabTo.value === to;
+}
+
+/** 口语页签保留当前练习日，避免切页签后跟读/造句/对话落到不同天的话题。 */
+function tabTo(to: string): string {
+  const d = route.query.day;
+  if (!d || !to.startsWith("/english/speak/")) return to;
+  return `${to}?day=${encodeURIComponent(String(d))}`;
 }
 
 function renderIcon(icon: Component) {

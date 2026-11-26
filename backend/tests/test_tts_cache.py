@@ -1,5 +1,7 @@
 """TTS 缓存：统计 / LRU 清理 / 静态 URL / 记账（P0-2 / P1-4 / P2-2）。"""
+import io
 import os
+import wave
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -8,7 +10,8 @@ from app.api.v1.speak_media import cache_dir
 from app.db import SessionLocal
 from app.main import app
 from app.models.usage import Usage
-from app.services import ai_enrich, qwen_speak, usage as usage_svc
+from app.services import ai_enrich, qwen_speak, tts_cache
+from app.services import usage as usage_svc
 
 client = TestClient(app)
 
@@ -37,12 +40,57 @@ def test_cache_stats_lru_and_clear(tmp_path):
 
 def test_tts_cache_cfg_bounds():
     db = SessionLocal()
-    assert qwen_speak.tts_cache_cfg(db) == 512
+    assert qwen_speak.tts_cache_cfg(db) == 1024
     ai_enrich.set_cfg(db, "speak.tts_cache", '{"max_mb": 64}')
     assert qwen_speak.tts_cache_cfg(db) == 64
     ai_enrich.set_cfg(db, "speak.tts_cache", '{"max_mb": 1}')
     assert qwen_speak.tts_cache_cfg(db) == 16  # 下限 16MB
     db.close()
+
+
+def test_normalize_streaming_wav_header():
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(24000)
+        w.writeframes(b"\x00\x00" * 120)
+    raw = bytearray(buf.getvalue())
+    raw[4:8] = b"\xbf\xff\xff\x7f"  # 云端流式 WAV 的假 RIFF 长度
+    raw[40:44] = b"\x9b\xff\xff\x7f"  # 假 data 长度
+    fixed = tts_cache.normalize_wav(bytes(raw))
+    assert int.from_bytes(fixed[4:8], "little") == len(raw) - 8
+    assert int.from_bytes(fixed[40:44], "little") == len(raw) - 44
+    with wave.open(io.BytesIO(fixed), "rb") as r:
+        assert r.getnframes() == 120
+
+    # 正确的头部不会被改动
+    assert tts_cache.normalize_wav(bytes(buf.getvalue())) == bytes(buf.getvalue())
+    # 非 WAV 原样返回
+    assert tts_cache.normalize_wav(b"ID3\x04not-wave") == b"ID3\x04not-wave"
+
+
+def test_repair_wav_file_fixes_cached_header(tmp_path):
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(22050)
+        w.writeframes(b"\x00\x00" * 80)
+    raw = bytearray(buf.getvalue())
+    raw[4:8] = b"\xbf\xff\xff\x7f"
+    raw[40:44] = b"\x9b\xff\xff\x7f"
+    p = tmp_path / f"{'c' * 40}.wav"
+    p.write_bytes(raw)
+
+    tts_cache.repair_wav_file(p)
+    fixed = p.read_bytes()
+    assert int.from_bytes(fixed[4:8], "little") == len(fixed) - 8
+    assert int.from_bytes(fixed[40:44], "little") == len(fixed) - 44
+
+    # 再跑一次不改变内容
+    tts_cache.repair_wav_file(p)
+    assert p.read_bytes() == fixed
 
 
 def test_record_tts_bills_only_on_miss():

@@ -7,13 +7,12 @@
     <LoadingBlock v-if="!authReady" />
     <template v-else>
       <!-- 今日已用（只记录不限流）：放在日历上方 -->
-      <PaidAiNotice v-if="loaded" :status="aiStatus" prominent />
       <div v-if="loaded && hasPlan && (usage || timeTotals)" class="card usage">
         <span v-if="timeTotals">今日开口：跟读 <b>{{ fmtSec(timeTotals.shadow) }}</b> · 造句 <b>{{ fmtSec(timeTotals.make) }}</b> · 对话 <b>{{ fmtSec(timeTotals.talk) }}</b></span>
         <span v-if="usage">跟读评测 <b>{{ usage.soe_calls }}</b> 次</span>
         <span v-if="usage" class="cost">预估 {{ (usage.est_cost_milli / 1000).toFixed(2) }} 元</span>
-        <span v-if="aiStatus?.unlimited" class="cost">管理员 · 不限额度</span>
-        <span v-else-if="aiStatus" class="cost">AI 总额度剩余 {{ (aiStatus.remaining_milli / 1000).toFixed(2) }} 元</span>
+        <span v-if="aiStatus?.ai_enabled && aiStatus.unlimited" class="cost">管理员 · 不限额度</span>
+        <span v-else-if="aiStatus?.ai_enabled" class="cost">AI 总额度剩余 {{ (aiStatus.remaining_milli / 1000).toFixed(2) }} 元</span>
       </div>
 
       <!-- 每日入口：5 + 10 + 15；作用于日历中选中的那天 -->
@@ -139,7 +138,6 @@ import { useAuthStore } from "../stores/auth";
 import {
   budgetBanner, loadAiStatus, type AiStatus,
 } from "../core/aiStatus";
-import PaidAiNotice from "../components/PaidAiNotice.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
 import EmptyState from "../components/EmptyState.vue";
 import DeletePlanModal from "../components/DeletePlanModal.vue";
@@ -295,7 +293,7 @@ function goMake(day: number): void {
   void router.push(`/english/speak/make?day=${day}`);
 }
 function goSceneById(id: string): void {
-  void router.push(`/english/speak/talk?scene=${encodeURIComponent(id)}`);
+  void router.push(`/english/speak/talk?day=${activeDay.value}&scene=${encodeURIComponent(id)}`);
 }
 </script>
 

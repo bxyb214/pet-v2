@@ -2,8 +2,8 @@
   <section class="adm-panel">
     <div class="adm-panel-h row">
       <div>
-        <h2>语音合成 · TTS</h2>
-        <p>示范音、单词发音与句子朗读；未命中缓存时才调用模型。</p>
+        <h2>跟读示范 · 云端 Qwen</h2>
+        <p>仅跟读「听示范」使用；命中磁盘缓存不产生费用。未配置 Key 时前端回退本地 Piper。</p>
       </div>
       <div class="adm-actions">
         <n-button size="small" secondary :loading="testBusy" @click="$emit('test')">合成测试</n-button>
@@ -23,7 +23,7 @@
     </div>
 
     <AiTestLine :r="test" />
-    <p class="adm-foot">{{ saveMsg || "TTS 与实时对话共用 speak.qwen 配置；Key 留空时复用 AI 加词的 Key。" }}</p>
+    <p class="adm-foot">{{ saveMsg || "TTS 与实时对话共用 speak.qwen 配置；Key 留空时复用 AI 加词的 Key。示范合成不计入用户额度。" }}</p>
   </section>
 </template>
 

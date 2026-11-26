@@ -135,7 +135,7 @@ def status(db: Session, user: User) -> dict:
     message = ""
     if not enabled:
         reason = "not_enabled"
-        message = "此功能调用外部 AI 接口，有费用，需要找小淏开通。"
+        message = "此功能需要 AI 权限，请联系小淏开通。"
     elif stage >= 2 and not unlimited:
         reason = "credit_exhausted"
         message = "AI 总额度已用完，免费功能仍可用；需要更多额度请联系小淏。"

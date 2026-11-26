@@ -112,6 +112,19 @@
 .btn:active { transform: scale(0.985); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+/* 音频合成中的转圈：本地 TTS 未命中时会等待几秒 */
+.audio-spin {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -0.12em;
+  animation: audio-spin 0.7s linear infinite;
+}
+@keyframes audio-spin { to { transform: rotate(360deg); } }
+
 /* 容器规则（docs/05-前端设计规范.md）：页面宽度只由布局层 .stack 决定，页面内一律 width:100% */
 .page { width: 100%; }
 

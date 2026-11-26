@@ -123,6 +123,11 @@ def _beep_wav_b64() -> str:
     return base64.b64encode(buf.getvalue()).decode()
 
 
+def beep_wav_bytes() -> bytes:
+    """开发环境本地 TTS 的确定性音频：写入缓存后 GET 也能命中。"""
+    return base64.b64decode(_beep_wav_b64())
+
+
 def tts_payload() -> dict:
     """开发环境：直接返回 data URL（不落盘、不调用外部 TTS）。"""
     return {

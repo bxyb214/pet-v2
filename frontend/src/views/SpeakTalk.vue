@@ -1,11 +1,31 @@
 <template>
   <main class="page">
     <BackButton to="/english/speak" label="返回口语" />
-    <h1>{{ title }}</h1>
+    <h1>
+      {{ title }}
+      <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天 · {{ sourceRangeText(planDay) }}</span>
+    </h1>
     <p class="sub">{{ subtitle }}</p>
 
     <div v-if="banner" class="banner" :class="banner.tone">{{ banner.text }}</div>
-    <PaidAiNotice :status="aiStatus" />
+
+    <!-- 计划模式：只聊当天计划里的话题，和跟读/造句共用同一天的内容 -->
+    <section v-if="hasPlan && phase === 'idle' && planScenes.length" class="card topics">
+      <div class="picker-head">
+        <b>今日话题</b>
+        <span>跟读、造句同样使用这一天的话题 · 点一个再开始对话</span>
+      </div>
+      <div class="topics-row">
+        <button
+          v-for="s in planScenes" :key="s.id" type="button"
+          class="topic" :class="{ on: activeScene?.id === s.id }"
+          @click="selectPlanScene(s)"
+        >
+          <b>{{ s.title }}</b>
+          <span>{{ s.cn }}</span>
+        </button>
+      </div>
+    </section>
 
     <div class="ctrl card">
       <div class="status">{{ status }}</div>
@@ -125,7 +145,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { NAlert, NButton } from "naive-ui";
 import { api, apiBeacon } from "../core/api";
-import { loadSpeak, splitSpeakPlan, type PlanDayView, type Scene, type SpeakData } from "../core/speak";
+import {
+  loadSpeak, planDayScenes, resolvePlanDay, sourceRangeText, splitSpeakPlan,
+  type DayCheck, type PlanDayView, type Scene, type SpeakData,
+} from "../core/speak";
 import { createSpeakConn, type SpeakConn } from "../core/speakRTC";
 import type { ReviewItem } from "../core/review";
 import { useSpeakTime } from "../core/speakTime";
@@ -135,7 +158,6 @@ import {
 } from "../core/aiStatus";
 import BackButton from "../components/BackButton.vue";
 import PaidActionButton from "../components/PaidActionButton.vue";
-import PaidAiNotice from "../components/PaidAiNotice.vue";
 import SpeakImproveCard from "../components/SpeakImproveCard.vue";
 
 type Improvement = {
@@ -153,16 +175,22 @@ const route = useRoute();
 const router = useRouter();
 const data = ref<SpeakData | null>(null);
 const planLength = ref(0);
+const checks = ref<Record<number, DayCheck>>({});
 const scene = ref<Scene | null>(null);
-const day = computed(() => Number(route.query.day ?? 1));
+const day = computed(() => Number(route.query.day ?? 0));
 const hasPlan = computed(() => planLength.value > 0);
 const planDays = computed<PlanDayView[]>(() =>
   hasPlan.value ? splitSpeakPlan(data.value, planLength.value) : [],
 );
-const planDay = computed<PlanDayView | null>(() => {
-  if (!hasPlan.value || !planDays.value.length) return null;
-  const idx = Math.min(Math.max(day.value, 1), planDays.value.length) - 1;
-  return planDays.value[idx] ?? null;
+const planDay = computed<PlanDayView | null>(() =>
+  hasPlan.value ? resolvePlanDay(planDays.value, checks.value, day.value) : null,
+);
+const planScenes = computed<Scene[]>(() => planDayScenes(data.value, planDay.value));
+/** 有计划时只聊当天计划里的话题；自由练习沿用题库里点选的场景。 */
+const activeScene = computed<Scene | null>(() => {
+  if (!hasPlan.value) return scene.value;
+  if (scene.value && planScenes.value.some((s) => s.id === scene.value?.id)) return scene.value;
+  return planScenes.value[0] ?? null;
 });
 
 // 无计划：场景题库自由选择
@@ -223,13 +251,15 @@ function settleTalk(): void {
 }
 
 const title = computed(() =>
-  scene.value ? `场景对话 · ${scene.value.title}` : hasPlan.value ? "自由对话" : "对话自由练习",
+  activeScene.value
+    ? `场景对话 · ${activeScene.value.title}`
+    : hasPlan.value ? "自由对话" : "对话自由练习",
 );
 const subtitle = computed(() => {
-  if (scene.value) {
-    return hasPlan.value
-      ? `${scene.value.cn} · ${scene.value.focus} · 10 分钟对话 + 5 分钟复盘`
-      : `${scene.value.cn} · ${scene.value.focus} · 自由练习，不计时、不打卡`;
+  if (activeScene.value) {
+    const s = activeScene.value;
+    const prefix = hasPlan.value && planDay.value ? `第 ${planDay.value.day} 天 · ${sourceRangeText(planDay.value)} · ` : "";
+    return `${prefix}${s.cn} · ${s.focus} · ${hasPlan.value ? "10 分钟对话 + 5 分钟复盘" : "自由练习，不计时、不打卡"}`;
   }
   return hasPlan.value
     ? "15 分钟自由对话：10 分钟对话 + 5 分钟复盘；AI 会把你的回答改成更好的说法，边聊边跟读"
@@ -243,9 +273,19 @@ onMounted(async () => {
   try {
     const r = await api<{ length: number }>("/speak/plan");
     planLength.value = r.length ?? 0;
+    if (hasPlan.value) {
+      const d = await api<{ days: DayCheck[] }>("/speak/days").catch(() => ({ days: [] }));
+      const map: Record<number, DayCheck> = {};
+      for (const c of d.days ?? []) map[c.day] = c;
+      checks.value = map;
+    }
   } catch { /* 离线按默认 90 天 */ }
   const sid = String(route.query.scene ?? "");
   if (sid) scene.value = (data.value.scenes ?? []).find((c) => c.id === sid) ?? null;
+  // 有计划时锁定在当天话题；旧链接里的场景不在今天计划内则回到第一个话题
+  if (hasPlan.value && (!scene.value || !planScenes.value.some((s) => s.id === scene.value?.id))) {
+    scene.value = planScenes.value[0] ?? null;
+  }
   if (!hasPlan.value && !scene.value) status.value = "从下面题库选一个场景开始";
 });
 onBeforeUnmount(() => {
@@ -271,8 +311,8 @@ async function start(): Promise<void> {
       body: JSON.stringify({
         mode: "talk",
         day: planDay.value?.from ?? 0,
-        scene_title: scene.value?.title ?? planDay.value?.sceneTitle ?? "",
-        scene_focus: scene.value?.focus ?? "",
+        scene_title: activeScene.value?.title ?? planDay.value?.sceneTitle ?? "",
+        scene_focus: activeScene.value?.focus ?? "",
         patterns,
       }),
     });
@@ -330,6 +370,13 @@ function startScene(s: Scene): void {
   void start();
 }
 
+/** 计划模式：只切换当天话题，点「开始对话」后再连麦。 */
+function selectPlanScene(s: Scene): void {
+  if (phase.value !== "idle") return;
+  scene.value = s;
+  status.value = "";
+}
+
 function clearScene(): void {
   scene.value = null;
   status.value = "";
@@ -362,7 +409,7 @@ async function requestImprove(text: string, force = false): Promise<void> {
       body: JSON.stringify({
         text,
         last_ai_text: lastAi,
-        scene_title: scene.value?.title ?? planDay.value?.sceneTitle ?? "",
+        scene_title: activeScene.value?.title ?? planDay.value?.sceneTitle ?? "",
       }),
     });
     if (r.improved_en) {
@@ -426,7 +473,7 @@ async function endTalk(): Promise<void> {
           method: "POST",
           body: JSON.stringify({
             mode: "talk",
-            ref: scene.value?.id ?? "",
+            ref: activeScene.value?.id ?? "",
             day: sourceDay,
             turns,
             score: 0,
@@ -506,7 +553,7 @@ async function askHelp(): Promise<void> {
     const r = await api<{ cn: string; en: string; en_cn: string }>("/speak/help", {
       method: "POST",
       body: JSON.stringify({
-        scene_title: scene.value?.title ?? planDay.value?.sceneTitle ?? "",
+        scene_title: activeScene.value?.title ?? planDay.value?.sceneTitle ?? "",
         last_ai_text: lastAi,
       }),
     });
@@ -593,6 +640,22 @@ function mmss(s: number): string {
 .page { width: 100%; }
 h1 { color: var(--c-text); font-size: var(--fs-title); }
 .sub { color: var(--c-text-2); font-size: var(--fs-sub); margin: 0 0 14px; }
+.daychip {
+  margin-left: 8px; padding: 2px 10px; border-radius: 999px;
+  background: var(--c-primary-soft); color: var(--c-primary-strong);
+  font-size: 12.5px; font-weight: 700; vertical-align: middle;
+}
+.topics { padding: 14px; margin-bottom: 12px; }
+.topics-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.topic {
+  flex: 1 1 220px; text-align: left; display: flex; flex-direction: column; gap: 2px;
+  border: 1px solid var(--c-line); background: var(--c-surface); color: var(--c-text);
+  border-radius: var(--r-btn); padding: 9px 12px; font: inherit; cursor: pointer;
+}
+.topic b { font-size: 14px; }
+.topic span { color: var(--c-text-2); font-size: 12.5px; }
+.topic:hover { border-color: var(--c-primary); }
+.topic.on { border-color: var(--c-primary); background: var(--c-primary-soft); }
 .back { margin-bottom: 8px; }
 .card { background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
 .banner { margin-bottom: 12px; padding: 10px 14px; border-radius: var(--r-btn); font-size: var(--fs-sub); font-weight: 600; }

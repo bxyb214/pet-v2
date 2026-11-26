@@ -76,5 +76,29 @@ services:
       retries: 12
       start_period: 30s
 
+  # 本地 TTS 联调：默认不启动（避免每次开发都下载模型）。
+  # 需要时：docker compose -f deploy/docker-compose.dev.yml --profile tts up -d tts
+  tts:
+    build:
+      context: ./tts
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
+    image: pet-tts-dev:latest
+    profiles: ["tts"]
+    environment:
+      TZ: Asia/Shanghai
+      PIPER_VOICES: ${PIPER_VOICES:-en_GB-alan-medium,zh_CN-huayan-medium}
+      PIPER_DATA_DIR: /models
+      PIPER_VOICE_BASE_URL: ${PIPER_VOICE_BASE_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main}
+      OMP_NUM_THREADS: "2"
+    volumes:
+      - pet_piper_models:/models
+    expose:
+      - "8100"
+    mem_limit: 640m
+    cpus: "2.0"
+
 volumes:
   pet_node_modules:
+  pet_piper_models:

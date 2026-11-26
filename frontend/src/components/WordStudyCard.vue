@@ -4,8 +4,9 @@
       <p class="word">{{ word.en }}</p>
       <p v-if="word.phonetic" class="phon">{{ word.phonetic }}</p>
       <button type="button" class="flipbtn" @click="flipped = true">看释义</button>
-      <button v-if="word.en" type="button" class="audio" aria-label="听发音" @click="play">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <button v-if="word.en" type="button" class="audio" aria-label="听发音" :disabled="audioPending(word.en)" @click="play">
+        <span v-if="audioPending(word.en)" class="audio-spin" aria-hidden="true" />
+        <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
           <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
         </svg>
@@ -14,8 +15,9 @@
     <template v-else>
       <div v-if="word.cn || !word.alt" class="cnrow">
         <p class="cn">{{ word.cn || "（暂无释义）" }}</p>
-        <button v-if="word.en" type="button" class="sayword" @click="play">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <button v-if="word.en" type="button" class="sayword" :disabled="audioPending(word.en)" @click="play">
+          <span v-if="audioPending(word.en)" class="audio-spin" aria-hidden="true" />
+          <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
             <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
           </svg>
@@ -27,7 +29,9 @@
         <p class="synergy">
           <span class="sy-arrow">↔</span>
           <span class="sy-alt">{{ word.alt }}</span>
-          <button type="button" class="exsay" aria-label="听同义说法" @click.stop="sayAlt">听发音</button>
+          <button type="button" class="exsay" aria-label="听同义说法" :disabled="audioPending(String(word.alt))" @click.stop="sayAlt">
+            <span v-if="audioPending(String(word.alt))" class="audio-spin" aria-hidden="true" />听发音
+          </button>
         </p>
         <p v-if="word.alt_cn" class="synergy-cn">{{ word.alt_cn }}</p>
       </template>
@@ -37,7 +41,9 @@
       </p>
       <p v-if="word.example" class="ex">
         {{ word.example }}
-        <button type="button" class="exsay" aria-label="听整句" @click.stop="sayExample">听整句</button>
+        <button type="button" class="exsay" aria-label="听整句" :disabled="audioPending(String(word.example))" @click.stop="sayExample">
+          <span v-if="audioPending(String(word.example))" class="audio-spin" aria-hidden="true" />听整句
+        </button>
       </p>
       <button type="button" class="flipbtn" @click="flipped = false">翻回英文</button>
     </template>
@@ -47,7 +53,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import type { PlanWord } from "../core/plan";
-import { englishOnly, playWordAudio, say } from "../core/say";
+import { englishOnly, audioPending, playWordAudio, say } from "../core/say";
 
 const props = defineProps<{ word: PlanWord }>();
 const flipped = ref(false);

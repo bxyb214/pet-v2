@@ -20,7 +20,7 @@
 
       <template v-else-if="data">
         <p v-if="!data.status.ai_enabled" class="notice neutral">
-          尚未开通付费 AI。免费功能（单词、阅读、听力、题库）不受影响；下面是历史用量。
+          AI 权限尚未开通。免费功能（单词、阅读、听力、题库）不受影响；下面是历史用量。
         </p>
         <p v-else-if="data.status.unlimited" class="notice ok">
           管理员账号不受总额度限制；累计已用 {{ fmtMilli(data.status.credit.used_milli) }}。

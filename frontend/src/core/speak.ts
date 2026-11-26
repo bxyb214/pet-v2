@@ -168,6 +168,29 @@ export function planDayDone(pd: PlanDayView, checks: Record<number, DayCheck>): 
   return pd.sourceDays.length > 0 && pd.sourceDays.every((d) => dayDone(checks[d]));
 }
 
+/**
+ * 计划页、跟读、造句、对话共用同一“练习日”解析：
+ * 路由 ?day= 优先；否则取第一个未完成日；再退回第 1 天。
+ * 这样从页签切换时，三个入口不会各自跳到不同的天。
+ */
+export function resolvePlanDay(
+  planDays: PlanDayView[],
+  checks: Record<number, DayCheck>,
+  requested?: number | null,
+): PlanDayView | null {
+  if (!planDays.length) return null;
+  const n = Number(requested);
+  if (Number.isInteger(n) && n >= 1 && n <= planDays.length) return planDays[n - 1] ?? null;
+  return planDays.find((d) => !planDayDone(d, checks)) ?? planDays[0] ?? null;
+}
+
+/** 某个练习日包含的场景（按 plan 里的顺序；数据缺失时自动跳过）。 */
+export function planDayScenes(data: SpeakData | null | undefined, pd: PlanDayView | null): Scene[] {
+  if (!data || !pd) return [];
+  const byId = new Map((data.scenes ?? []).map((s) => [s.id, s]));
+  return pd.sceneIds.map((id) => byId.get(id)).filter(Boolean) as Scene[];
+}
+
 /** 原始天范围文案：第 3 天 / 第 3–5 天 */
 export function sourceRangeText(pd: PlanDayView): string {
   return pd.from === pd.to ? `第 ${pd.from} 天` : `第 ${pd.from}–${pd.to} 天`;

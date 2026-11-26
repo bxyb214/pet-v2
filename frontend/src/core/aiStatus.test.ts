@@ -55,17 +55,15 @@ describe("budgetBanner", () => {
 describe("paidLockText", () => {
   it("区分未开通与额度用尽", () => {
     expect(paidLockText(st())).toBe("");
-    expect(paidLockText(st({ ai_enabled: false }))).toContain("需要找小淏开通");
+    expect(paidLockText(st({ ai_enabled: false }))).toBe("此功能需要 AI 权限，请联系小淏开通。");
     expect(paidLockText(st({ blocked: true, message: "AI 总额度已用完" }))).toBe("AI 总额度已用完");
     expect(paidLockText(st({ blocked: true }))).toBe("AI 总额度已用完，免费功能仍可用。");
   });
 });
 
 describe("paidClickHint", () => {
-  it("未开通时给完整费用与免费功能提示", () => {
-    expect(paidClickHint(st({ ai_enabled: false }))).toBe(
-      "此功能调用外部 AI 接口，有费用，需要找小淏开通。免费功能：题库浏览、浏览器朗读、看标准答案。",
-    );
+  it("未开通时只提示联系管理员，不再展示整页费用说明", () => {
+    expect(paidClickHint(st({ ai_enabled: false }))).toBe("此功能需要 AI 权限，请联系小淏开通。");
   });
 
   it("额度用尽沿用服务端原因；可用时为空", () => {

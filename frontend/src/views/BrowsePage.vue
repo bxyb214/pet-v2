@@ -127,7 +127,7 @@
             <p class="word">{{ frontOf(filtered[idx]) }}</p>
             <p class="phon">{{ filtered[idx].phonetic || " " }}</p>
             <div class="fc-act">
-              <n-button size="small" secondary @click.stop="sayEn(filtered[idx])">
+              <n-button size="small" secondary :loading="audioPending(sayEnText(filtered[idx]))" @click.stop="sayEn(filtered[idx])">
                 <template #icon><n-icon :component="VolumeHighOutline" /></template>
                 听发音
               </n-button>
@@ -139,7 +139,7 @@
               <p class="word cn">{{ altEnOf(filtered[idx]) }}</p>
               <p class="ex-cn">{{ altCnOf(filtered[idx]) || "（暂无同义说法）" }}</p>
               <div class="fc-act">
-                <n-button size="small" secondary @click.stop="sayAlt(filtered[idx])">
+                <n-button size="small" secondary :loading="audioPending(sayAltText(filtered[idx]))" @click.stop="sayAlt(filtered[idx])">
                   <template #icon><n-icon :component="VolumeHighOutline" /></template>
                   听同义说法
                 </n-button>
@@ -151,7 +151,7 @@
                 <p class="ex">{{ exOf(filtered[idx]).en }}</p>
                 <p v-if="exOf(filtered[idx]).cn" class="ex-cn">{{ exOf(filtered[idx]).cn }}</p>
                 <div class="fc-act">
-                  <n-button size="small" tertiary @click.stop="say(exOf(filtered[idx]).en)">
+                  <n-button size="small" tertiary :loading="audioPending(exOf(filtered[idx]).en)" @click.stop="say(exOf(filtered[idx]).en)">
                     <template #icon><n-icon :component="VolumeHighOutline" /></template>
                     听例句
                   </n-button>
@@ -183,7 +183,7 @@ import {
   AlertCircleOutline, CreateOutline, PlayOutline, DownloadOutline,
 } from "@vicons/ionicons5";
 import { api, downloadFile } from "../core/api";
-import { splitExample, say } from "../core/say";
+import { audioPending, splitExample, say } from "../core/say";
 import { availableBankKeys, loadBanks, type BankMeta, type ExamMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import type { WordBanks, BankKey, PlanWord } from "../core/plan";
@@ -345,11 +345,17 @@ function cnOf(w: PlanWord): string {
   const m = String(w.en ?? "").match(/[㐀-鿿][\s\S]*$/);
   return m ? m[0].trim() : s;
 }
+function sayEnText(w: PlanWord): string {
+  return enPart(String(w.en ?? "")) || String(w.en ?? "");
+}
+function sayAltText(w: PlanWord): string {
+  return altEnOf(w) || String(w.alt ?? "");
+}
 function sayEn(w: PlanWord): void {
-  say(enPart(String(w.en ?? "")) || String(w.en ?? ""));
+  say(sayEnText(w));
 }
 function sayAlt(w: PlanWord): void {
-  say(altEnOf(w) || String(w.alt ?? ""));
+  say(sayAltText(w));
 }
 /** 只保留一个「去学习」入口：带上当前词库，学习页自动选中 */
 function studyCurrent(): void {
@@ -408,6 +414,7 @@ const columns = computed<DataTableColumns<PlanWord>>(() => [
             {
               size: "small", quaternary: true, circle: true, title: "朗读",
               style: "color:#16a34a;margin-left:2px",
+              loading: audioPending(isSynBank.value ? sayEnText(w) : String(w.en ?? "")),
               onClick: (e: MouseEvent) => { e.stopPropagation(); isSynBank.value ? sayEn(w) : say(String(w.en)); },
             },
             { icon: () => h(NIcon, { size: 17 }, { default: () => h(VolumeHighOutline) }) },

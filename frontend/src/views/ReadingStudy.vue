@@ -20,8 +20,9 @@
       <!-- 先读英文；翻译与解析默认收起，自己想一遍再揭晓 -->
       <div class="en-row">
         <p class="en">{{ sent.en }}</p>
-        <button class="speak" aria-label="朗读整句" @click="speak(sent.en)">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button class="speak" aria-label="朗读整句" :disabled="audioPending(sent.en)" @click="say(sent.en)">
+          <span v-if="audioPending(sent.en)" class="audio-spin" aria-hidden="true" />
+          <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M11 5 6.5 9H3v6h3.5L11 19V5Z" />
             <path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" />
           </svg>
@@ -94,9 +95,10 @@ import { useRoute, useRouter } from "vue-router";
 import { useLearningStore } from "../stores/learning";
 import BackButton from "../components/BackButton.vue";
 import {
-  loadReading, speak, withCustomSentences,
+  loadReading, withCustomSentences,
   type RGrammar, type RSentence,
 } from "../core/reading";
+import { audioPending, say } from "../core/say";
 
 const route = useRoute();
 const router = useRouter();

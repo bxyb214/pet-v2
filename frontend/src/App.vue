@@ -3,6 +3,7 @@
     <n-message-provider>
       <n-dialog-provider>
         <router-view />
+        <TtsDebugPanel />
       </n-dialog-provider>
     </n-message-provider>
   </n-config-provider>
@@ -11,6 +12,7 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import { NConfigProvider, NDialogProvider, NMessageProvider } from "naive-ui";
+import TtsDebugPanel from "./components/TtsDebugPanel.vue";
 import { themeOverrides } from "./theme";
 import { useAuthStore } from "./stores/auth";
 

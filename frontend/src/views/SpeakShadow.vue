@@ -12,7 +12,6 @@
     </p>
 
     <div v-if="banner" class="banner" :class="banner.tone">{{ banner.text }}</div>
-    <PaidAiNotice :status="aiStatus" />
 
     <!-- 5 分钟目标：只提示，不强制；有计划才计时 -->
     <div v-if="hasPlan" class="card targetbar" :class="{ over: overGoal }">
@@ -65,9 +64,7 @@
         </div>
         <div v-if="item.tip" class="tip">{{ item.tip }}</div>
         <div v-if="!busy" class="sent-actions">
-          <n-button size="small" secondary @click="tts">
-            {{ browserTts ? "听示范（浏览器朗读）" : "听示范（AI 朗读）" }}
-          </n-button>
+          <n-button size="small" secondary :loading="audioPending(item.en)" @click="tts">听示范</n-button>
           <n-button size="small" quaternary @click="next">换一句 →</n-button>
           <span class="idx">{{ itemIdx + 1 }} / {{ orderedItems.length }}</span>
         </div>
@@ -96,12 +93,19 @@
             v-for="(w, i) in result.words" :key="i" type="button"
             class="wchip" :class="{ bad: !w.ok }"
             :title="`${w.w}${w.acc != null ? ' · 准确度 ' + w.acc : ''} · 点击听发音`"
+            :disabled="audioPending(w.w)"
             @click="sayWord(w.w)"
           >
+            <span v-if="audioPending(w.w)" class="audio-spin" aria-hidden="true" />
             {{ w.w }}<i v-if="w.acc != null">{{ w.acc }}</i>
           </button>
         </div>
-        <p v-if="result.tips.length" class="tips-h">改进建议</p>
+        <div v-if="result.tips.length" class="tips-h-row">
+          <p class="tips-h">改进建议</p>
+          <button type="button" class="tips-play" :disabled="audioPending(adviceText(result.tips))" @click="replayTips">
+            <span v-if="audioPending(adviceText(result.tips))" class="audio-spin" aria-hidden="true" />🔊 朗读建议
+          </button>
+        </div>
         <ul v-if="result.tips.length" class="tips">
           <li v-for="(t, i) in result.tips" :key="i">{{ t }}</li>
         </ul>
@@ -138,8 +142,8 @@ import { NButton } from "naive-ui";
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
 import {
-  loadSpeak, sourceRangeText, splitSpeakPlan,
-  type PlanDayView, type ShadowItem, type SpeakData,
+  loadSpeak, resolvePlanDay, sourceRangeText, splitSpeakPlan,
+  type DayCheck, type PlanDayView, type ShadowItem, type SpeakData,
 } from "../core/speak";
 import { SoeEval, soeTips, type SoeResult } from "../core/soe";
 import { addTake, newTakeId, takeStorageKey } from "../core/takes";
@@ -153,12 +157,13 @@ import {
 import {
   budgetBanner, loadAiStatus, paidBlocked, paidLockText, type AiStatus,
 } from "../core/aiStatus";
-import { say, playAudioUrl } from "../core/say";
+import { audioPending, say } from "../core/say";
+import { playShadowDemo } from "../core/tts";
+import { adviceText, readAdvice, stopAdvice } from "../core/adviceSpeech";
 import BackButton from "../components/BackButton.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
 import EmptyState from "../components/EmptyState.vue";
 import PaidActionButton from "../components/PaidActionButton.vue";
-import PaidAiNotice from "../components/PaidAiNotice.vue";
 
 type ShadowResult = SoeResult & { tips: string[] };
 
@@ -167,23 +172,22 @@ const router = useRouter();
 const auth = useAuthStore();
 const data = ref<SpeakData | null>(null);
 const planLength = ref(0);
+const checks = ref<Record<number, DayCheck>>({});
 const loaded = ref(false);
 const itemIdx = ref(0);
 const packId = ref("");
 const pickNonce = ref(0);
 const aiStatus = ref<AiStatus | null>(null);
 const recent = ref<RecentShadow[]>([]);
-const day = computed(() => Number(route.query.day ?? 1));
+const day = computed(() => Number(route.query.day ?? 0));
 
 const hasPlan = computed(() => planLength.value > 0);
 const planDays = computed<PlanDayView[]>(() =>
   hasPlan.value ? splitSpeakPlan(data.value, planLength.value) : [],
 );
-const planDay = computed<PlanDayView | null>(() => {
-  if (!hasPlan.value || !planDays.value.length) return null;
-  const idx = Math.min(Math.max(day.value, 1), planDays.value.length) - 1;
-  return planDays.value[idx] ?? null;
-});
+const planDay = computed<PlanDayView | null>(() =>
+  hasPlan.value ? resolvePlanDay(planDays.value, checks.value, day.value) : null,
+);
 
 const recentScores = computed(() => recent.value.map((r) => r.score ?? 0).filter((n) => n > 0));
 const recentIds = computed(() => recent.value.map((r) => r.sentence_id ?? "").filter(Boolean));
@@ -272,8 +276,6 @@ const busy = ref(false);
 const banner = computed(() => budgetBanner(aiStatus.value));
 const locked = computed(() => paidBlocked(aiStatus.value));
 const lockText = computed(() => paidLockText(aiStatus.value));
-// 状态未知时不冒险调用付费 TTS，和按钮文案保持一致。
-const browserTts = computed(() => !aiStatus.value || locked.value);
 
 const speechBase = ref(0);
 const clock = useSpeakTime("shadow", currentSpeech, () => hasPlan.value);
@@ -292,7 +294,13 @@ const metrics = computed(() => {
 });
 
 function sayWord(w: string): void {
-  if (w) say(w);
+  if (!w) return;
+  stopAdvice();
+  say(w);
+}
+
+function replayTips(): void {
+  void readAdvice(result.value?.tips ?? []);
 }
 
 function currentSpeech(): number {
@@ -305,24 +313,28 @@ function settleSpeech(): void {
 onMounted(async () => {
   try {
     data.value = await loadSpeak();
-    const [p, st, rec] = await Promise.all([
+    const [p, st, rec, dc] = await Promise.all([
       api<{ length: number }>("/speak/plan").catch(() => ({ length: 0 })),
       loadAiStatus(),
       api<{ items: RecentShadow[] }>("/speak/shadow/recent?limit=10").catch(() => ({ items: [] })),
+      api<{ days: DayCheck[] }>("/speak/days").catch(() => ({ days: [] })),
     ]);
     planLength.value = p.length ?? 0;
     aiStatus.value = st;
     recent.value = rec.items ?? [];
+    const map: Record<number, DayCheck> = {};
+    for (const c of dc.days ?? []) map[c.day] = c;
+    checks.value = map;
   } finally {
     loaded.value = true;
   }
-  status.value = locked.value
-    ? "跟读评分需要开通付费 AI；可以先点「听示范（浏览器朗读）」听句子。"
-    : micBlockedReason() || "点「跟读评分」，允许麦克风后朗读，读完点小绿下面的「提交」";
+  status.value = micBlockedReason()
+    || "点「跟读评分」，允许麦克风后朗读，读完点小绿下面的「提交」";
 });
 onBeforeUnmount(() => {
   soe.value?.stop();
   soe.value = null;
+  stopAdvice();
 });
 
 function start(): void {
@@ -331,6 +343,7 @@ function start(): void {
     status.value = lockText.value;
     return;
   }
+  stopAdvice();
   result.value = null;
   busy.value = false;
   settleSpeech();
@@ -342,6 +355,7 @@ function start(): void {
     onResult: (r) => {
       const tips = soeTips(r);
       result.value = { ...r, tips };
+      void readAdvice(tips);
       // 只落最高分和那次评分给出的评价（服务端按句去重）
       void logPractice(it, r, tips);
       // 录音同时存本机（每题最近 3 次 + 最高分）
@@ -370,6 +384,7 @@ function pickPack(id: string): void {
   if (id === packId.value) return;
   soe.value?.stop();
   soe.value = null;
+  stopAdvice();
   packId.value = id;
   itemIdx.value = 0;
   result.value = null;
@@ -379,6 +394,7 @@ function resort(): void {
   pickNonce.value += 1;
   itemIdx.value = 0;
   result.value = null;
+  stopAdvice();
 }
 
 /**
@@ -413,6 +429,7 @@ async function logPractice(it: ShadowItem, r: SoeResult, tips: string[]): Promis
 
 function next(): void {
   if (!orderedItems.value.length) return;
+  stopAdvice();
   itemIdx.value = (itemIdx.value + 1) % orderedItems.value.length;
   result.value = null;
   status.value = "点「跟读评分」，允许麦克风后朗读，读完点小绿下面的「提交」";
@@ -441,20 +458,8 @@ async function saveTake(it: ShadowItem, r: SoeResult, blob: Blob | null): Promis
 async function tts(): Promise<void> {
   const text = item.value?.en ?? "";
   if (!text) return;
-  // 未开通或状态未知：浏览器直读，不请求 TTS、不读服务端缓存。
-  if (browserTts.value) {
-    say(text);
-    return;
-  }
-  try {
-    const r = await api<{ url: string }>("/speak/tts", {
-      method: "POST",
-      body: JSON.stringify({ text }),
-    });
-    await playAudioUrl(r.url, text);
-  } catch {
-    say(text);
-  }
+  stopAdvice();
+  await playShadowDemo(text);
 }
 function diffLabel(d: number | undefined): string {
   const levels = ["A1", "A2", "B1", "B1+", "B2"];
@@ -526,7 +531,14 @@ h1 { color: var(--c-text); font-size: var(--fs-title); }
 .wchip:hover { border-color: var(--c-primary); }
 .wchip i { font-style: normal; font-size: 11px; color: var(--c-text-3); }
 .wchip.bad { background: var(--c-accent-soft, #fff7ed); border-color: var(--c-accent, #d97706); color: #b45309; }
-.tips-h { margin: 14px 0 0; font-weight: 700; color: var(--c-text); font-size: 14px; }
+.tips-h-row { margin: 14px 0 0; display: flex; align-items: center; gap: 10px; }
+.tips-h { margin: 0; font-weight: 700; color: var(--c-text); font-size: 14px; }
+.tips-play {
+  border: 1px solid var(--c-line); background: var(--c-surface);
+  color: var(--c-text-2); border-radius: 999px; padding: 2px 10px;
+  font-size: 12px; cursor: pointer;
+}
+.tips-play:hover { color: var(--c-text); }
 .tips { color: var(--c-text-2); font-size: var(--fs-sub); margin: 6px 0 0; padding-left: 18px; line-height: 1.7; }
 .whint { margin: 8px 0 0; color: var(--c-text-3); font-size: 12px; }
 .res-actions { margin-top: 12px; display: flex; gap: 8px; }

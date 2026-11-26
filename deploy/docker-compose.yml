@@ -62,3 +62,43 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  # 本地 TTS（Piper）：只走 compose 内网，不映射宿主端口；api 通过 http://tts:8100 调用。
+  # 模型首次启动下载到命名卷 piper_models，不进 git、不进镜像。
+  tts:
+    build:
+      context: ./tts
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.tuna.tsinghua.edu.cn/simple}
+        PIP_TRUSTED_HOST: ${PIP_TRUSTED_HOST:-pypi.tuna.tsinghua.edu.cn}
+    image: pet-tts:${PET_TAG:-latest}
+    restart: unless-stopped
+    expose:
+      - "8100"
+    environment:
+      - TZ=Asia/Shanghai
+      - PIPER_VOICES=${PIPER_VOICES:-en_GB-alan-medium,zh_CN-huayan-medium}
+      - PIPER_DATA_DIR=/models
+      # 国内下载模型可改成 https://hf-mirror.com/rhasspy/piper-voices/resolve/main
+      - PIPER_VOICE_BASE_URL=${PIPER_VOICE_BASE_URL:-https://huggingface.co/rhasspy/piper-voices/resolve/main}
+      - OMP_NUM_THREADS=2
+      - TTS_MAX_TEXT=400
+      - TTS_MAX_QUEUE=4
+    volumes:
+      - piper_models:/models
+    mem_limit: 640m
+    cpus: "2.0"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/healthz', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 300s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  piper_models:

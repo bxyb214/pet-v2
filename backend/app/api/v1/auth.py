@@ -62,6 +62,7 @@ def register(body: RegisterIn, db: Session = Depends(get_db)) -> TokenOut:
         username=body.username,
         password_hash=hash_password(body.password),
         display_name=body.display_name or body.username,
+        ai_enabled=False,  # 普通账号默认只用免费功能，由管理员按需开通
     )
     db.add(user)
     db.commit()
