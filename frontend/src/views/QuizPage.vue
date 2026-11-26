@@ -290,7 +290,7 @@ import {
 import { splitPlan, type WordBanks, type BankKey, type PlanWord } from "../core/plan";
 import { englishOnly, audioPending, playWordAudio, say } from "../core/say";
 import {
-  clearQuizSession, freeScope, loadQuizSession, planScope, pruneQuizSessions,
+  clearQuizSession, freeScope, loadQuizSession, planDayAllDone, planScope, pruneQuizSessions,
   resumePosition, saveQuizSession, sessionMatches,
 } from "../core/quizSession";
 
@@ -422,12 +422,12 @@ useImmersive(testActive);
 const exitTo = computed(() => (roundMode.value === "plan" ? "/english/words/plan" : "/english/words/browse"));
 
 /** 当天所有有词的词库都完成测试 */
-const allBanksDone = computed(
-  () =>
-    roundMode.value === "plan" &&
-    planKeys.value.length > 0 &&
-    planKeys.value.every((k) => Boolean(planStates.value[k]?.finished)),
-);
+const allBanksDone = computed(() => allPlanBanksFinished());
+
+/** 计划模式下是否每个词库都已完成（答完最后一题就算，不必等点了「看结果」） */
+function allPlanBanksFinished(): boolean {
+  return roundMode.value === "plan" && planDayAllDone(planStates.value, planKeys.value);
+}
 
 /** 测试页顶部四库导航：每库已答/总数与完成状态 */
 const planBankNav = computed(() =>
@@ -660,7 +660,7 @@ function switchBank(key: string): void {
   if (!planStates.value[key] || key === activeBank.value) return;
   saveActiveBankState();
   saveSession();
-  if (allBanksDone.value) markPlanAllDone();
+  maybeMarkPlanDone();
   applyBankState(key);
 }
 
@@ -686,13 +686,19 @@ function startPlanTest(dayArg?: number): void {
   const requested = String(route.query.bank ?? "");
   const firstOpen = keys.find((k) => !states[k].finished) ?? keys[0];
   applyBankState(keys.includes(requested) ? requested : firstOpen);
-  if (keys.every((k) => states[k].finished)) markPlanAllDone();
+  maybeMarkPlanDone(); // 上次已全部答完但没来得及打勾（如直接关页面）
 }
 
-/** 四库测试全部完成：打勾一次并清掉当天会话 */
+/** 四库测试全部完成：打勾一次并清掉当天会话。幂等，可在任何收尾时机重复调用。 */
 function markPlanAllDone(): void {
-  if (activePlanDay.value) learning.markPlanDayDone(activePlanDay.value);
+  const day = activePlanDay.value || planDayNo.value;
+  if (day >= 1) learning.markPlanDayDone(day);
   clearAllPlanSessions();
+}
+
+/** 各库都答完就打卡：答完最后一题、切库、离开页面、重新进入都走这里 */
+function maybeMarkPlanDone(): void {
+  if (allPlanBanksFinished()) markPlanAllDone();
 }
 
 /** 自由测验（从词库页进入）：恢复单轮会话 */
@@ -793,6 +799,8 @@ function submit(ans: string): void {
   results.value[qIndex.value] = lastCorrect.value;
   saveActiveBankState();
   saveSession(); // 每题保存：刷新后从下一道未答题继续
+  // 最后一题答完即打卡，不依赖「看结果」；用户可能答完就退出/刷新
+  maybeMarkPlanDone();
 }
 
 /** 防连点：答完 300ms 内不响应下一题，避免一下跳过两题 */
@@ -806,7 +814,7 @@ function next(): void {
     if (roundMode.value === "plan") {
       saveActiveBankState();
       saveSession();
-      if (allBanksDone.value) markPlanAllDone(); // 四库全部完成才打勾
+      maybeMarkPlanDone(); // 各库全部完成才打勾
     } else {
       clearCurrentSession();
     }
@@ -838,7 +846,7 @@ function nextUnfinishedBank(): void {
   saveSession();
   const key = planKeys.value.find((k) => !planStates.value[k]?.finished);
   if (key) applyBankState(key);
-  else markPlanAllDone();
+  else maybeMarkPlanDone();
 }
 
 function restart(): void {
@@ -938,6 +946,11 @@ function onKey(e: KeyboardEvent): void {
 onMounted(() => window.addEventListener("keydown", onKey));
 onUnmounted(() => {
   window.removeEventListener("keydown", onKey);
+  // 计划测试：退出前再确认一次当天是否已全部答完，避免只差一个收尾点击就没打勾
+  if (roundMode.value === "plan") {
+    saveActiveBankState();
+    maybeMarkPlanDone();
+  }
   // 随机学习中途退出 = 放弃本轮：清掉续做会话，重进回到开局设置（可重新选题库/题型/题量）。
   // 学习成果已由 learning store 每题落盘，这里丢的只是「本轮走到哪」。
   // 计划测试不受影响：按库续做是有意设计。

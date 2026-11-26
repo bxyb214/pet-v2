@@ -233,32 +233,46 @@ export function beginAudioPending(text: string): () => void {
   };
 }
 
-function isIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent || "";
-  return /iP(hone|ad|od)/.test(ua)
-    || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-}
+/** 本地 TTS 最多等 5s：期间播放按钮转圈，超时后回退浏览器发声。 */
+export const LOCAL_TTS_WAIT_MS = 5000;
 
-const warming = new Set<string>();
-
-/** 非 iOS 的回退路径：后台合成一次，下一次点击即可命中。 */
-async function warmLocal(text: string): Promise<void> {
-  if (warming.has(text) || warming.size > 200) return;
-  warming.add(text);
-  try {
-    await api("/speak/tts/local", { method: "POST", body: JSON.stringify({ text }) });
-  } catch {
-    /* 未登录 / sidecar 未启动：保持浏览器兜底 */
-  }
+/**
+ * 给等待加超时：超时或失败都返回 undefined。
+ * 原 Promise 不取消——服务端合成会继续并写入缓存，下次点击直接命中。
+ */
+export function raceTimeout<T>(p: Promise<T>, ms: number): Promise<T | undefined> {
+  return new Promise<T | undefined>((resolve) => {
+    let done = false;
+    const timer = window.setTimeout(() => {
+      if (done) return;
+      done = true;
+      resolve(undefined);
+    }, ms);
+    p.then(
+      (v) => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        resolve(v);
+      },
+      () => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        resolve(undefined);
+      },
+    );
+  });
 }
 
 /**
- * iOS 本地优先：先同步播缓存 URL；未命中/播放失败再 POST 合成，用已解锁元素补播。
- * iOS 对 404 音频不一定触发 error，超时后也会合成并播放。
+ * 本地优先：手势内先同步播缓存 URL；未命中再 POST 合成并补播。
+ * 合成最多等 5s（按钮转圈），超时/失败回退浏览器朗读。
+ * iOS 对 404 音频不一定触发 error，缓存播放本身也带超时。
  */
 async function playLocal(text: string, cfg: NonNullable<ReturnType<typeof cachedTtsConfig>>, rate: number, my: number): Promise<void> {
   const done = beginAudioPending(text);
+  const started = Date.now();
   try {
     const url = ttsUrl(text, cfg);
     const ok = await playAudioSync(url);
@@ -269,24 +283,31 @@ async function playLocal(text: string, cfg: NonNullable<ReturnType<typeof cached
     }
 
     recordAttempt({ text, url, status: "miss" });
-    try {
-      const out = await api<{ url: string }>("/speak/tts/local", {
-        method: "POST",
-        body: JSON.stringify({ text }),
-      });
-      if (my !== saySeq) return;
-      if (await playAudioUrl(out.url, "")) {
-        recordAttempt({ text, url: out.url, status: "playing" });
-        return;
+    const synth = (async (): Promise<boolean> => {
+      try {
+        const out = await api<{ url: string }>("/speak/tts/local", {
+          method: "POST",
+          body: JSON.stringify({ text }),
+        });
+        if (my !== saySeq) return false;
+        const played = await playAudioUrl(out.url, "");
+        if (played) recordAttempt({ text, url: out.url, status: "playing" });
+        else recordAttempt({ text, url: out.url, status: "error", error: "audio play failed" });
+        return played;
+      } catch (e) {
+        recordAttempt({ text, url, status: "error", error: (e as Error).message });
+        return false;
       }
-      recordAttempt({ text, url: out.url, status: "error", error: "audio play failed" });
-    } catch (e) {
-      recordAttempt({ text, url, status: "error", error: (e as Error).message });
-    }
-    if (my === saySeq) {
-      recordAttempt({ text, url, status: "fallback" });
-      browserSay(text, rate);
-    }
+    })();
+    const remain = Math.max(0, LOCAL_TTS_WAIT_MS - (Date.now() - started));
+    const played = await raceTimeout(synth, remain);
+    if (my !== saySeq) return;
+    if (played) return;
+
+    // 超时/失败：浏览器兜底；作废本次本地尝试，迟到的合成结果不再补播
+    saySeq += 1;
+    recordAttempt({ text, url, status: "fallback" });
+    browserSay(text, rate);
   } finally {
     done();
   }
@@ -300,17 +321,7 @@ export function say(text: string, rate = 0.9): void {
   const cfg = cachedTtsConfig();
   if (cfg?.enabled && clean.length <= cfg.max_chars) {
     unlockAudio();
-    const url = ttsUrl(clean, cfg);
-    if (isIOS()) {
-      void playLocal(clean, cfg, rate, my);
-      return;
-    }
-    void playAudioSync(url).then((ok) => {
-      if (ok || my !== saySeq) return;
-      recordAttempt({ text: clean, url, status: "fallback" });
-      browserSay(clean, rate);
-      void warmLocal(clean);
-    });
+    void playLocal(clean, cfg, rate, my);
     return;
   }
   if (!cfg) void loadTtsConfig();
@@ -321,6 +332,16 @@ export function stopSpeaking(): void {
   saySeq += 1;
   stopAudioUrl();
   if (ttsSupported()) window.speechSynthesis.cancel();
+}
+
+/**
+ * 直接浏览器朗读：本地 TTS 刚超时/失败时用，避免再等一轮本地合成。
+ */
+export function sayWithBrowser(text: string, rate = 0.9): void {
+  const clean = englishOnly(text);
+  if (!clean) return;
+  saySeq += 1;
+  browserSay(clean, rate);
 }
 
 /**

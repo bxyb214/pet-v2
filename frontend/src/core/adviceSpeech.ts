@@ -5,7 +5,9 @@
  */
 import { ref } from "vue";
 import { api } from "./api";
-import { beginAudioPending, playAudioUrl, stopSpeaking, unlockAudio } from "./say";
+import {
+  beginAudioPending, LOCAL_TTS_WAIT_MS, playAudioUrl, raceTimeout, stopSpeaking, unlockAudio,
+} from "./say";
 import { loadTtsConfig } from "./ttsConfig";
 
 type TtsOut = { url: string };
@@ -116,12 +118,15 @@ export async function readAdvice(
       const cfg = await loadTtsConfig();
       if (my !== seq) return;
       if (cfg.enabled && text.length <= cfg.max_chars) {
-        const out = await api<TtsOut>("/speak/tts/local", {
-          method: "POST",
-          body: JSON.stringify({ text }),
-        });
+        const out = await raceTimeout(
+          api<TtsOut>("/speak/tts/local", {
+            method: "POST",
+            body: JSON.stringify({ text }),
+          }),
+          LOCAL_TTS_WAIT_MS,
+        );
         if (my !== seq) return;
-        if (await playAudioUrl(out.url, "", end)) return;
+        if (out && (await playAudioUrl(out.url, "", end))) return;
       }
     } catch {
       /* 本地未启用/失败：按需走浏览器中文兜底 */

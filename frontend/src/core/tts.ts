@@ -1,6 +1,12 @@
-/** 句子示范朗读：默认本地 TTS；跟读示范单独走 Qwen（`playShadowDemo`）。 */
+/**
+ * 句子示范朗读：默认本地 TTS；跟读示范与造句 AI 示范句按权限走 Qwen
+ * （`playShadowDemo` / `playModelSentence`）。本地合成最多等 5s。
+ */
 import { api } from "./api";
-import { englishOnly, beginAudioPending, playAudioUrl, say, stopSpeaking, unlockAudio } from "./say";
+import {
+  beginAudioPending, englishOnly, LOCAL_TTS_WAIT_MS, playAudioUrl, raceTimeout, sayWithBrowser,
+  stopSpeaking, unlockAudio,
+} from "./say";
 import { loadTtsConfig } from "./ttsConfig";
 
 type TtsOut = {
@@ -16,7 +22,7 @@ export type DemoEngine = "qwen" | "local" | "browser";
 
 /**
  * 只走本地 TTS（不回落浏览器）；返回是否已开始播放。
- * 造句页 AI 示范句按需求只用本地发音，失败就保持安静。
+ * 合成最多等 5s（按钮转圈），超时或失败返回 false 由调用方决定后续。
  */
 export async function playLocalTts(text: string): Promise<boolean> {
   const clean = englishOnly(text);
@@ -27,10 +33,14 @@ export async function playLocalTts(text: string): Promise<boolean> {
   if (!cfg.enabled || clean.length > cfg.max_chars) return false;
   const done = beginAudioPending(clean);
   try {
-    const out = await api<TtsOut>("/speak/tts/local", {
-      method: "POST",
-      body: JSON.stringify({ text: clean }),
-    });
+    const out = await raceTimeout(
+      api<TtsOut>("/speak/tts/local", {
+        method: "POST",
+        body: JSON.stringify({ text: clean }),
+      }),
+      LOCAL_TTS_WAIT_MS,
+    );
+    if (!out) return false;
     return await playAudioUrl(out.url, "");
   } catch {
     return false;
@@ -41,13 +51,13 @@ export async function playLocalTts(text: string): Promise<boolean> {
 
 /**
  * 先停掉当前朗读，再按「本地 POST 合成 → 浏览器」顺序播放。
- * 本地未启用、超长或失败时都回退浏览器，不再产生云端 TTS 费用。
+ * 本地未启用、超长或 5s 内没就绪时都直接回退浏览器，不再产生云端 TTS 费用。
  */
 export async function playTts(text: string): Promise<"local" | "browser"> {
   const clean = englishOnly(text);
   if (!clean) return "browser";
   if (await playLocalTts(clean)) return "local";
-  say(clean);
+  sayWithBrowser(clean);
   return "browser";
 }
 
@@ -77,4 +87,15 @@ export async function playShadowDemo(text: string): Promise<DemoEngine> {
   } finally {
     done();
   }
+}
+
+/**
+ * 造句页 AI 示范句朗读：有 AI 权限优先 Qwen（磁盘缓存、免费不记账），
+ * 没有权限只用本地 Piper；两者失败都按已有链路回退（本地 → 浏览器）。
+ */
+export async function playModelSentence(
+  text: string,
+  opts: { qwen?: boolean } = {},
+): Promise<DemoEngine> {
+  return opts.qwen ? playShadowDemo(text) : playTts(text);
 }

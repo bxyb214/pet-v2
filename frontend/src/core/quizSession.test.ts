@@ -6,6 +6,7 @@ import {
   firstUnanswered,
   freeScope,
   loadQuizSession,
+  planDayAllDone,
   planScope,
   pruneQuizSessions,
   quizSessionKey,
@@ -203,8 +204,26 @@ describe("sessionMatches", () => {
   });
 });
 
-describe("firstUnanswered / resumePosition", () => {
-  it("定位第一道未答题；全部答完返回 -1", () => {
+describe("planDayAllDone（当天各库是否都测完）", () => {
+  const states = {
+    bimo: { finished: true },
+    gaopin: { finished: true },
+    guding: { finished: false },
+  };
+
+  it("所有有词的库都完成才为 true", () => {
+    expect(planDayAllDone(states, ["bimo", "gaopin"])).toBe(true);
+    expect(planDayAllDone(states, ["bimo", "gaopin", "guding"])).toBe(false);
+  });
+
+  it("空词库/缺状态不算完成；当天没有任何库时不为 true", () => {
+    expect(planDayAllDone(states, [])).toBe(false);
+    expect(planDayAllDone(states, ["bimo", "tongyi"])).toBe(false);
+    expect(planDayAllDone({}, ["bimo"])).toBe(false);
+  });
+});
+
+describe("firstUnanswered / resumePosition", () => {  it("定位第一道未答题；全部答完返回 -1", () => {
     expect(firstUnanswered([true, false, null, null])).toBe(2);
     expect(firstUnanswered([true, false])).toBe(-1);
     expect(firstUnanswered([])).toBe(-1);

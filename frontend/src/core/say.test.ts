@@ -146,6 +146,36 @@ describe("playWordAudio", () => {
     expect(spoken).toHaveLength(0);
   });
 
+  it("缓存未命中但 5s 内合成成功时补播，不调浏览器", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: true });
+    const urls = installAudio((url) => !url.includes("/file/abc.wav"));
+    mockedApi.mockResolvedValueOnce({ url: "/api/v1/speak/tts/file/abc.wav" } as never);
+
+    playWordAudio("hello");
+
+    await vi.waitFor(() => {
+      expect(urls).toContain("/api/v1/speak/tts/file/abc.wav");
+    });
+    expect(spoken).toHaveLength(0);
+  });
+
+  it("本地合成 5s 内没就绪时回退浏览器朗读", async () => {
+    vi.useFakeTimers();
+    try {
+      setTtsConfig({ ...TTS_OFF, enabled: true });
+      installAudio(true);
+      mockedApi.mockReturnValue(new Promise(() => { /* 一直不返回：交给超时 */ }) as never);
+
+      playWordAudio("hello");
+      expect(spoken).toHaveLength(0);
+
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(spoken.map((u) => u.text)).toEqual(["hello"]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("中文混排只读英文部分", () => {
     playWordAudio("apple 苹果");
     expect(spoken[0].text).toBe("apple");

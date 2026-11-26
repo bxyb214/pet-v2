@@ -42,7 +42,7 @@ import { NButton, NTag } from "naive-ui";
 import { dimLabel, gradePlan, MIN, PASS, type GradePlan } from "../core/review";
 import { SoeEval, type SoeResult } from "../core/soe";
 import { audioPending } from "../core/say";
-import { playLocalTts, playTts } from "../core/tts";
+import { playModelSentence, playTts } from "../core/tts";
 import { stopAdvice } from "../core/adviceSpeech";
 
 const props = withDefaults(defineProps<{
@@ -54,9 +54,11 @@ const props = withDefaults(defineProps<{
   compact?: boolean;
   /** 是否在卡片内提供「跟读这句」评分；造句页改在 AI 示范句下方统一评分 */
   eval?: boolean;
-  /** 只用本地 TTS 听示范，不回落浏览器（造句页 AI 反馈） */
+  /** 示范句「听示范」：不回落浏览器，有 AI 权限时走 Qwen（造句页 AI 示范句） */
   localOnly?: boolean;
-}>(), { improvedCn: "", dims: () => [], showChild: false, compact: false, eval: true, localOnly: false });
+  /** localOnly 且账号有 AI 权限：示范句用 Qwen 合成，否则本地 Piper */
+  qwen?: boolean;
+}>(), { improvedCn: "", dims: () => [], showChild: false, compact: false, eval: true, localOnly: false, qwen: false });
 
 const emit = defineEmits<{ (e: "scored", v: { score: number; dimsOk: string[] }): void }>();
 
@@ -71,8 +73,7 @@ onBeforeUnmount(() => soe?.stop());
 async function playDemo(): Promise<void> {
   stopAdvice();
   if (props.localOnly) {
-    const ok = await playLocalTts(props.improvedEn);
-    if (!ok) status.value = "本地发音暂不可用，请稍后再试";
+    await playModelSentence(props.improvedEn, { qwen: props.qwen });
     return;
   }
   await playTts(props.improvedEn);

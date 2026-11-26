@@ -38,7 +38,7 @@ describe("splitPlan（每种词库各自平均分到各天）", () => {
     expect(d24.total).toBe(57);
   });
 
-  it("每库每天条数差 ≤1；当天词集不变、顺序乱序、不重不漏", () => {
+  it("学习按词库原顺序切分：每库每天条数差 ≤1、不重不漏", () => {
     const plan = splitPlan(petBanks, 30);
     for (const key of Object.keys(petBanks)) {
       const original = petBanks[key].map((w) => w.id);
@@ -51,17 +51,12 @@ describe("splitPlan（每种词库各自平均分到各天）", () => {
       expect(new Set(flat).size).toBe(original.length);
       expect([...flat].sort()).toEqual([...original].sort());
 
-      // 乱序只发生在当天切片内：词集仍与原区间一致
-      let shuffledSomeDay = false;
+      // 学习顺序 = 词库原顺序（每天就是原区间那一段）
       plan.forEach((d, i) => {
         const start = Math.floor((i * original.length) / plan.length);
         const end = Math.floor(((i + 1) * original.length) / plan.length);
-        const expected = original.slice(start, end);
-        const actual = d.banks[key].map((w) => w.id);
-        expect([...actual].sort()).toEqual([...expected].sort());
-        if (actual.join() !== expected.join()) shuffledSomeDay = true;
+        expect(d.banks[key].map((w) => w.id)).toEqual(original.slice(start, end));
       });
-      expect(shuffledSomeDay).toBe(true);
     }
     expect(validatePlan(petBanks, plan)).toBe(true);
   });
@@ -108,7 +103,7 @@ describe("splitPlan（每种词库各自平均分到各天）", () => {
   });
 });
 
-describe("validatePlan 不变量（不重不漏、顺序可乱、每库均匀）", () => {
+describe("validatePlan 不变量（不重不漏、集合一致、每库均匀）", () => {
   it("30/45 天均通过", () => {
     expect(validatePlan(banks, splitPlan(banks, 30))).toBe(true);
     expect(validatePlan(banks, splitPlan(banks, 45))).toBe(true);
@@ -121,7 +116,7 @@ describe("validatePlan 不变量（不重不漏、顺序可乱、每库均匀）
     expect(validatePlan(banks, plan)).toBe(false);
   });
 
-  it("重复词 / 原词缺失时校验失败（顺序可乱，但集合必须一致）", () => {
+  it("重复词 / 原词缺失时校验失败（顺序可变，但集合必须一致）", () => {
     const plan = splitPlan(banks, 3);
     plan[0].banks.bimo[0] = plan[1].banks.bimo[0];
     expect(validatePlan(banks, plan)).toBe(false);

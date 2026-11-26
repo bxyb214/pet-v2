@@ -2,10 +2,9 @@
  * 计划切分（F-1）：每种词库各自平均分到各天，任意天数，不重不漏（V1/P1）。
  * 对每个词库，第 d 天取 [floor(d*L/N), floor((d+1)*L/N))：
  * 各天条数最多差 1，余量均匀散布；只要 L >= N，每天都有该词库的词。
- * 每天切片后再按「库 + 天 + 天数 + 区间」确定性乱序：
- * 学习翻卡与计划测试不再按词库原始顺序出词，且各页面拿到的顺序一致。
+ * 切片保持词库原始顺序：学习翻卡按顺序过词；
+ * 计划测试在 `makeTestRound` 里按「库 + 天 + 题型」确定性乱序出题。
  */
-import { deterministicShuffle, seedFrom } from "./shuffle";
 
 /** 词库 id（bimo/gaopin/guding/tongyi/kword/kcore/kphrase/kconfuse/ksyn…），可扩展 */
 export type BankKey = string;
@@ -53,11 +52,8 @@ export function splitPlan(banks: WordBanks, days: number, keys?: BankKey[]): Pla
       // 均匀散布余量：各天条数差 ≤1，且每天尽量都有该库
       const start = Math.floor((d * words.length) / days);
       const end = Math.floor(((d + 1) * words.length) / days);
-      // 只打乱当天词序，不跨天搬词：计划词集与每天词数保持原切分
-      const slice = deterministicShuffle(
-        words.slice(start, end),
-        seedFrom(key, d + 1, days, start, end),
-      );
+      // 保持词库原始顺序（学习按顺序翻卡）；乱序只在测验出题时做
+      const slice = words.slice(start, end);
       out[d].banks[key] = slice;
       out[d].total += slice.length;
     }
@@ -76,7 +72,7 @@ export function validatePlan(banks: WordBanks, plan: PlanDay[], keys?: BankKey[]
     if (original.length !== rebuilt.length) return false;
     if (new Set(rebuilt).size !== rebuilt.length) return false;
     if (!rebuilt.every((id) => originalSet.has(id))) return false;
-    // 乱序只允许发生在当天切片内：每天词集必须与切分区间一致
+    // 每天词集必须与切分区间一致（顺序由调用方决定，测验另做乱序）
     for (let d = 0; d < plan.length; d++) {
       const start = Math.floor((d * original.length) / plan.length);
       const end = Math.floor(((d + 1) * original.length) / plan.length);

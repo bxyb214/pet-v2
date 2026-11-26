@@ -114,6 +114,7 @@
                 :improved-cn="''"
                 compact
                 local-only
+                :qwen="aiVoice"
                 :eval="false"
               />
               <SpeakEvalBlock
@@ -174,7 +175,7 @@ import {
 import { say, stopAudioUrl, stopSpeaking } from "../core/say";
 import { adviceBusy, readAdvice, stopAdvice } from "../core/adviceSpeech";
 import { loadTtsConfig } from "../core/ttsConfig";
-import { playLocalTts } from "../core/tts";
+import { playModelSentence } from "../core/tts";
 import { devMode } from "../core/devMode";
 import BackButton from "../components/BackButton.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
@@ -536,12 +537,17 @@ async function logMake(): Promise<void> {
   }
 }
 
-/** 本地中文读建议 → 读完再本地读 AI 示范句；全程不回落浏览器 */
+/** 有 AI 权限时示范句走 Qwen 朗读（磁盘缓存免费），否则本地 Piper */
+const aiVoice = computed(() => aiStatus.value?.ai_enabled === true);
+
+/** 本地中文读建议 → 读完再读 AI 示范句（有 AI 权限用 Qwen，否则本地） */
 function readFeedback(res: { comment: string; improved: string }): void {
   void readAdvice([res.comment], {
     fallback: false,
     onDone: () => {
-      if (fb.value === res && res.improved) void playLocalTts(res.improved);
+      if (fb.value === res && res.improved) {
+        void playModelSentence(res.improved, { qwen: aiVoice.value });
+      }
     },
   });
 }

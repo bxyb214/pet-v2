@@ -194,6 +194,14 @@ export function firstUnanswered(results: Array<boolean | null>): number {
   return results.findIndex((r) => r === null);
 }
 
+/** 计划测试：当天有词的词库是否都已完成（空词库不算）。 */
+export function planDayAllDone(
+  states: Record<string, { finished: boolean } | undefined>,
+  keys: string[],
+): boolean {
+  return keys.length > 0 && keys.every((k) => Boolean(states[k]?.finished));
+}
+
 /** 恢复落点：第一道未答题；全部答完则停在结算页。 */
 export function resumePosition(s: Pick<QuizSession, "round" | "results">): {
   index: number;

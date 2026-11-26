@@ -120,7 +120,9 @@ export function makeRound(
 }
 
 /**
- * 计划测试：每个词按该库要求的题型各出一题（逐词交错）。
+ * 计划测试：每个词按该库要求的题型各出一题。
+ * 学习按词库原顺序翻卡；测试把当天词确定性乱序后轮流出题，
+ * 同一个词的多个题型被拆开，不会「一个词连着考」。
  * 题组只由「库 + 当天词 + 题型 + 种子」决定，刷新/换设备一致。
  */
 export function makeTestRound(
@@ -131,9 +133,26 @@ export function makeTestRound(
 ): QuizQuestion[] {
   if (bank.length < 4) throw new Error("词库太少，无法生成选择题");
   const rand = mulberry32(seed);
+  // 先按种子打乱词序，再给每个词排好各题型；出题时每次挑「剩余最多且与上一题不同词」的一组
+  const queues = shuffleWith(words, rand).map((word) => ({
+    id: word.id,
+    qs: dims.map((dim) => makeQuestion(bank, word, dim, rand)),
+  }));
+  const total = queues.reduce((s, q) => s + q.qs.length, 0);
   const out: QuizQuestion[] = [];
-  for (const word of words) {
-    for (const dim of dims) out.push(makeQuestion(bank, word, dim, rand));
+  let prev = "";
+  for (let n = 0; n < total; n++) {
+    let pick = -1;
+    for (let i = 0; i < queues.length; i++) {
+      const q = queues[i];
+      if (!q.qs.length || q.id === prev) continue;
+      if (pick < 0 || q.qs.length > queues[pick].qs.length) pick = i;
+    }
+    // 只剩同一个词（当天只有 1 个词）时才允许连着考
+    if (pick < 0) pick = queues.findIndex((q) => q.qs.length > 0);
+    const q = queues[pick];
+    out.push(q.qs.shift() as QuizQuestion);
+    prev = q.id;
   }
   return out;
 }

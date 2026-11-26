@@ -135,13 +135,27 @@ describe("makeTestRound（计划测试按词出多题）", () => {
     const high = makeTestRound(bank, words, testDimsForBank("gaopin"), 1);
     expect(bimo.length).toBe(9);
     expect(high.length).toBe(6);
-    expect(bimo.map((q) => q.word.id)).toEqual([
+    for (const w of words) {
+      const qs = bimo.filter((q) => q.word.id === w.id);
+      expect(qs.map((q) => q.dim).sort()).toEqual(["m2w", "spell", "w2m"]);
+    }
+    for (const w of words) {
+      expect(high.filter((q) => q.word.id === w.id).map((q) => q.dim).sort()).toEqual(["m2w", "w2m"]);
+    }
+  });
+
+  it("测验词序乱序，且同一个词的题型拆开考，不连着出现", () => {
+    const round = makeTestRound(bank, words, testDimsForBank("bimo"), 7);
+    // 顺序不再按学习顺序分组（w0×3、w1×3、w2×3）
+    expect(round.map((q) => q.word.id)).not.toEqual([
       "w0", "w0", "w0", "w1", "w1", "w1", "w2", "w2", "w2",
     ]);
-    expect(bimo.map((q) => q.dim)).toEqual([
-      "spell", "w2m", "m2w", "spell", "w2m", "m2w", "spell", "w2m", "m2w",
-    ]);
-    expect(high.map((q) => q.dim)).toEqual(["w2m", "m2w", "w2m", "m2w", "w2m", "m2w"]);
+    for (let i = 1; i < round.length; i++) {
+      expect(round[i].word.id).not.toBe(round[i - 1].word.id);
+    }
+    // 只有一个词时允许连着考，题量不丢
+    const one = makeTestRound(bank, bank.slice(0, 1), testDimsForBank("bimo"), 7);
+    expect(one.map((q) => q.word.id)).toEqual(["w0", "w0", "w0"]);
   });
 
   it("同种子完全一致（题目顺序 + 选项顺序），不同种子选项会变化", () => {

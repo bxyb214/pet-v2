@@ -4,7 +4,7 @@ vi.mock("./api", () => ({ api: vi.fn() }));
 
 import { api } from "./api";
 import { audioPending } from "./say";
-import { playLocalTts, playShadowDemo, playTts } from "./tts";
+import { playLocalTts, playModelSentence, playShadowDemo, playTts } from "./tts";
 import { setTtsConfig, TTS_OFF } from "./ttsConfig";
 
 const mockedApi = vi.mocked(api);
@@ -202,5 +202,44 @@ describe("playShadowDemo", () => {
 
     expect(source).toBe("browser");
     expect(spoken).toEqual(["hello"]);
+  });
+});
+
+describe("playModelSentence（造句 AI 示范句）", () => {
+  it("有 AI 权限时走 Qwen 示范接口", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: false });
+    const urls = installAudio();
+    mockedApi.mockResolvedValueOnce({ url: "/api/v1/speak/tts/file/demo.wav" } as never);
+
+    const source = await playModelSentence("I went to the park.", { qwen: true });
+
+    expect(source).toBe("qwen");
+    expect(urls).toEqual(["/api/v1/speak/tts/file/demo.wav"]);
+    expect(mockedApi.mock.calls.map((c) => c[0])).toEqual(["/speak/tts/demo"]);
+  });
+
+  it("没有 AI 权限时只走本地 TTS，不请求 Qwen", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: true });
+    const urls = installAudio();
+    mockedApi.mockResolvedValueOnce({ url: "/api/v1/speak/tts/file/local.wav" } as never);
+
+    const source = await playModelSentence("I went to the park.", { qwen: false });
+
+    expect(source).toBe("local");
+    expect(urls).toEqual(["/api/v1/speak/tts/file/local.wav"]);
+    expect(mockedApi.mock.calls.map((c) => c[0])).toEqual(["/speak/tts/local"]);
+  });
+
+  it("Qwen 失败时落本地，不直接静音", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: true });
+    installAudio();
+    mockedApi
+      .mockRejectedValueOnce(new Error("503"))
+      .mockResolvedValueOnce({ url: "/api/v1/speak/tts/file/local.wav" } as never);
+
+    const source = await playModelSentence("I went to the park.", { qwen: true });
+
+    expect(source).toBe("local");
+    expect(mockedApi.mock.calls.map((c) => c[0])).toEqual(["/speak/tts/demo", "/speak/tts/local"]);
   });
 });
