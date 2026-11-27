@@ -29,7 +29,7 @@
       </span>
     </router-link>
 
-    <template v-if="subject === 'english'">
+    <template v-if="showModules && subject === 'english'">
       <div class="divider"></div>
       <div class="sider-title">英语 · 板块</div>
       <router-link
@@ -47,7 +47,7 @@
       </router-link>
     </template>
 
-    <template v-if="subject === 'math'">
+    <template v-if="showModules && subject === 'math'">
       <div class="divider"></div>
       <div class="sider-title">数学 · 板块</div>
       <router-link
@@ -73,38 +73,12 @@
 import { useRoute } from "vue-router";
 import { computed } from "vue";
 import { NIcon } from "naive-ui";
-import {
-  LanguageOutline, BookOutline, CalculatorOutline, HomeOutline,
-  ReaderOutline, LibraryOutline, HeadsetOutline, MicOutline, CreateOutline,
-  PlayCircleOutline, StatsChartOutline,
-} from "@vicons/ionicons5";
-import type { Component } from "vue";
+import { HomeOutline } from "@vicons/ionicons5";
 import { useAuthStore } from "../stores/auth";
+import { EN_MODULES, MATH_MODULES, SUBJECTS } from "./navModules";
 
-type Module = { key: string; name: string; icon: Component; first: string };
-type Subject = {
-  key: "english" | "chinese" | "math"; name: string; icon: Component;
-  desc: string; first: string; /** 侧栏配色的短类名（CSS 用 .en/.cn/.ma） */ cls: string;
-};
-
-const SUBJECTS: Subject[] = [
-  { key: "english", name: "英语", icon: LanguageOutline, desc: "", first: "/english/words/browse", cls: "en" },
-  { key: "chinese", name: "语文", icon: BookOutline, desc: "筹备中", first: "/chinese", cls: "cn" },
-  { key: "math", name: "数学", icon: CalculatorOutline, desc: "三、四年级已上线", first: "/math", cls: "ma" },
-];
-
-const EN_MODULES: Module[] = [
-  { key: "words", name: "单词", icon: ReaderOutline, first: "/english/words/browse" },
-  { key: "reading", name: "阅读", icon: LibraryOutline, first: "/english/reading/home" },
-  { key: "grammar", name: "语法", icon: CreateOutline, first: "/english/grammar" },
-  { key: "listening", name: "听力", icon: HeadsetOutline, first: "/english/listening/home" },
-  { key: "speak", name: "口语", icon: MicOutline, first: "/english/speak" },
-];
-
-const MATH_MODULES: Module[] = [
-  { key: "books", name: "一课通关", icon: PlayCircleOutline, first: "/math" },
-  { key: "progress", name: "学习进度", icon: StatsChartOutline, first: "/math/progress" },
-];
+/** 手机抽屉只放一级导航（首页 + 学科），二级板块交给底部导航栏 */
+withDefaults(defineProps<{ showModules?: boolean }>(), { showModules: true });
 
 const emit = defineEmits<{ (e: "go"): void }>();
 const route = useRoute();

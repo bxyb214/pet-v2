@@ -56,7 +56,7 @@
       </aside>
 
       <!-- 内容区：面包屑 + 页签 + 页面，统一同一宽度容器 -->
-      <main class="main" :class="[widthClass, { 'mic-on': micActive }]">
+      <main class="main" :class="[widthClass, { 'mic-on': micActive, 'has-tabbar': showTabBar }]">
         <div class="stack">
           <nav v-if="!immersive && crumbs.length" class="crumb" aria-label="面包屑">
             <template v-for="(c, i) in crumbs" :key="i">
@@ -85,13 +85,16 @@
       </main>
     </div>
 
+    <!-- 手机端底部二级导航：当前学科板块（桌面隐藏） -->
+    <MobileTabBar v-if="showTabBar" />
+
     <!-- 麦克风占用期间的数字人：固定在右侧 1/3，关闭按钮在数字人下方 -->
     <MicCompanion v-if="micActive" />
 
-    <!-- 手机抽屉导航 -->
+    <!-- 手机抽屉导航：只放一级（首页 + 学科），板块在底部栏 -->
     <n-drawer v-model:show="drawer" placement="left" :width="264">
       <n-drawer-content body-content-style="padding: 16px 12px">
-        <SiderNav @go="drawer = false" />
+        <SiderNav :show-modules="false" @go="drawer = false" />
       </n-drawer-content>
     </n-drawer>
   </div>
@@ -106,8 +109,10 @@ import {
   LogOutOutline, PersonOutline, SettingsOutline, ShieldCheckmarkOutline,
 } from "@vicons/ionicons5";
 import SiderNav from "./SiderNav.vue";
+import MobileTabBar from "../components/MobileTabBar.vue";
 import MicCompanion from "../components/MicCompanion.vue";
 import PwaInstallHint from "../components/PwaInstallHint.vue";
+import { modulesForSubject } from "./navModules";
 import { useAuthStore } from "../stores/auth";
 import { devMode, ensureDevMode } from "../core/devMode";
 import { immersive } from "../core/immersive";
@@ -178,6 +183,11 @@ const activeTabTo = computed(() => {
 const hasActiveTab = computed(() => activeTabTo.value !== "");
 /** 页签条只在有命中项时渲染，避免「页签都在、谁都不亮」 */
 const showTabs = computed(() => tabs.value.length > 0 && hasActiveTab.value);
+
+/** 手机底栏：当前学科有板块、且不在沉浸作答 / 麦克风面板时显示（桌面由 CSS 隐藏） */
+const showTabBar = computed(
+  () => modulesForSubject(route.meta.subject).length > 0 && !immersive.value && !micActive.value,
+);
 
 const crumbs = computed(() => {
   const c = route.meta.crumbs;
@@ -391,6 +401,8 @@ function logout(): void {
   .main {
     padding: 14px max(14px, env(safe-area-inset-right, 0px)) calc(40px + env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
   }
+  /* 底部二级导航固定时，内容区让出栏高 + 一点呼吸空间 */
+  .main.has-tabbar { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
   .crumb { font-size: 12.5px; }
   .tabs-wrap { top: calc(52px + env(safe-area-inset-top, 0px)); }
   .tabs3 .t { padding: 8px 16px; font-size: 14px; }
