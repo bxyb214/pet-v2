@@ -3,7 +3,7 @@
     <BackButton to="/english/speak" label="返回口语" />
     <h1>
       造句练习
-      <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天 · {{ sourceRangeText(planDay) }}</span>
+      <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天{{ sourceRangeSuffix(planDay) }}</span>
     </h1>
     <p class="sub">
       看中文，用英文说出来。按住「参考答案」可以边看边听，AI 会给出建议和一句更好的示范句，跟读示范句还能评分存档。
@@ -96,7 +96,7 @@
             </n-popover>
           </div>
 
-          <!-- AI 点评：中文建议 + PET 优秀示范句；只对示范句提供跟读评分与存档 -->
+          <!-- AI 点评：中文建议 + 本级优秀示范句；只对示范句提供跟读评分与存档 -->
           <div v-if="fb" class="fb" :class="{ good: fb.ok }">
             <div class="fb-head">
               <div class="fb-title">{{ fb.ok ? "意思说到了！" : "再改一点就更好了" }}</div>
@@ -107,7 +107,7 @@
             <div v-if="mine" class="heard">AI 听到的是：{{ mine }}</div>
             <div class="fb-comment">{{ fb.comment }}</div>
             <div v-if="fb.improved" class="model">
-              <div class="model-label">AI 示范句 <span>PET 优秀水平以上</span></div>
+              <div class="model-label">AI 示范句 <span>{{ examLabel }} 优秀水平以上</span></div>
               <SpeakImproveCard
                 :child-said="mine"
                 :improved-en="fb.improved"
@@ -162,7 +162,7 @@ import { NButton, NPopover, NSelect } from "naive-ui";
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
 import {
-  loadSpeak, planDayScenes, resolvePlanDay, sourceRangeText, splitSpeakPlan,
+  loadSpeak, planDayScenes, resolvePlanDay, sourceRangeSuffix, splitSpeakPlan,
   type DayCheck, type PlanDayView, type Scene, type SpeakData,
 } from "../core/speak";
 import { startMakeRecording, type MakeRec } from "../core/makeRecorder";
@@ -223,6 +223,7 @@ const prompt = computed(() => prompts.value[pi.value] ?? null);
 // ---- 我的录音：只有跟读 AI 示范句并评分后才进 IndexedDB 存档
 // （最近 3 次 + 最高分）
 const auth = useAuthStore();
+const examLabel = computed(() => (auth.exam || "pet").toUpperCase());
 const ttsReady = ref(false);
 
 const promptKey = computed(() => (prompt.value ? `${sceneId.value}:${prompt.value.id}` : ""));
@@ -291,12 +292,13 @@ function closePeek(): void {
   if (wasOpen) stopSpeaking();
 }
 
-const partFilters = [
-  { id: 0, name: "全部" },
-  { id: 1, name: "Part 1" },
-  { id: 2, name: "Part 2" },
-  { id: 3, name: "Part 3–4" },
-];
+const partFilters = computed(() => {
+  const parts = [...new Set(scenes.value.map((s) => s.part))].sort((a, b) => a - b);
+  return [
+    { id: 0, name: "全部" },
+    ...parts.map((p) => ({ id: p, name: p >= 3 ? "Part 3–4" : `Part ${p}` })),
+  ];
+});
 const sceneOptions = computed(() =>
   scenes.value
     .filter((s) => part.value === 0 || s.part === part.value)
@@ -305,18 +307,17 @@ const sceneOptions = computed(() =>
 
 onMounted(async () => {
   window.addEventListener("pagehide", onPageHide);
-  data.value = await loadSpeak();
+  data.value = await loadSpeak(auth.exam);
   loading.value = false;
   aiStatus.value = await loadAiStatus();
   // 预热本地发音配置：参考答案与 AI 反馈都只用本地 TTS，按钮按配置显隐
   ttsReady.value = (await loadTtsConfig()).enabled;
   try {
-    const [p, d] = await Promise.all([
-      api<{ length: number }>("/speak/plan"),
-      api<{ days: DayCheck[] }>("/speak/days"),
-    ]);
+    // 先取计划，避免与打卡请求并发时偶发失败，把有计划误判成自由练习
+    const p = await api<{ length: number }>("/speak/plan");
     planLength.value = p.length ?? 0;
     if (hasPlan.value) {
+      const d = await api<{ days: DayCheck[] }>("/speak/days").catch(() => ({ days: [] }));
       const planDays = splitSpeakPlan(data.value, planLength.value);
       const checks: Record<number, DayCheck> = {};
       for (const c of d.days ?? []) checks[c.day] = c;

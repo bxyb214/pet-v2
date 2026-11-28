@@ -29,7 +29,7 @@
           </button>
           <button class="entry card" @click="goMake(activeDay)">
             <b><n-icon :component="CreateOutline" size="18" />造句练习 · 10 分钟</b>
-            <span>PET 常用句型 · AI 点评优化</span>
+            <span>{{ examLabel }} 常用句型 · AI 点评优化</span>
           </button>
           <button class="entry card" @click="goTalk(activeDay)">
             <b><n-icon :component="ChatbubblesOutline" size="18" />自由对话 · 15 分钟</b>
@@ -55,14 +55,14 @@
               type="button"
               class="cell"
               :class="{ done: planDayDone(d, checkMap), today: d.day === todayDay, sel: d.day === activeDay }"
-              :title="`第 ${d.day} 天 · ${sourceRangeText(d)} · ${d.title} · 场景：${d.sceneTitles.join('、')} · 点击切换练习日`"
+              :title="`第 ${d.day} 天${sourceRangeSuffix(d)} · ${d.title} · 场景：${d.sceneTitles.join('、')} · 点击切换练习日`"
               :aria-pressed="d.day === activeDay"
               @click="pickDay(d.day)"
             >{{ d.day }}</button>
           </div>
 
           <p v-if="activePlanDay" class="picked-line">
-            第 {{ activeDay }} 天 · {{ sourceRangeText(activePlanDay) }} · {{ activePlanDay.title }}
+            第 {{ activeDay }} 天{{ sourceRangeSuffix(activePlanDay) }} · {{ activePlanDay.title }}
           </p>
 
           <div v-if="planData" class="legend">
@@ -100,7 +100,7 @@
           <div v-if="creating" class="create">
             <div class="genrow">
               <span class="lbl">计划天数</span>
-              <n-input-number v-model:value="days" :min="1" :max="90" style="width: 132px" />
+              <n-input-number v-model:value="days" :min="1" :max="effectiveLength" style="width: 132px" />
               <span class="muted">共 {{ previewDays.length }} 天</span>
               <n-button v-if="validDays" type="primary" @click="savePlan">确认生成</n-button>
               <n-button quaternary @click="creating = false">取消</n-button>
@@ -142,7 +142,7 @@ import LoadingBlock from "../components/LoadingBlock.vue";
 import EmptyState from "../components/EmptyState.vue";
 import DeletePlanModal from "../components/DeletePlanModal.vue";
 import {
-  loadSpeak, planDayDone, sourceRangeText, splitSpeakPlan,
+  loadSpeak, planDayDone, sourceRangeSuffix, sourceRangeText, splitSpeakPlan,
   type DayCheck, type PlanDayView, type SpeakData,
 } from "../core/speak";
 
@@ -160,6 +160,7 @@ const timeTotals = ref<{ shadow: number; make: number; talk: number } | null>(nu
 const authReady = ref(false);
 const aiStatus = ref<AiStatus | null>(null);
 const banner = computed(() => budgetBanner(aiStatus.value));
+const examLabel = computed(() => (auth.exam || "pet").toUpperCase());
 
 const hasPlan = computed(() => planLength.value > 0);
 const effectiveLength = computed(() => planLength.value || (planData.value?.plan.days?.length ?? 90));
@@ -215,7 +216,7 @@ onMounted(async () => {
   await auth.restore();
   authReady.value = true;
   pickedDay.value = readPickedDay();
-  planData.value = await loadSpeak();
+  planData.value = await loadSpeak(auth.exam);
   await refresh();
   aiStatus.value = await loadAiStatus(true);
   loaded.value = true;

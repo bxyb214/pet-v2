@@ -93,6 +93,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useLearningStore } from "../stores/learning";
+import { useAuthStore } from "../stores/auth";
 import BackButton from "../components/BackButton.vue";
 import {
   loadReading, withCustomSentences,
@@ -103,6 +104,7 @@ import { audioPending, say } from "../core/say";
 const route = useRoute();
 const router = useRouter();
 const learning = useLearningStore();
+const auth = useAuthStore();
 const sentences = ref<RSentence[]>([]);
 const grammar = ref<RGrammar | null>(null);
 const idx = ref(0);
@@ -136,7 +138,7 @@ function roleCls(r: string): string {
 }
 
 onMounted(async () => {
-  const d = withCustomSentences(await loadReading(), learning.data.custom_sentences);
+  const d = withCustomSentences(await loadReading(auth.exam), learning.data.custom_sentences);
   grammar.value = d.grammar;
   testNo.value = Number(route.params.testNo);
   part.value = Number(route.params.part);

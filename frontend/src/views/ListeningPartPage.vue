@@ -2,7 +2,7 @@
   <main class="page">
     <BackButton to="/english/listening/home" label="返回听力" />
     <h1>{{ label }}</h1>
-    <p class="sub">听音频 · 对照字幕（可隐藏）· 0.8–1.2 倍速</p>
+    <p class="sub">{{ hasSubs ? "听音频 · 对照字幕（可隐藏）· 0.8–1.2 倍速" : "听音频 · 0.8–1.2 倍速" }}</p>
 
     <LoadingBlock v-if="!loaded" />
     <EmptyState v-else-if="error" :title="error" plain />
@@ -41,6 +41,7 @@
           </div>
 
           <button
+            v-if="hasSubs"
             type="button"
             class="toggle"
             :class="{ on: showSubs }"
@@ -58,8 +59,8 @@
         </div>
       </div>
 
-      <!-- 字幕：随音频高亮并自动滚动，可隐藏 -->
-      <div v-show="showSubs" ref="subBox" class="sub-box card" aria-live="off">
+      <!-- 字幕：随音频高亮并自动滚动，可隐藏；无原文时整块不显示 -->
+      <div v-if="hasSubs" v-show="showSubs" ref="subBox" class="sub-box card" aria-live="off">
         <div
           v-for="(s, i) in pt.sentences" :key="i"
           :data-idx="i"
@@ -76,6 +77,7 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { activeSentenceIdx, loadListening, type LTest } from "../core/listening";
+import { useAuthStore } from "../stores/auth";
 import BackButton from "../components/BackButton.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
 import EmptyState from "../components/EmptyState.vue";
@@ -84,12 +86,14 @@ import EmptyState from "../components/EmptyState.vue";
 const RATES = [0.8, 0.9, 1.0, 1.1, 1.2];
 
 const route = useRoute();
+const auth = useAuthStore();
 
 const test = ref<LTest | null>(null);
 const partNo = ref(0);
 const loaded = ref(false);
 const error = ref("");
 const pt = computed(() => test.value?.parts.find((p) => p.part === partNo.value) ?? null);
+const hasSubs = computed(() => !!pt.value && pt.value.sentences.length > 0);
 const label = computed(() =>
   test.value ? `${test.value.title} · Part ${partNo.value}${pt.value?.label ? " · " + pt.value.label : ""}` : "听力",
 );
@@ -105,7 +109,7 @@ const subBox = ref<HTMLElement | null>(null);
 
 onMounted(async () => {
   try {
-    const d = await loadListening();
+    const d = await loadListening(auth.exam);
     test.value = d.tests.find((t) => t.no === Number(route.params.testNo)) ?? null;
     partNo.value = Number(route.params.part);
   } catch {

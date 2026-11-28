@@ -58,14 +58,16 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { NButton, NCard, NEmpty, NRadioButton, NRadioGroup, NTag } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
+import { useAuthStore } from "../stores/auth";
 import { loadReading, withCustomSentences, type ReadingData } from "../core/reading";
 
 const learning = useLearningStore();
+const auth = useAuthStore();
 const router = useRouter();
 const data = ref<ReadingData | null>(null);
 
 onMounted(async () => {
-  const d = await loadReading();
+  const d = await loadReading(auth.exam);
   data.value = withCustomSentences(d, learning.data.custom_sentences ?? []);
 });
 

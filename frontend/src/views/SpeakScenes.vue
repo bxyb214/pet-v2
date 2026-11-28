@@ -2,7 +2,7 @@
   <main class="page">
     <BackButton to="/english/speak" label="返回口语" />
     <h1>场景题库</h1>
-    <p class="sub">PET 真题场景共 {{ total }} 个，按 Part 分类；每日计划里也会列出当天的场景。</p>
+    <p class="sub">{{ examLabel }} 真题场景共 {{ total }} 个，按 Part 分类；每日计划里也会列出当天的场景。</p>
 
     <div class="filters">
       <button
@@ -36,10 +36,12 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { loadSpeak, type Scene, type SpeakData } from "../core/speak";
+import { useAuthStore } from "../stores/auth";
 import BackButton from "../components/BackButton.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
 
 const router = useRouter();
+const auth = useAuthStore();
 const data = ref<SpeakData | null>(null);
 const loading = ref(true);
 const part = ref<number | 0>(0);
@@ -50,12 +52,14 @@ const PART_TITLES: Record<number, string> = {
   2: "图片描述",
   3: "讨论协商（Part 3–4）",
 };
-const filters = [
-  { id: 0, name: "全部" },
-  { id: 1, name: "Part 1" },
-  { id: 2, name: "Part 2" },
-  { id: 3, name: "Part 3–4" },
-];
+const examLabel = computed(() => (auth.exam || "pet").toUpperCase());
+const filters = computed(() => {
+  const parts = [...new Set((data.value?.scenes ?? []).map((s) => s.part))].sort((a, b) => a - b);
+  return [
+    { id: 0, name: "全部" },
+    ...parts.map((p) => ({ id: p, name: p >= 3 ? "Part 3–4" : `Part ${p}` })),
+  ];
+});
 
 const scenes = computed<Scene[]>(() => data.value?.scenes ?? []);
 const total = computed(() => scenes.value.length);
@@ -83,7 +87,7 @@ const groups = computed(() => {
 
 onMounted(async () => {
   try {
-    data.value = await loadSpeak();
+    data.value = await loadSpeak(auth.exam);
   } finally {
     loading.value = false;
   }

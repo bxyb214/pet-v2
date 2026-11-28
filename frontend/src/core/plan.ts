@@ -6,7 +6,7 @@
  * 计划测试在 `makeTestRound` 里按「库 + 天 + 题型」确定性乱序出题。
  */
 
-/** 词库 id（bimo/gaopin/guding/tongyi/kword/kcore/kphrase/kconfuse/ksyn…），可扩展 */
+/** 词库 id（bimo/gaopin/guding/tongyi/kword/kcore/kphrase/ksyn…），可扩展 */
 export type BankKey = string;
 
 export interface PlanWord {
@@ -24,7 +24,7 @@ export type WordBanks = Record<BankKey, PlanWord[]>;
 
 export interface PlanDay {
   day: number; // 1-based
-  /** 每库当天的词；键即词库 id（PET 四库 / KET 五库都走这一套） */
+  /** 每库当天的词；键即词库 id（PET / KET 均为四库） */
   banks: Record<BankKey, PlanWord[]>;
   total: number;
 }

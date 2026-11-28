@@ -40,14 +40,32 @@ export type ListeningData = {
   meta: { tests: number; parts: number; items: number; items_by_kind: Record<string, number>; sentences: number; built: string };
 };
 
-let cache: ListeningData | null = null;
+const caches = new Map<string, ListeningData>();
+const loadings = new Map<string, Promise<ListeningData>>();
 
-export async function loadListening(): Promise<ListeningData> {
-  if (cache) return cache;
-  const res = await fetch("/data/listening.json", { cache: "no-cache" });
-  if (!res.ok) throw new Error("听力数据加载失败");
-  cache = (await res.json()) as ListeningData;
-  return cache;
+/** 各级别数据路径：PET 沿用旧文件，KET 用单独目录。 */
+export function listeningUrl(exam = "pet"): string {
+  return exam === "ket" ? "/data/ket/listening.json" : "/data/listening.json";
+}
+
+export function loadListening(exam = "pet"): Promise<ListeningData> {
+  const hit = caches.get(exam);
+  if (hit) return Promise.resolve(hit);
+  let pending = loadings.get(exam);
+  if (!pending) {
+    pending = fetch(listeningUrl(exam), { cache: "no-cache" })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("听力数据加载失败");
+        const data = (await res.json()) as ListeningData;
+        caches.set(exam, data);
+        return data;
+      })
+      .finally(() => {
+        loadings.delete(exam);
+      });
+    loadings.set(exam, pending);
+  }
+  return pending;
 }
 
 /** fill 判分：trim + 小写 + 连续空白归一为单空格 */

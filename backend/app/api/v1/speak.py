@@ -13,7 +13,16 @@ from app.core.deps import check_paid_or_raise, get_current_user, require_paid_ai
 from app.db import get_db
 from app.models.speak import SpeakDay, SpeakLog, SpeakPlan, SpeakTime
 from app.models.user import User
-from app.services import budget, dev_mock, qwen_speak, speak_profile, speak_review, tencent_soe, usage
+from app.services import (
+    budget,
+    dev_mock,
+    qwen_speak,
+    speak_level,
+    speak_profile,
+    speak_review,
+    tencent_soe,
+    usage,
+)
 
 router = APIRouter(prefix="/speak", tags=["speak"])
 
@@ -55,7 +64,7 @@ def boot(body: BootIn, user: User = Depends(get_current_user), db: Session = Dep
     instructions = qwen_speak.build_instructions(
         body.mode, body.day, body.target,
         body.scene_title, body.scene_focus, body.patterns, issues, avg,
-        profile=profile, warmup=warmup,
+        profile=profile, warmup=warmup, exam=user.exam,
     )
     return {"mode": body.mode, "instructions": instructions, "issues": issues, "avg": avg, "warmup": warmup}
 
@@ -367,9 +376,9 @@ class ImproveIn(BaseModel):
 
 
 _IMPROVE_PROMPT = (
-    "You are a PET (B1 Preliminary for Schools) speaking coach. "
+    "You are a {name} speaking coach. "
     "The child just said: \"{text}\". The coach's last line was: \"{last_ai}\". "
-    "Rewrite the child's sentence into natural PET B1 English, keeping the child's meaning, "
+    "Rewrite the child's sentence into natural {cefr} English, keeping the child's meaning, "
     "max 18 words. Return ONE compact JSON object only: "
     '{{"improved_en": "...", "improved_cn": "中文翻译", '
     '"focus": "grammar|vocab|phrase", "dims": ["grammar:short-label"]}}. '
@@ -386,7 +395,10 @@ def improve(
 
     if dev_mock.is_dev():
         return dev_mock.improve(body.text)
-    prompt = _IMPROVE_PROMPT.format(text=body.text[:400], last_ai=body.last_ai_text[:200])
+    prompt = _IMPROVE_PROMPT.format(
+        text=body.text[:400], last_ai=body.last_ai_text[:200],
+        **speak_level.exam_level(user.exam),
+    )
     try:
         data, llm_usage = ai_enrich.chat(
             db, [{"role": "user", "content": prompt}], max_tokens=240, temperature=0.2
@@ -420,7 +432,7 @@ def review(body: ReviewIn, user: User = Depends(require_paid_ai), db: Session = 
     if row is None or row.user_id != user.id:
         raise HTTPException(404, "会话不存在")
     try:
-        items = speak_review.generate_review(db, user.id, row)
+        items = speak_review.generate_review(db, user.id, row, user.exam)
     except LookupError as e:
         raise HTTPException(503, str(e))
     except RuntimeError as e:
@@ -490,8 +502,9 @@ def help_(body: HelpIn, user: User = Depends(require_paid_ai), db: Session = Dep
     if dev_mock.is_dev():
         return dev_mock.help_payload(body.scene_title)
 
+    lv = speak_level.exam_level(user.exam)
     prompt = (
-        "A Chinese primary-school student is in a PET-level English conversation and is stuck. "
+        f"A Chinese primary-school student is in a {lv['name']}-level English conversation and is stuck. "
         f"Topic: {body.scene_title or 'daily chat'}. The coach just said: \"{body.last_ai_text[:200]}\". "
         f"The student hint: {body.note[:100]}. "
         'Reply with ONE compact JSON object: {"cn": "中文提示这句话意思和可以说什么", '
@@ -528,8 +541,9 @@ def check(body: CheckIn, user: User = Depends(require_paid_ai), db: Session = De
     if dev_mock.is_dev():
         return dev_mock.check(body.sentence)
 
+    lv = speak_level.exam_level(user.exam)
     prompt = (
-        "A Chinese primary-school student is practising PET speaking. "
+        f"A Chinese primary-school student is practising {lv['name']} speaking. "
         + (f'The Chinese idea to express is: "{body.prompt_cn[:200]}". ' if body.prompt_cn else "")
         + f'The reference English answer is: "{body.pattern[:200]}". '
         + f'The student said: "{body.sentence[:200]}". '
@@ -537,12 +551,12 @@ def check(body: CheckIn, user: User = Depends(require_paid_ai), db: Session = De
         + "then comment on grammar and word choice. "
         + "Also write ONE complete model sentence in English: keep the student's idea, "
         + "use the reference answer as a guide, and make it natural, accurate and "
-        + "clearly above a plain B1 answer — Cambridge PET Merit (优秀) level or above. "
+        + f"clearly above {lv['plain']} — {lv['award']} or above. "
         + "Do not simply copy the reference answer, "
         + "and do not return the student's sentence unchanged. "
         + 'Reply with ONE compact JSON object: {"ok": true/false, '
         + '"comment": "中文点评（一两句，先说意思有没有说到，再说哪里要改）", '
-        + '"improved": "完整英文示范句（只有一句，PET 优秀水平以上）"}. JSON only.'
+        + f'"improved": "完整英文示范句（只有一句，{lv["cefr"]} 优秀水平以上）"}}. JSON only.'
     )
     try:
         data, llm_usage = ai_enrich.chat(

@@ -4,7 +4,8 @@ vi.mock("./api", () => ({ api: vi.fn() }));
 
 import { api } from "./api";
 import {
-  audioPending, beginAudioPending, englishOnly, playWordAudio, say, splitExample, stopSpeaking,
+  audioPending, beginAudioPending, englishOnly, playWordAudio, resetLocalTtsState, say, splitExample,
+  stopSpeaking,
 } from "./say";
 import { setTtsConfig, TTS_OFF } from "./ttsConfig";
 
@@ -73,6 +74,7 @@ function installAudio(reject: boolean | ((url: string) => boolean) = false): str
 
 beforeEach(() => {
   setTtsConfig(null);
+  resetLocalTtsState();
   installSpeech();
   mockedApi.mockReset();
   mockedApi.mockRejectedValue(new Error("offline"));
@@ -174,6 +176,19 @@ describe("playWordAudio", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("本地合成失败后短冷却，后续单词直接走浏览器", async () => {
+    setTtsConfig({ ...TTS_OFF, enabled: true });
+    installAudio(true);
+
+    playWordAudio("hello");
+    await vi.waitFor(() => expect(spoken.map((u) => u.text)).toEqual(["hello"]));
+    expect(mockedApi).toHaveBeenCalledTimes(1);
+
+    playWordAudio("world");
+    await vi.waitFor(() => expect(spoken.map((u) => u.text)).toEqual(["hello", "world"]));
+    expect(mockedApi).toHaveBeenCalledTimes(1);
   });
 
   it("中文混排只读英文部分", () => {

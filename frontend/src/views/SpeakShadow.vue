@@ -3,7 +3,7 @@
     <BackButton to="/english/speak" label="返回口语" />
     <h1>
       跟读纠音
-      <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天 · {{ sourceRangeText(planDay) }}</span>
+      <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天{{ sourceRangeSuffix(planDay) }}</span>
     </h1>
     <p class="sub">
       {{ hasPlan
@@ -142,7 +142,7 @@ import { NButton } from "naive-ui";
 import { api } from "../core/api";
 import { useAuthStore } from "../stores/auth";
 import {
-  loadSpeak, resolvePlanDay, sourceRangeText, splitSpeakPlan,
+  loadSpeak, resolvePlanDay, sourceRangeSuffix, splitSpeakPlan,
   type DayCheck, type PlanDayView, type ShadowItem, type SpeakData,
 } from "../core/speak";
 import { SoeEval, soeTips, type SoeResult } from "../core/soe";
@@ -312,14 +312,15 @@ function settleSpeech(): void {
 
 onMounted(async () => {
   try {
-    data.value = await loadSpeak();
-    const [p, st, rec, dc] = await Promise.all([
-      api<{ length: number }>("/speak/plan").catch(() => ({ length: 0 })),
-      loadAiStatus(),
+    data.value = await loadSpeak(auth.exam);
+    // 先取计划，再并发取其余数据：SQLite 下并发请求偶发失败，不能因此把计划当成 0
+    const p = await api<{ length: number }>("/speak/plan").catch(() => ({ length: 0 }));
+    planLength.value = p.length ?? 0;
+    const [st, rec, dc] = await Promise.all([
+      loadAiStatus().catch(() => null),
       api<{ items: RecentShadow[] }>("/speak/shadow/recent?limit=10").catch(() => ({ items: [] })),
       api<{ days: DayCheck[] }>("/speak/days").catch(() => ({ days: [] })),
     ]);
-    planLength.value = p.length ?? 0;
     aiStatus.value = st;
     recent.value = rec.items ?? [];
     const map: Record<number, DayCheck> = {};
@@ -462,7 +463,9 @@ async function tts(): Promise<void> {
   await playShadowDemo(text);
 }
 function diffLabel(d: number | undefined): string {
-  const levels = ["A1", "A2", "B1", "B1+", "B2"];
+  const levels = auth.exam === "ket"
+    ? ["A1", "A2", "A2+", "A2+", "B1"]
+    : ["A1", "A2", "B1", "B1+", "B2"];
   return levels[Math.max(0, Math.min(4, (d ?? 3) - 1))];
 }
 function mmss(s: number): string {

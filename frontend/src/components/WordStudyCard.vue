@@ -2,8 +2,10 @@
   <div class="card" :class="{ flipped }">
     <template v-if="!flipped">
       <p class="word">{{ word.en }}</p>
-      <p v-if="word.phonetic" class="phon">{{ word.phonetic }}</p>
-      <button type="button" class="flipbtn" @click="flipped = true">看释义</button>
+      <p v-if="word.phonetic && !word.alt" class="phon">{{ word.phonetic }}</p>
+      <button type="button" class="flipbtn" @click="flipped = true">
+        {{ word.alt ? "看同义说法" : "看释义" }}
+      </button>
       <button v-if="word.en" type="button" class="audio" aria-label="听发音" :disabled="audioPending(word.en)" @click="play">
         <span v-if="audioPending(word.en)" class="audio-spin" aria-hidden="true" />
         <svg v-else viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -13,7 +15,25 @@
       </button>
     </template>
     <template v-else>
-      <div v-if="word.cn || !word.alt" class="cnrow">
+      <!-- 同义替换库：两个同义英文短语成对，中文只作辅助 -->
+      <div v-if="word.alt" class="synpair">
+        <p class="syn-line">
+          <span class="syn-tag">原短语</span>
+          <span class="syn-en">{{ word.en }}</span>
+          <button type="button" class="exsay" aria-label="听原短语" :disabled="audioPending(word.en)" @click.stop="play">
+            <span v-if="audioPending(word.en)" class="audio-spin" aria-hidden="true" />听
+          </button>
+        </p>
+        <p class="syn-line">
+          <span class="syn-tag alt">同义</span>
+          <span class="syn-alt">{{ word.alt }}</span>
+          <button type="button" class="exsay" aria-label="听同义说法" :disabled="audioPending(String(word.alt))" @click.stop="sayAlt">
+            <span v-if="audioPending(String(word.alt))" class="audio-spin" aria-hidden="true" />听
+          </button>
+        </p>
+        <p v-if="synCn" class="syn-cn">{{ synCn }}</p>
+      </div>
+      <div v-else class="cnrow">
         <p class="cn">{{ word.cn || "（暂无释义）" }}</p>
         <button v-if="word.en" type="button" class="sayword" :disabled="audioPending(word.en)" @click="play">
           <span v-if="audioPending(word.en)" class="audio-spin" aria-hidden="true" />
@@ -24,18 +44,7 @@
           听单词
         </button>
       </div>
-      <!-- 同义替换库：翻面后显示 ↔ 同义说法配对（英文 + 中文） -->
-      <template v-if="word.alt">
-        <p class="synergy">
-          <span class="sy-arrow">↔</span>
-          <span class="sy-alt">{{ word.alt }}</span>
-          <button type="button" class="exsay" aria-label="听同义说法" :disabled="audioPending(String(word.alt))" @click.stop="sayAlt">
-            <span v-if="audioPending(String(word.alt))" class="audio-spin" aria-hidden="true" />听发音
-          </button>
-        </p>
-        <p v-if="word.alt_cn" class="synergy-cn">{{ word.alt_cn }}</p>
-      </template>
-      <p class="meta">
+      <p v-if="!word.alt" class="meta">
         <span v-if="word.pos" class="pos">{{ word.pos }}</span>
         <span class="en">{{ word.en }}</span>
       </p>
@@ -51,12 +60,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import type { PlanWord } from "../core/plan";
 import { englishOnly, audioPending, playWordAudio, say } from "../core/say";
 
 const props = defineProps<{ word: PlanWord }>();
 const flipped = ref(false);
+
+/** 同义库两个短语的中文释义（相同则只显示一次） */
+const synCn = computed(() => {
+  const parts = [props.word.cn, props.word.alt_cn]
+    .map((s) => String(s ?? "").trim())
+    .filter(Boolean);
+  return [...new Set(parts)].join("；");
+});
 
 function play(): void {
   // 必须在点击事件里同步朗读：iOS Safari 只认手势内的 speechSynthesis 调用
@@ -148,25 +165,59 @@ function sayAlt(): void {
 .meta { margin: 12px 0 0; display: flex; gap: 8px; align-items: baseline; justify-content: center; flex-wrap: wrap; }
 .pos { font-size: 12px; font-weight: 700; color: var(--c-accent); }
 .en { font-family: var(--font-word); font-size: 15px; color: var(--c-text-2); }
-.synergy {
-  margin: 12px 0 0;
+.synpair {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-width: 620px;
+}
+.syn-line {
+  margin: 0;
   display: flex;
   align-items: baseline;
   justify-content: center;
-  gap: 8px;
+  gap: 9px;
   flex-wrap: wrap;
-  max-width: 560px;
 }
-.sy-arrow { color: var(--c-text-3); font-weight: 800; }
-.sy-alt { font-size: 16px; font-weight: 700; color: var(--c-primary-strong); line-height: 1.5; }
-.synergy-cn {
-  margin: 4px 0 0;
-  max-width: 560px;
-  font-size: 15px;
+.syn-tag {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border: 1px solid var(--c-line);
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--c-text-3);
+}
+.syn-tag.alt {
+  color: var(--c-primary-strong);
+  border-color: #bfe3d1;
+  background: var(--c-primary-soft);
+}
+.syn-en {
+  font-family: var(--font-word);
+  font-size: clamp(18px, 3.4vw, 24px);
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--c-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.syn-alt {
+  font-family: var(--font-word);
+  font-size: clamp(22px, 4.2vw, 30px);
+  font-weight: 800;
+  line-height: 1.4;
+  color: var(--c-primary-strong);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.syn-cn {
+  margin: 2px 0 0;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.6;
   color: var(--c-text-2);
-  text-align: center;
 }
 .ex {
   margin: 14px 0 0;

@@ -81,7 +81,7 @@ import DeletePlanModal from "../components/DeletePlanModal.vue";
 import { availableBankKeys, loadBanks, EMPTY_BANKS, type BankMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import { splitPlan, validatePlan, type PlanDay, type WordBanks } from "../core/plan";
-import { DIM_LABEL, testDimsForBank, type QuizDim } from "../core/quiz";
+import { bankDimLabel, isSynonymBank, testDimsForBank, type QuizDim } from "../core/quiz";
 
 const learning = useLearningStore();
 const router = useRouter();
@@ -94,7 +94,7 @@ const creating = ref(false);
 const delOpen = ref(false);
 const auth = useAuthStore();
 
-/** 当前级别下要参与计划的词库（PET 四库 / KET 五库），顺序即切分顺序 */
+/** 当前级别下要参与计划的词库（PET / KET 均为四库），顺序即切分顺序 */
 const activeKeys = ref<string[]>([]);
 const banksReady = ref(false);
 void loadBanks()
@@ -137,14 +137,15 @@ const totalTestQuestions = computed(() =>
     0,
   ),
 );
-/** 各库题型说明（页面文案用） */
+/** 各库题型说明（页面文案用）；同义库按「原短语 ↔ 同义短语」描述 */
 const bankRules = computed(() =>
   activeKeys.value.map((k) => {
     const dims = testDimsForBank(k, bankMeta.value[k]?.dims) as QuizDim[];
+    const syn = isSynonymBank(k);
     return {
       key: k,
       label: bankMeta.value[k]?.short || k,
-      dims: dims.map((d) => DIM_LABEL[d]).join(" / "),
+      dims: dims.map((d) => bankDimLabel(d, syn)).join(" / "),
     };
   }),
 );

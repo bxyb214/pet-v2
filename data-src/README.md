@@ -1,12 +1,14 @@
 # data-src — 学习数据源
 
-> 本目录只放**口语**与**数学**的结构化源数据；词库/阅读/听力的构建脚本读取上级旧站 `../PET/js/*.js`。
+> 本目录放**口语**、**数学**的结构化源数据，以及**英语内容资料模板**（KET/PET/FCE）。
+> 词库/阅读/听力的现有构建仍读取上级旧站 `../PET/js/*.js`；英语模板尚未接入构建。
 > 产物统一输出到 `frontend/public/data/*.json`（不入 git）。运行期 JSON 是生成文件，不要手改。
 
 ```text
 data-src/
 ├─ speak/      part1_85 / part1_130 / patterns / rubric / toc_zhen2 / toc_zhen34 / demos / curriculum_v4
-└─ math/       yongle.json（李永乐一课通关课程清单）
+├─ math/       yongle.json（李永乐一课通关课程清单）
+└─ english/    ket|pet|fce × words/reading/grammar/listening/speaking.xlsx（模板，待接入）
 ```
 
 ## 构建链
@@ -18,6 +20,9 @@ data-src/
 | 听力 | `node tools/build_listening_v2.js` | `../PET/js/listening-data.js` | `listening.json` |
 | 口语 | `node tools/build_speak_v4.js` | `data-src/speak/*.json` | `speak.json`（schema 5） |
 | 数学 | `node tools/build_math.js` | `data-src/math/yongle.json` | `math.json`（schema 2） |
+| 英语模板（PET 已回填） | `tools/check_content.py` | `data-src/english/<exam>/*.xlsx` | —（校验） |
+| KET 阅读/语法/听力 | `python tools/build_ket_content.py --exam ket` | `data-src/english/ket/{reading,grammar,listening}.xlsx` | `data/ket/reading.json`、`data/ket/listening.json` |
+| 模板回填现有数据 | `tools/export_content.py` | `frontend/public/data/*.json` | 写回 `data-src/english/pet|ket/*.xlsx` |
 
 - 脚本支持 `--dry`（只校验、不写文件）。
 - 音频/图片（`frontend/public/audio`、`public/img`）体积大，不进 git，由部署阶段整目录同步。

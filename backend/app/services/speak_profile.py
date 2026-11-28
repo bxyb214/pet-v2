@@ -9,12 +9,12 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.models.speak import SpeakDay, SpeakLog, SpeakProfile, SpeakReview
-from app.services import ai_enrich, dev_mock, usage
+from app.models.speak import SpeakLog, SpeakProfile, SpeakReview
+from app.services import ai_enrich, dev_mock, speak_level, usage
 
 _CST = timezone(timedelta(hours=8))
 
-_PROFILE_PROMPT = """You maintain a learner profile for a PET (B1) speaking coach. Based on TODAY'S speaking activity and recent session notes, write a compact English profile (max 90 words) with exactly these parts:
+_PROFILE_PROMPT = """You maintain a learner profile for a {name} speaking coach. Based on TODAY'S speaking activity and recent session notes, write a compact English profile (max 90 words) with exactly these parts:
 1. Today: what the child practised (packs/scenes/topics) and scores.
 2. Weak points: recurring grammar/vocabulary/pronunciation issues (merge duplicates).
 3. Warm-up: list the review sentences due today if any are given.
@@ -117,11 +117,12 @@ def get_profile(db: Session, user_id: int, rebuild: bool = False) -> str:
         content = _fallback_profile(db, user_id, stats)
     else:
         content = ""
+        lv = speak_level.exam_level(speak_level.exam_of(db, user_id))
         try:
             data, llm_usage = ai_enrich.chat(
                 db,
                 [
-                    {"role": "system", "content": _PROFILE_PROMPT},
+                    {"role": "system", "content": _PROFILE_PROMPT.format(**lv)},
                     {"role": "user", "content": user_block[:3000]},
                 ],
                 max_tokens=220,
@@ -161,12 +162,17 @@ def summarize_session(db: Session, user_id: int, log: SpeakLog) -> str:
         db.commit()
         return log.summary
     try:
+        lv = speak_level.exam_level(speak_level.exam_of(db, user_id))
         data, llm_usage = ai_enrich.chat(
             db,
             [
                 {
                     "role": "system",
-                    "content": "Summarize this PET speaking practice session in ONE English sentence (max 40 words): what topic, how the child performed, main weaknesses. Plain text only.",
+                    "content": (
+                        f"Summarize this {lv['name']} speaking practice session in ONE English "
+                        "sentence (max 40 words): what topic, how the child performed, "
+                        "main weaknesses. Plain text only."
+                    ),
                 },
                 {"role": "user", "content": convo[:2500]},
             ],

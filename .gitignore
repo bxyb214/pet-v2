@@ -36,9 +36,13 @@ credentials.*
 server.md
 _work/
 _backup/
+# 教材原书（版权原因，只留在本地，绝不入库）
+data-src/教材/
 *.pdf
 *.docx
 *.xlsx
+# 英语内容资料模板需要入库（其余 xlsx 仍忽略）
+!data-src/english/**/*.xlsx
 *.ppt*
 *.mp3
 *.wav

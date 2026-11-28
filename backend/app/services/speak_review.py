@@ -1,4 +1,4 @@
-"""会后复盘（§5.5，M2）：会话结束 → LLM 挑句按 PET B1 改写 → 跟读 SOE 评分 → 记忆曲线。
+"""会后复盘（§5.5，M2）：会话结束 → LLM 挑句按级别改写 → 跟读 SOE 评分 → 记忆曲线。
 
 红线：只改写孩子真实说过的话（transcript 里有原文），不臆造；
 记忆曲线间隔 1/2/4/7/15 天，dims 记账语义与词汇/阅读错题一致。
@@ -10,21 +10,23 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.models.speak import SpeakLog, SpeakReview
-from app.services import ai_enrich, dev_mock, usage
+from app.services import ai_enrich, dev_mock, speak_level, usage
 
 _CST = timezone(timedelta(hours=8))
 _INTERVALS = [1, 2, 4, 7, 15]
 
-_REVIEW_PROMPT = """You are a PET (B1 Preliminary for Schools) speaking teacher. Given a transcript of a child's speaking session, pick 3 to 6 sentences the child ACTUALLY SAID that need improvement. For each, output one JSON object with:
+_REVIEW_PROMPT = """You are a {name} speaking teacher. Given a transcript of a child's speaking session, pick 3 to 6 sentences the child ACTUALLY SAID that need improvement. For each, output one JSON object with:
 - "child_said": the child's original utterance, verbatim from the transcript (if the child only said fragments, join them minimally; never invent content the child did not say)
-- "improved_en": one improved sentence at PET B1 level, keeping the child's meaning, max 18 words
+- "improved_en": one improved sentence at {cefr} level, keeping the child's meaning, max 18 words
 - "improved_cn": 中文翻译
 - "focus": one of "grammar", "vocab", "phrase"
 - "dims": array of 1-2 short labels of what was weak, e.g. ["grammar:third-person-s"] or ["vocab:weekend"]
 Return a JSON array only, no markdown. Prefer variety across grammar/vocab/phrase. If the child spoke very well, return fewer items (minimum 1) — do not manufacture problems."""
 
 
-def generate_review(db: Session, user_id: int, log: SpeakLog) -> list[dict]:
+def generate_review(
+    db: Session, user_id: int, log: SpeakLog, exam: str = "pet"
+) -> list[dict]:
     """按会话生成复盘句（幂等：同 log_id 重新生成时先删旧）。失败抛 LookupError/RuntimeError。"""
     try:
         turns = json.loads(log.transcript or "[]")
@@ -45,7 +47,7 @@ def generate_review(db: Session, user_id: int, log: SpeakLog) -> list[dict]:
         data, llm_usage = ai_enrich.chat(
             db,
             [
-                {"role": "system", "content": _REVIEW_PROMPT},
+                {"role": "system", "content": _REVIEW_PROMPT.format(**speak_level.exam_level(exam))},
                 {"role": "user", "content": convo[:3000]},
             ],
             max_tokens=900,

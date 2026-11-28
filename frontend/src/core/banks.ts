@@ -21,9 +21,17 @@ export interface ExamMeta {
 }
 
 const PET_BANKS = ["bimo", "gaopin", "guding", "tongyi"];
-const KET_BANKS = ["kword", "kcore", "kphrase", "kconfuse", "ksyn"];
+/** KET 四库：核心词 + 易混词已合并为必默（kconfuse 不再输出） */
+const KET_BANKS = ["kword", "kcore", "kphrase", "ksyn"];
 
 export const ALL_BANK_KEYS = [...PET_BANKS, ...KET_BANKS];
+
+/** 旧词库 key 的显示名兜底（历史生词带 kconfuse） */
+const LEGACY_BANK_LABELS: Record<string, string> = { kconfuse: "必默" };
+
+export function bankShortLabel(key: string, meta?: Record<string, BankMeta>): string {
+  return meta?.[key]?.short || LEGACY_BANK_LABELS[key] || key;
+}
 
 export const EMPTY_BANKS: WordBanks = Object.fromEntries(ALL_BANK_KEYS.map((k) => [k, []]));
 

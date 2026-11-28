@@ -18,11 +18,17 @@ export const DIM_LABEL: Record<QuizDim, string> = {
   m2w: "看义选词",
 };
 
-/** 同义替换库的两型标签：考短语配对，不考中文释义 */
+/** 同义替换库的两型标签：考两个同义英文短语配对，不考中文释义 */
 export const SYN_DIM_LABEL: Record<Exclude<QuizDim, "spell">, string> = {
-  w2m: "选同义短语",
-  m2w: "看同义选短语",
+  w2m: "看原短语选同义",
+  m2w: "看同义选原短语",
 };
+
+/** 按词库类型取题型标签：同义库用短语配对说法，普通库用看词/看义 */
+export function bankDimLabel(dim: QuizDim, synonym = false): string {
+  if (!synonym || dim === "spell") return DIM_LABEL[dim];
+  return SYN_DIM_LABEL[dim];
+}
 
 export interface QuizQuestion {
   word: PlanWord;
@@ -40,6 +46,12 @@ function isDim(v: string): v is QuizDim {
 export function isSynonymWord(w: PlanWord): boolean {
   const alt = w.alt;
   return typeof alt === "string" && alt.trim().length > 0;
+}
+
+/** 整库按「原短语 ↔ 同义短语」出题/展示的词库（PET tongyi、KET ksyn） */
+const SYNONYM_BANK_KEYS = new Set(["tongyi", "ksyn"]);
+export function isSynonymBank(key: string): boolean {
+  return SYNONYM_BANK_KEYS.has(key);
 }
 
 /** 字段里的英文部分（同义库字段是「英文 中文」混排，如「walk 走路」→「walk」） */

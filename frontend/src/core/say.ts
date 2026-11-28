@@ -236,6 +236,15 @@ export function beginAudioPending(text: string): () => void {
 /** 本地 TTS 最多等 5s：期间播放按钮转圈，超时后回退浏览器发声。 */
 export const LOCAL_TTS_WAIT_MS = 5000;
 
+/** 本地合成失败后的短冷却：避免每个词都等一次连接超时，期间直接走浏览器。 */
+let localSynthDownUntil = 0;
+const LOCAL_SYNTH_COOLDOWN_MS = 60_000;
+
+/** 测试用：清掉冷却状态。 */
+export function resetLocalTtsState(): void {
+  localSynthDownUntil = 0;
+}
+
 /**
  * 给等待加超时：超时或失败都返回 undefined。
  * 原 Promise 不取消——服务端合成会继续并写入缓存，下次点击直接命中。
@@ -283,6 +292,13 @@ async function playLocal(text: string, cfg: NonNullable<ReturnType<typeof cached
     }
 
     recordAttempt({ text, url, status: "miss" });
+    if (Date.now() < localSynthDownUntil) {
+      // 本地合成刚失败过：不重复等超时，直接浏览器朗读
+      saySeq += 1;
+      recordAttempt({ text, url, status: "fallback", error: "local synth unavailable" });
+      browserSay(text, rate);
+      return;
+    }
     const synth = (async (): Promise<boolean> => {
       try {
         const out = await api<{ url: string }>("/speak/tts/local", {
@@ -291,10 +307,16 @@ async function playLocal(text: string, cfg: NonNullable<ReturnType<typeof cached
         });
         if (my !== saySeq) return false;
         const played = await playAudioUrl(out.url, "");
-        if (played) recordAttempt({ text, url: out.url, status: "playing" });
-        else recordAttempt({ text, url: out.url, status: "error", error: "audio play failed" });
+        if (played) {
+          localSynthDownUntil = 0;
+          recordAttempt({ text, url: out.url, status: "playing" });
+        } else {
+          localSynthDownUntil = Date.now() + LOCAL_SYNTH_COOLDOWN_MS;
+          recordAttempt({ text, url: out.url, status: "error", error: "audio play failed" });
+        }
         return played;
       } catch (e) {
+        localSynthDownUntil = Date.now() + LOCAL_SYNTH_COOLDOWN_MS;
         recordAttempt({ text, url, status: "error", error: (e as Error).message });
         return false;
       }
@@ -305,6 +327,7 @@ async function playLocal(text: string, cfg: NonNullable<ReturnType<typeof cached
     if (played) return;
 
     // 超时/失败：浏览器兜底；作废本次本地尝试，迟到的合成结果不再补播
+    localSynthDownUntil = Math.max(localSynthDownUntil, Date.now() + LOCAL_SYNTH_COOLDOWN_MS);
     saySeq += 1;
     recordAttempt({ text, url, status: "fallback" });
     browserSay(text, rate);

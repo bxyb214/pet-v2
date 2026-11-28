@@ -2,7 +2,7 @@
 
 用法：python tools/build_data.py [--dry]
 源：D:/Works/PETWebSite/PET/js/data.js（window.PET_DATA，PET 四库）
-    D:/Works/PETWebSite/PET/js/ket-data.js（window.KET_DATA，KET 五库）
+    D:/Works/PETWebSite/PET/js/ket-data.js（window.KET_DATA，KET 四库）
 出：pet-v2/frontend/public/data/banks.json（nginx/静态托管：/data/banks.json）
 
 输出结构：
@@ -15,7 +15,12 @@
 }
 同义库（tongyi / ksyn）额外输出纯字段：en/cn 为原短语英文/中文，
 alt/alt_cn 为同义短语英文/中文；题面与选项只使用英文字段。
-`bankMeta[bank].dims` 决定这个库考哪些维度（KET 按旧站规则不考拼写）。
+`bankMeta[bank].dims` 决定这个库考哪些维度（KET 必默三型，其余两型）。
+
+KET 合并规则（2026-11-28）：
+- 核心词（kword）+ 易混词（kconfuse）→ 必默（kword），按英文规范化去重；
+  重复时保留核心词条目，用易混词补空字段，易混词的 id 丢弃。
+- 生难词（kcore）→ 高频；短语（kphrase）→ 固搭；同义（ksyn）不变。
 """
 from __future__ import annotations
 
@@ -23,6 +28,7 @@ import argparse
 import json
 import re
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent  # D:/Works/PETWebSite
@@ -31,7 +37,8 @@ SRC_KET = ROOT / "PET" / "js" / "ket-data.js"
 OUT = Path(__file__).resolve().parent.parent / "frontend" / "public" / "data" / "banks.json"
 
 BANKS = ["bimo", "gaopin", "guding", "tongyi"]
-KET_BANKS = ["kword", "kcore", "kphrase", "kconfuse", "ksyn"]
+KET_BANKS = ["kword", "kcore", "kphrase", "ksyn"]
+KET_MERGE_PREFIX = "易混 · "
 
 FULL_DIMS = ["m2w", "w2m", "spell"]
 NO_SPELL = ["m2w", "w2m"]
@@ -73,6 +80,26 @@ def split_en_cn(text: str | None) -> tuple[str, str]:
     return raw_en.strip(), tail.strip()
 
 
+def _split_syn_pair(text: str | None) -> tuple[str, str]:
+    """同义配对字段：「英文 中文」；兼容源数据的两种脏格式：
+    「反义词：everything 所有事情」（前面带中文标签）、「中文=take photos of」（英文在等号后）。"""
+    raw = (text or "").strip()
+    en, cn = split_en_cn(raw)
+    if en:
+        return en, cn
+    label = re.match(r"^[^A-Za-z]*[：:]\s*(.+)$", raw)
+    if label:
+        en2, cn2 = split_en_cn(label.group(1))
+        if en2:
+            return en2, cn2
+    if "=" in raw:
+        left, _, right = raw.rpartition("=")
+        en3, cn3 = split_en_cn(right)
+        if en3:
+            return en3, cn3 or left.strip()
+    return en, cn
+
+
 BANK_META = {
     "bimo": {"exam": "pet", "name": "必默词", "short": "必默", "dims": FULL_DIMS,
              "desc": "按话题分类的核心必会词"},
@@ -82,15 +109,13 @@ BANK_META = {
                "desc": "动词短语与固定搭配"},
     "tongyi": {"exam": "pet", "name": "同义替换", "short": "同义", "dims": NO_SPELL,
                "desc": "阅读里的同义改写对照（原短语 ↔ 同义短语）"},
-    "kword": {"exam": "ket", "name": "KET 核心词表", "short": "核心词", "dims": NO_SPELL,
-              "desc": "KET 1500 词按话题分组"},
-    "kcore": {"exam": "ket", "name": "KET 生难词 200", "short": "生难词", "dims": NO_SPELL,
-              "desc": "拼写或词义容易出错的词"},
-    "kphrase": {"exam": "ket", "name": "KET 动词短语 80", "short": "短语", "dims": NO_SPELL,
+    "kword": {"exam": "ket", "name": "必默词", "short": "必默", "dims": FULL_DIMS,
+              "desc": "KET 核心词 + 易混词（已去重）"},
+    "kcore": {"exam": "ket", "name": "高频词", "short": "高频", "dims": NO_SPELL,
+              "desc": "KET 生难词，按类别分组"},
+    "kphrase": {"exam": "ket", "name": "固定搭配", "short": "固搭", "dims": NO_SPELL,
                 "desc": "get / take / put 等高频短语"},
-    "kconfuse": {"exam": "ket", "name": "KET 易混词 50 组", "short": "易混词", "dims": NO_SPELL,
-                 "desc": "近义或形近、容易混用的词对"},
-    "ksyn": {"exam": "ket", "name": "KET 同义替换", "short": "同义", "dims": NO_SPELL,
+    "ksyn": {"exam": "ket", "name": "同义替换", "short": "同义", "dims": NO_SPELL,
              "desc": "听力/阅读里前后换说法的地方"},
 }
 
@@ -144,41 +169,155 @@ def convert_pet(banks: dict, groups: dict, meta: dict) -> None:
     groups.update(old.get("groups", {}))
 
 
-def convert_ket(banks: dict, groups: dict, meta: dict) -> None:
+def _norm_en(text: str) -> str:
+    """KET 合并去重键：去首尾空格、连续空白归一、转小写。"""
+    return re.sub(r"\s+", " ", str(text or "").strip()).lower()
+
+
+def _merge_fields(target: dict, src: dict) -> None:
+    """重复词：保留目标条目，用来源补空字段；usage 两边都有时用「；」拼接。"""
+    for field in ("phonetic", "pos", "example", "example_cn"):
+        if not target.get(field) and src.get(field):
+            target[field] = src[field]
+    usage = src.get("usage")
+    if usage:
+        old = target.get("usage") or ""
+        if not old:
+            target["usage"] = usage
+        elif usage not in old:
+            target["usage"] = f"{old}；{usage}"
+
+
+def _ket_row(w: dict, key: str) -> dict:
+    en = w.get("term") or ""
+    cn = w.get("meaning") or w.get("usage") or ""
+    alt = ""
+    alt_cn = ""
+    if key == "ksyn":
+        # 同义库没有独立释义：term / alt 各自「英文 中文」混排
+        en, term_cn = _split_syn_pair(w.get("term"))
+        cn = term_cn or cn
+        alt, alt_cn = _split_syn_pair(w.get("alt"))
+    row = {
+        "id": w["id"],
+        "en": en,
+        "cn": cn,
+        "phonetic": w.get("phonetic") or "",
+        "pos": w.get("pos") or "",
+        "example": w.get("example") or "",
+        "example_cn": w.get("example_cn") or "",
+        "category": w.get("grp") or w.get("category") or "",
+        "audio": "",
+    }
+    if w.get("usage"):
+        row["usage"] = w["usage"]
+    if alt:
+        row["alt"] = alt
+    if alt_cn:
+        row["alt_cn"] = alt_cn
+    return row
+
+
+def _merge_ket_bimo(old: dict) -> tuple[list[dict], list[dict], int]:
+    """核心词 + 易混词 → 必默；返回 (词表, 分组, 丢弃的重复条数)。"""
+    rows: list[dict] = []
+    by_key: dict[str, dict] = {}
+    dropped = 0
+
+    def add(row: dict) -> None:
+        nonlocal dropped
+        key = _norm_en(row["en"])
+        if key in by_key:
+            _merge_fields(by_key[key], row)
+            dropped += 1
+            return
+        by_key[key] = row
+        rows.append(row)
+
+    for w in old["words"]["kword"]:
+        add(_ket_row(w, "kword"))
+
+    groups = [dict(g) for g in old.get("groups", {}).get("kword", [])]
+    names = {g.get("name") for g in groups}
+    for w in old["words"]["kconfuse"]:
+        row = _ket_row(w, "kconfuse")
+        if row["category"] and not row["category"].startswith(KET_MERGE_PREFIX):
+            row["category"] = KET_MERGE_PREFIX + row["category"]
+        add(row)
+
+    for g in old.get("groups", {}).get("kconfuse", []):
+        name = g.get("name") or g.get("key") or ""
+        prefixed = KET_MERGE_PREFIX + name
+        if name and prefixed not in names:
+            item = dict(g)
+            item["key"] = prefixed
+            item["name"] = prefixed
+            groups.append(item)
+            names.add(prefixed)
+    return rows, groups, dropped
+
+
+def _report_ket_dups(banks: dict) -> None:
+    """跨库重复只报告、不删除（与 PET 现状一致，避免丢掌握度）。"""
+    seen: dict[str, list[str]] = defaultdict(list)
+    for key in ("kword", "kcore", "kphrase"):
+        for w in banks[key]:
+            seen[_norm_en(w["en"])].append(key)
+    dup = {k: v for k, v in seen.items() if len(v) > 1}
+    if dup:
+        sample = "、".join(f"{k}({'/'.join(v)})" for k, v in list(dup.items())[:5])
+        print(f"KET 跨库重复 {len(dup)} 条（不自动删）：{sample}")
+
+
+def _move_ket_phrases(banks: dict) -> dict[str, int]:
+    """必默里带空格的词组（多词）移入固定搭配。
+
+    同一英文已存在于固定搭配时合并字段并丢弃必默里的重复条目；
+    留下的条目沿用原 id，掌握度/错题记录不串号（固定搭配不考拼写）。
+    """
+    keep: list[dict] = []
+    by_key = {_norm_en(w["en"]): w for w in banks["kphrase"]}
+    moved = merged = 0
+    for w in banks["kword"]:
+        if not re.search(r"\s", str(w.get("en") or "").strip()):
+            keep.append(w)
+            continue
+        key = _norm_en(w["en"])
+        hit = by_key.get(key)
+        if hit is None:
+            banks["kphrase"].append(w)
+            by_key[key] = w
+            moved += 1
+        else:
+            _merge_fields(hit, w)
+            merged += 1
+    banks["kword"] = keep
+    return {"moved": moved, "merged": merged}
+
+
+def convert_ket(banks: dict, groups: dict, meta: dict) -> dict:
     old = _load_js(SRC_KET, "KET_DATA")
-    for key in KET_BANKS:
-        rows = []
-        for w in old["words"][key]:
-            en = w.get("term") or ""
-            cn = w.get("meaning") or w.get("usage") or ""
-            alt = ""
-            alt_cn = ""
-            if key == "ksyn":
-                # 同义库没有独立释义：term / alt 各自「英文 中文」混排
-                en, term_cn = split_en_cn(w.get("term"))
-                cn = term_cn or cn
-                alt, alt_cn = split_en_cn(w.get("alt"))
-            row = {
-                "id": w["id"],
-                "en": en,
-                "cn": cn,
-                "phonetic": w.get("phonetic") or "",
-                "pos": w.get("pos") or "",
-                "example": w.get("example") or "",
-                "example_cn": w.get("example_cn") or "",
-                "category": w.get("grp") or w.get("category") or "",
-                "audio": "",
-            }
-            if w.get("usage"):
-                row["usage"] = w["usage"]
-            if alt:
-                row["alt"] = alt
-            if alt_cn:
-                row["alt_cn"] = alt_cn
-            rows.append(row)
+    rows, kword_groups, dropped = _merge_ket_bimo(old)
+    banks["kword"] = rows
+    groups["kword"] = kword_groups
+    meta["kword"] = len(rows)
+    for key in ("kcore", "kphrase", "ksyn"):
+        rows = [_ket_row(w, key) for w in old["words"][key]]
         banks[key] = rows
         meta[key] = len(rows)
         groups[key] = old.get("groups", {}).get(key, [])
+    move = _move_ket_phrases(banks)
+    meta["kword"] = len(banks["kword"])
+    meta["kphrase"] = len(banks["kphrase"])
+    _report_ket_dups(banks)
+    return {
+        "kword_src": len(old["words"]["kword"]),
+        "kconfuse_src": len(old["words"]["kconfuse"]),
+        "kword_merged": len(banks["kword"]),
+        "dropped": dropped,
+        "moved": move["moved"],
+        "merged": move["merged"],
+    }
 
 
 def main() -> int:
@@ -190,7 +329,15 @@ def main() -> int:
     groups: dict[str, list[dict]] = {}
     meta: dict[str, int] = {}
     convert_pet(banks, groups, meta)
-    convert_ket(banks, groups, meta)
+    stats = convert_ket(banks, groups, meta)
+    print(
+        "KET 必默合并：核心词 {kword_src} + 易混词 {kconfuse_src} → {kword_merged}"
+        "（去重 {dropped} 条）".format(**stats)
+    )
+    print(
+        "KET 必默多词词组移入固定搭配：{moved} 条"
+        "（与既有固搭重复合并 {merged} 条）".format(**stats)
+    )
 
     # 校验：ID 唯一、跨库无重复、计数与 meta 一致
     seen: set[str] = set()
@@ -202,6 +349,8 @@ def main() -> int:
         seen |= set(ids)
         assert meta[key] == len(ids), f"{key} 计数不符: {meta[key]} != {len(ids)}"
         assert rows, f"{key} 空库"
+    ket_keys = {k for k in banks if BANK_META[k]["exam"] == "ket"}
+    assert set(KET_BANKS) == ket_keys, f"KET 词库应只有 {KET_BANKS}，实际 {sorted(ket_keys)}"
 
     # 同义库必须成对：题面/选项只用纯英文，中文只做释义
     broken_pet = [
@@ -213,8 +362,7 @@ def main() -> int:
         w["id"] for w in banks["ksyn"]
         if not (w.get("en") and w.get("alt"))
     ]
-    if broken_ket:
-        print(f"警告：KET 同义库有 {len(broken_ket)} 条缺英文题面或同义说法：{broken_ket[:8]}")
+    assert not broken_ket, f"ksyn 字段不完整（缺英文原短语或同义短语）: {broken_ket[:8]}"
 
     doc = {
         "exams": EXAMS,

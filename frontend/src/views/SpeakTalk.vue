@@ -3,7 +3,7 @@
     <BackButton to="/english/speak" label="返回口语" />
     <h1>
       {{ title }}
-      <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天 · {{ sourceRangeText(planDay) }}</span>
+      <span v-if="planDay" class="daychip">第 {{ planDay.day }} 天{{ sourceRangeSuffix(planDay) }}</span>
     </h1>
     <p class="sub">{{ subtitle }}</p>
 
@@ -62,7 +62,7 @@
       </div>
       <div class="pfilters">
         <button
-          v-for="f in SCENE_PARTS" :key="f.id" type="button"
+          v-for="f in sceneParts" :key="f.id" type="button"
           class="pfbtn" :class="{ on: scenePart === f.id }"
           @click="scenePart = f.id"
         >{{ f.name }}</button>
@@ -146,7 +146,7 @@ import { useRoute, useRouter } from "vue-router";
 import { NAlert, NButton } from "naive-ui";
 import { api, apiBeacon } from "../core/api";
 import {
-  loadSpeak, planDayScenes, resolvePlanDay, sourceRangeText, splitSpeakPlan,
+  loadSpeak, planDayScenes, resolvePlanDay, sourceRangeSuffix, splitSpeakPlan,
   type DayCheck, type PlanDayView, type Scene, type SpeakData,
 } from "../core/speak";
 import { createSpeakConn, type SpeakConn } from "../core/speakRTC";
@@ -159,6 +159,7 @@ import {
 import BackButton from "../components/BackButton.vue";
 import PaidActionButton from "../components/PaidActionButton.vue";
 import SpeakImproveCard from "../components/SpeakImproveCard.vue";
+import { useAuthStore } from "../stores/auth";
 
 type Improvement = {
   child_said: string;
@@ -173,6 +174,7 @@ type Line = { id: number; who: "me" | "ai"; text: string; improving?: boolean; i
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 const data = ref<SpeakData | null>(null);
 const planLength = ref(0);
 const checks = ref<Record<number, DayCheck>>({});
@@ -196,13 +198,10 @@ const activeScene = computed<Scene | null>(() => {
 // 无计划：场景题库自由选择
 const scenePart = ref(0);
 const sceneQ = ref("");
-const SCENE_PARTS = [
-  { id: 0, name: "全部" },
-  { id: 1, name: "Part 1" },
-  { id: 2, name: "Part 2" },
-  { id: 3, name: "Part 3" },
-  { id: 4, name: "Part 4" },
-];
+const sceneParts = computed(() => {
+  const parts = [...new Set((data.value?.scenes ?? []).map((s) => s.part))].sort((a, b) => a - b);
+  return [{ id: 0, name: "全部" }, ...parts.map((p) => ({ id: p, name: `Part ${p}` }))];
+});
 const freeScenes = computed<Scene[]>(() => {
   const needle = sceneQ.value.trim().toLowerCase();
   return (data.value?.scenes ?? []).filter((s) => {
@@ -258,7 +257,7 @@ const title = computed(() =>
 const subtitle = computed(() => {
   if (activeScene.value) {
     const s = activeScene.value;
-    const prefix = hasPlan.value && planDay.value ? `第 ${planDay.value.day} 天 · ${sourceRangeText(planDay.value)} · ` : "";
+    const prefix = hasPlan.value && planDay.value ? `第 ${planDay.value.day} 天${sourceRangeSuffix(planDay.value)} · ` : "";
     return `${prefix}${s.cn} · ${s.focus} · ${hasPlan.value ? "10 分钟对话 + 5 分钟复盘" : "自由练习，不计时、不打卡"}`;
   }
   return hasPlan.value
@@ -267,8 +266,8 @@ const subtitle = computed(() => {
 });
 
 onMounted(async () => {
-  data.value = await loadSpeak();
-  aiStatus.value = await loadAiStatus();
+  data.value = await loadSpeak(auth.exam);
+  aiStatus.value = await loadAiStatus().catch(() => null);
   window.addEventListener("pagehide", onPageHide);
   try {
     const r = await api<{ length: number }>("/speak/plan");

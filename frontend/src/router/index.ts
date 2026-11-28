@@ -33,6 +33,7 @@ const WORD_TABS = [
 ];
 const READING_TABS = [
   { label: "教材", to: "/english/reading/home" },
+  { label: "语法", to: "/english/grammar" },
   { label: "计划", to: "/english/reading/plan" },
   { label: "错题", to: "/english/reading/mistakes" },
 ];
@@ -106,6 +107,11 @@ export const router = createRouter({
           meta: { subject: "english", module: "words", crumbs: ["英语", { label: "单词", to: "/english/words/browse" }, "计划"], tabs: WORD_TABS },
         },
         {
+          path: "english/words/level-test",
+          component: () => import("../views/VocabTestPage.vue"),
+          meta: { subject: "english", module: "words", crumbs: ["英语", { label: "单词", to: "/english/words/browse" }, "单词量评测"], tabs: WORD_TABS },
+        },
+        {
           path: "english/words/mistakes",
           component: () => import("../views/WordsMistakes.vue"),
           meta: { subject: "english", module: "words", crumbs: ["英语", { label: "单词", to: "/english/words/browse" }, "错题"], tabs: WORD_TABS },
@@ -141,11 +147,11 @@ export const router = createRouter({
           component: () => import("../views/ReadingMistakes.vue"),
           meta: { subject: "english", module: "reading", crumbs: ["英语", { label: "阅读", to: "/english/reading/home" }, "错题"], tabs: READING_TABS },
         },
-        // 英语 · 语法 ----------
+        // 英语 · 语法（阅读下的二级页签，不单列板块）
         {
           path: "english/grammar",
           component: () => import("../views/GrammarHome.vue"),
-          meta: { subject: "english", module: "grammar", crumbs: ["英语", "语法"] },
+          meta: { subject: "english", module: "reading", crumbs: ["英语", { label: "阅读", to: "/english/reading/home" }, "语法"], tabs: READING_TABS },
         },
         // 英语 · 听力 ----------
         {

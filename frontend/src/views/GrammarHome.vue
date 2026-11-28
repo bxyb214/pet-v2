@@ -62,6 +62,7 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useLearningStore } from "../stores/learning";
+import { useAuthStore } from "../stores/auth";
 import LoadingBlock from "../components/LoadingBlock.vue";
 import {
   grammarIndex, loadReading, withCustomSentences, type ReadingData,
@@ -69,6 +70,7 @@ import {
 
 const router = useRouter();
 const learning = useLearningStore();
+const auth = useAuthStore();
 const data = ref<ReadingData | null>(null);
 
 /** 只展开一天，默认上次看的那天 */
@@ -103,11 +105,11 @@ function toggleAllDays(): void {
 }
 
 onMounted(async () => {
-  const base = await loadReading();
+  const base = await loadReading(auth.exam);
   data.value = withCustomSentences(base, learning.data.custom_sentences);
 });
 
-const gIndex = computed(() => grammarIndex(data.value?.tests ?? []));
+const gIndex = computed(() => grammarIndex(data.value?.tests ?? [], data.value?.grammar.examples ?? []));
 
 function startGrammar(c: number, name: string): void {
   void router.push({ path: "/english/reading/quiz/0", query: { gc: String(c), label: name } });

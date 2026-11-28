@@ -6,6 +6,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.models.speak import SpeakLog
+from app.services import speak_level
 from app.services.tts_cache import (
     clear_tts_cache,
     enforce_tts_cache,
@@ -34,7 +35,7 @@ __all__ = [
 _TIMEOUT = 30.0
 
 # 跟读评测：只回 JSON，不聊天（语义与旧站一致）
-_SHADOW_INSTRUCTIONS = """You are a pronunciation checker for a PET speaking app. You do NOT chat and you never reply with questions.
+_SHADOW_INSTRUCTIONS = """You are a pronunciation checker for an English speaking app. You do NOT chat and you never reply with questions.
 The student reads ONE target English sentence aloud. Judge how well the attempt matches it.
 Reply with ONE compact JSON object and nothing else — no markdown, no explanation, no extra words:
 {"transcript":"what you actually heard","score":0-100,"words":[{"w":"target word","ok":true}],"tips":["中文建议1","中文建议2"],"say":"one short English encouragement"}
@@ -42,7 +43,7 @@ Rules: "words" must list the words of the TARGET sentence in order, ok=true only
 If you hear no speech at all, reply with the same JSON shape using transcript "", score 0 and one tip asking the student to read louder.
 Remember: output JSON only, never chat, never ask questions."""
 
-_TALK_BASE = """You are a warm, patient PET (B1 Preliminary for Schools) speaking examiner and coach.
+_TALK_BASE = """You are a warm, patient {name} speaking examiner and coach.
 You are role-playing the examiner / English-speaking partner. Talk naturally, one or two short sentences per turn, and always end with a question so the student keeps talking.
 Keep the whole lesson encouraging: the student should feel it is easy to speak.
 
@@ -136,6 +137,7 @@ def build_instructions(
     avg_score: int = 0,
     profile: str = "",
     warmup: list[str] | None = None,
+    exam: str = "pet",
 ) -> str:
     """拼会话提示词。shadow = 评测 JSON；talk = 场景/句型对话。"""
     lines: list[str] = []
@@ -146,7 +148,7 @@ def build_instructions(
         if day > 0:
             lines.append(f"Day {day} of the plan.")
         return "\n".join(lines)
-    lines.append(_TALK_BASE)
+    lines.append(_TALK_BASE.format(name=speak_level.exam_level(exam)["name"]))
     if scene_title:
         lines.append(f"Scene: {scene_title}")
     if scene_focus:
@@ -183,7 +185,7 @@ def build_instructions(
         lines.append("Learner profile (today, for your reference only — never read it aloud):")
         lines.append(profile[:600])
     if day > 0:
-        lines.append(f"This is day {day} of a 90-day speaking plan.")
+        lines.append(f"This is day {day} of the speaking plan.")
     return "\n".join(lines)
 
 

@@ -51,10 +51,12 @@ import {
   NAlert, NButton, NCard, NForm, NFormItem, NInput, NPopconfirm, NSelect,
 } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
+import { useAuthStore } from "../stores/auth";
 import { customSid, loadReading, type ReadingData } from "../core/reading";
 import type { CustomSentenceItem } from "../core/merge";
 
 const learning = useLearningStore();
+const auth = useAuthStore();
 const data = ref<ReadingData | null>(null);
 const book = ref("t2");
 const testNo = ref(1);
@@ -65,7 +67,7 @@ const key = ref("");
 const note = ref("");
 
 onMounted(async () => {
-  data.value = await loadReading();
+  data.value = await loadReading(auth.exam);
   const first = data.value.tests[0];
   if (first) {
     book.value = first.book || "t2";

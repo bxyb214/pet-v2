@@ -80,7 +80,8 @@
             </nav>
           </div>
 
-          <router-view />
+          <ModuleEmpty v-if="blockedModule" :module="blockedModule" />
+          <router-view v-else />
         </div>
       </main>
     </div>
@@ -110,9 +111,11 @@ import {
 } from "@vicons/ionicons5";
 import SiderNav from "./SiderNav.vue";
 import MobileTabBar from "../components/MobileTabBar.vue";
+import ModuleEmpty from "../components/ModuleEmpty.vue";
 import MicCompanion from "../components/MicCompanion.vue";
 import PwaInstallHint from "../components/PwaInstallHint.vue";
 import { modulesForSubject } from "./navModules";
+import { moduleAvailable } from "../core/examContent";
 import { useAuthStore } from "../stores/auth";
 import { devMode, ensureDevMode } from "../core/devMode";
 import { immersive } from "../core/immersive";
@@ -169,6 +172,12 @@ const widthClass = computed(() => {
   return w ? `w-${w}` : "";
 });
 
+/** 当前级别没有内容的英语板块（如 KET 的阅读/听力/口语）：整页显示空状态 */
+const blockedModule = computed(() => {
+  if (route.meta.subject !== "english") return "";
+  const m = route.meta.module;
+  return m && !moduleAvailable(auth.exam, String(m)) ? String(m) : "";
+});
 /** 有页签的页面，当前页已由页签表达，面包屑只保留学科/板块两级，避免同一信息占两行 */
 const tabs = computed(() => route.meta.tabs ?? []);
 /** 前缀匹配会同时命中父级页签（如 /english/speak 与 /english/speak/shadow），取最长的那一个 */
@@ -182,11 +191,12 @@ const activeTabTo = computed(() => {
 });
 const hasActiveTab = computed(() => activeTabTo.value !== "");
 /** 页签条只在有命中项时渲染，避免「页签都在、谁都不亮」 */
-const showTabs = computed(() => tabs.value.length > 0 && hasActiveTab.value);
+const showTabs = computed(() => tabs.value.length > 0 && hasActiveTab.value && !blockedModule.value);
 
 /** 手机底栏：当前学科有板块、且不在沉浸作答 / 麦克风面板时显示（桌面由 CSS 隐藏） */
 const showTabBar = computed(
-  () => modulesForSubject(route.meta.subject).length > 0 && !immersive.value && !micActive.value,
+  () => !blockedModule.value && modulesForSubject(route.meta.subject, auth.exam).length > 0
+    && !immersive.value && !micActive.value,
 );
 
 const crumbs = computed(() => {

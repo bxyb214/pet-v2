@@ -61,6 +61,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { NAlert, NButton } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
+import { useAuthStore } from "../stores/auth";
 import {
   loadReading, testSentences, withCustomSentences,
   type ReadingData, type RTest,
@@ -68,10 +69,11 @@ import {
 
 const router = useRouter();
 const learning = useLearningStore();
+const auth = useAuthStore();
 const data = ref<ReadingData | null>(null);
 const openMap = reactive<Record<string, boolean>>({});
 onMounted(async () => {
-  const base = await loadReading();
+  const base = await loadReading(auth.exam);
   data.value = withCustomSentences(base, learning.data.custom_sentences);
   // 只有 1 本书时默认展开，多本默认收起（05 规范）
   const books = data.value.books.filter((b) => data.value!.tests.some((t) => (t.book || "t2") === b.id));

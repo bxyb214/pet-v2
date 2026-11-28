@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   makeQuestion, makeRound, makeTestRound, seedFrom, testDimsForBank, stemOf, enPart,
-  checkAnswer, ALL_DIMS, type QuizDim,
+  checkAnswer, ALL_DIMS, bankDimLabel, isSynonymBank, SYN_DIM_LABEL, type QuizDim,
 } from "./quiz";
 import type { PlanWord } from "./plan";
 
@@ -109,6 +109,30 @@ describe("makeRound", () => {
 
   it("词库 <4 抛错", () => {
     expect(() => makeRound(makeBank(3), 5, ALL_DIMS)).toThrow();
+  });
+});
+
+describe("isSynonymBank（按词库 id 判定）", () => {
+  it("tongyi / ksyn 是同义库，其余不是", () => {
+    expect(isSynonymBank("tongyi")).toBe(true);
+    expect(isSynonymBank("ksyn")).toBe(true);
+    expect(isSynonymBank("bimo")).toBe(false);
+    expect(isSynonymBank("")).toBe(false);
+  });
+});
+
+describe("bankDimLabel（同义库用英英配对说法）", () => {
+  it("普通库沿用看词/看义标签", () => {
+    expect(bankDimLabel("w2m")).toBe("看词选义");
+    expect(bankDimLabel("m2w")).toBe("看义选词");
+    expect(bankDimLabel("spell")).toBe("单词填空");
+  });
+
+  it("同义库两型都描述两个英文短语的配对", () => {
+    expect(bankDimLabel("w2m", true)).toBe(SYN_DIM_LABEL.w2m);
+    expect(bankDimLabel("m2w", true)).toBe(SYN_DIM_LABEL.m2w);
+    expect(SYN_DIM_LABEL.w2m).toContain("原短语");
+    expect(SYN_DIM_LABEL.m2w).toContain("原短语");
   });
 });
 

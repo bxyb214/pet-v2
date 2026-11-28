@@ -32,16 +32,27 @@
       </button>
     </section>
 
+    <section class="leveltest" aria-label="单词量评测">
+      <span class="lt-ic"><n-icon :component="RibbonOutline" size="18" /></span>
+      <div class="lt-txt">
+        <b>单词量评测</b>
+        <span>{{ levelSub }}</span>
+      </div>
+      <button type="button" class="lt-btn" @click="go('/english/words/level-test')">
+        {{ vocabLast ? "看上次结果" : "开始评测" }}
+      </button>
+    </section>
+
     <section class="subject en">
       <header class="subject-head">
         <span class="s-badge en"><n-icon :component="LanguageOutline" size="17" /></span>
         <h2>英语</h2>
-        <span class="meta">{{ examText }} · 5 个板块</span>
+        <span class="meta">{{ examText }} · {{ moduleCount }} 个板块</span>
         <span class="stat">{{ progress.total ? `今日 ${progress.done} / ${progress.total}` : "还没有计划" }}</span>
         <router-link class="go" to="/english/words/browse">进入英语 →</router-link>
       </header>
-      <div class="modgrid en">
-        <router-link class="mod" to="/english/words/browse">
+      <div class="modgrid en" :class="{ few: moduleCount < 5 }">
+        <router-link v-if="hasModule('words')" class="mod" to="/english/words/browse">
           <span class="top"><span class="m-ic g"><n-icon :component="ReaderOutline" size="15" /></span>单词</span>
           <span class="status">
             <span v-if="words.hasPlan" class="mini-tag" :class="{ done: words.todayDone }">{{ words.todayDone ? "今日已完成" : "今日" }}</span>
@@ -50,7 +61,7 @@
           </span>
         </router-link>
 
-        <router-link class="mod" to="/english/reading/home">
+        <router-link v-if="hasModule('reading')" class="mod" to="/english/reading/home">
           <span class="top"><span class="m-ic b"><n-icon :component="LibraryOutline" size="15" /></span>阅读</span>
           <span class="status">
             <span v-if="reading.hasPlan" class="mini-tag" :class="{ done: reading.todayDone }">{{ reading.todayDone ? "今日已完成" : "今日" }}</span>
@@ -59,17 +70,12 @@
           </span>
         </router-link>
 
-        <router-link class="mod" to="/english/grammar">
-          <span class="top"><span class="m-ic g"><n-icon :component="CreateOutline" size="15" /></span>语法</span>
-          <span class="status">42 个考点<br>时态与句法</span>
-        </router-link>
-
-        <router-link class="mod" to="/english/listening/home">
+        <router-link v-if="hasModule('listening')" class="mod" to="/english/listening/home">
           <span class="top"><span class="m-ic b"><n-icon :component="HeadsetOutline" size="15" /></span>听力</span>
           <span class="status">六套真题<br>纯播放器</span>
         </router-link>
 
-        <router-link class="mod" to="/english/speak">
+        <router-link v-if="hasModule('speak')" class="mod" to="/english/speak">
           <span class="top"><span class="m-ic o"><n-icon :component="MicOutline" size="15" /></span>口语</span>
           <span class="status">
             <span v-if="speak.hasPlan" class="mini-tag" :class="{ done: speak.todayDone }">{{ speak.todayDone ? "今日已完成" : "今日" }}</span>
@@ -78,6 +84,7 @@
           </span>
         </router-link>
       </div>
+      <p v-if="moduleNote" class="module-note">{{ moduleNote }}</p>
     </section>
 
     <section class="subject ma">
@@ -122,14 +129,17 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { NIcon } from "naive-ui";
 import {
-  BookOutline, CalculatorOutline, CreateOutline, HeadsetOutline, LanguageOutline,
-  LibraryOutline, MicOutline, PlayCircleOutline, ReaderOutline, StatsChartOutline,
+  BookOutline, CalculatorOutline, HeadsetOutline, LanguageOutline,
+  LibraryOutline, MicOutline, PlayCircleOutline, ReaderOutline, RibbonOutline,
+  StatsChartOutline,
 } from "@vicons/ionicons5";
 import { api } from "../core/api";
 import {
   greetingOf, nextSpeakRoute, overallProgress, pickContinue, planProgress, speakProgress, summarizeMath,
 } from "../core/home";
 import { formatTime, lessonKey, loadMath, type MathData, type VideoRec } from "../core/math";
+import { englishModulesFor, moduleAvailable } from "../core/examContent";
+import { loadVocabResult, PER_EXAM, type VocabResult } from "../core/vocabTest";
 import type { DayCheck } from "../core/speak";
 import { useAuthStore } from "../stores/auth";
 import { useLearningStore } from "../stores/learning";
@@ -148,6 +158,7 @@ const speakLength = ref(0);
 const speakChecks = ref<DayCheck[]>([]);
 const speakTime = ref({ shadow: 0, make: 0, talk: 0 });
 const mathData = ref<MathData | null>(null);
+const vocabLast = ref<VocabResult | null>(null);
 
 const userName = computed(() => auth.displayName || auth.username || "同学");
 const greetText = computed(() => greetingOf(new Date().getHours()));
@@ -156,6 +167,21 @@ const EXAM_TEXT: Record<string, string> = {
   pet: "PET 备考", ket: "KET 备考", fce: "FCE 备考", junior: "初中英语同步",
 };
 const examText = computed(() => EXAM_TEXT[auth.exam] ?? "英语学习");
+const moduleCount = computed(() => englishModulesFor(auth.exam).length);
+const hasModule = (m: string) => moduleAvailable(auth.exam, m);
+/** 首页评测入口：显示上次结果，没测过就给一句说明 */
+const levelSub = computed(() => {
+  const r = vocabLast.value;
+  if (!r) return `${PER_EXAM * 2} 道题，看看有没有达到 KET / PET 标准`;
+  const lv = r.level === "pet" ? "PET 水平" : r.level === "ket" ? "KET 水平" : "KET 以下";
+  const d = new Date(r.at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+  return `上次：${lv} · ${d} · 约 ${r.estimated.toLocaleString()} 词`;
+});
+const moduleNote = computed(() => {
+  if (moduleCount.value >= 5) return "";
+  if (auth.exam === "ket") return "KET 已上线词库、阅读（含语法）、听力（5 本 24 套音频）与口语（45 个场景）；口语可按 45 天计划练习。";
+  return `${examText.value} 已上线 ${moduleCount.value} 个板块，其余内容整理中。`;
+});
 
 const words = computed(() => planProgress(learning.data.plan.length, learning.data.plan.days_done));
 const reading = computed(() => planProgress(
@@ -166,25 +192,28 @@ const speak = computed(() => speakProgress(speakLength.value, speakChecks.value)
 const dueMistakes = computed(() => learning.dueMistakes.length);
 const speakRoute = computed(() => nextSpeakRoute(speak.value.day, speakChecks.value));
 
-const tasks = computed<TodayTask[]>(() => [
-  {
-    key: "words", label: "单词", exists: words.value.hasPlan, done: words.value.todayDone,
-    short: words.value.todayDone ? "已完成" : `第 ${words.value.day} 天`,
-    route: `/english/words/study?day=${words.value.day}`,
-  },
-  {
-    key: "reading", label: "阅读", exists: reading.value.hasPlan, done: reading.value.todayDone,
-    short: reading.value.todayDone ? "已完成" : `第 ${reading.value.day} 天`,
-    route: "/english/reading/home",
-  },
-  {
-    key: "speak", label: "口语", exists: speak.value.hasPlan, done: speak.value.todayDone,
-    short: speak.value.todayDone
-      ? "已完成"
-      : speakTime.value.shadow ? `跟读 ${formatTime(speakTime.value.shadow)}` : `第 ${speak.value.day} 天`,
-    route: speakRoute.value,
-  },
-]);
+const tasks = computed<TodayTask[]>(() => {
+  const all: TodayTask[] = [
+    {
+      key: "words", label: "单词", exists: words.value.hasPlan, done: words.value.todayDone,
+      short: words.value.todayDone ? "已完成" : `第 ${words.value.day} 天`,
+      route: `/english/words/study?day=${words.value.day}`,
+    },
+    {
+      key: "reading", label: "阅读", exists: reading.value.hasPlan, done: reading.value.todayDone,
+      short: reading.value.todayDone ? "已完成" : `第 ${reading.value.day} 天`,
+      route: "/english/reading/home",
+    },
+    {
+      key: "speak", label: "口语", exists: speak.value.hasPlan, done: speak.value.todayDone,
+      short: speak.value.todayDone
+        ? "已完成"
+        : speakTime.value.shadow ? `跟读 ${formatTime(speakTime.value.shadow)}` : `第 ${speak.value.day} 天`,
+      route: speakRoute.value,
+    },
+  ];
+  return all.filter((t) => hasModule(t.key));
+});
 const activeTasks = computed(() => tasks.value.filter((t) => t.exists));
 const progress = computed(() => overallProgress(tasks.value));
 const continueRoute = computed(() => pickContinue(tasks.value, "/english/words/browse"));
@@ -224,6 +253,7 @@ function go(path: string): void {
 }
 
 onMounted(async () => {
+  vocabLast.value = loadVocabResult(learning.owner || auth.username || "");
   const [plan, days, time, md] = await Promise.allSettled([
     api<{ length: number }>("/speak/plan"),
     api<{ days: DayCheck[] }>("/speak/days"),
@@ -270,6 +300,14 @@ onMounted(async () => {
 .mini.solid { background: var(--c-primary-strong); border-color: var(--c-primary-strong); color: #fff; }
 .mini:active { transform: scale(0.985); }
 
+.leveltest { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 14px; border-radius: 15px; border: 1px solid var(--c-line-strong); background: var(--c-surface); box-shadow: var(--shadow-card); }
+.lt-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--c-accent-soft); color: var(--c-accent); }
+.lt-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lt-txt b { font-size: 13.5px; color: var(--c-text); }
+.lt-txt span { font-size: 11.5px; color: var(--c-text-2); }
+.lt-btn { margin-left: auto; flex: none; min-height: 40px; padding: 8px 15px; border: 1px solid var(--c-primary-strong); border-radius: 10px; background: var(--c-primary-strong); color: #fff; font: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; }
+.lt-btn:active { transform: scale(0.985); }
+
 .subject { margin-bottom: 16px; }
 .subject-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin: 0 2px 8px; }
 .subject-head h2 { margin: 0; font-size: 16px; color: var(--c-text); }
@@ -285,8 +323,12 @@ onMounted(async () => {
 
 .modgrid { display: grid; gap: 9px; }
 .modgrid.en { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.modgrid.en.few { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .modgrid.ma { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .modgrid.cn { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.module-note {
+  margin: 10px 2px 0; font-size: 12.5px; color: var(--c-text-2, #6b7f74); line-height: 1.6;
+}
 .mod { position: relative; text-align: left; background: var(--c-surface); border: 1px solid var(--c-line); border-radius: 14px; padding: 11px 12px; display: flex; flex-direction: column; gap: 7px; min-height: 90px; box-shadow: var(--shadow-card); text-decoration: none; color: var(--c-text); transition: border-color 0.12s, transform 0.12s; }
 a.mod:hover { border-color: var(--c-line-strong); transform: translateY(-1px); }
 .mod .top { display: flex; align-items: center; gap: 7px; font-weight: 800; font-size: 13.5px; }

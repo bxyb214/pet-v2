@@ -158,7 +158,7 @@
                 </div>
               </template>
             </template>
-            <p class="sub">点击返回单词</p>
+            <p class="sub">点击返回{{ isSynBank ? "短语" : "单词" }}</p>
           </template>
         </div>
         <div class="nav">
@@ -184,12 +184,12 @@ import {
 } from "@vicons/ionicons5";
 import { api, downloadFile } from "../core/api";
 import { audioPending, splitExample, say } from "../core/say";
-import { availableBankKeys, loadBanks, type BankMeta, type ExamMeta } from "../core/banks";
+import { availableBankKeys, bankShortLabel, loadBanks, type BankMeta, type ExamMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import type { WordBanks, BankKey, PlanWord } from "../core/plan";
 import type { CustomWordItem } from "../core/merge";
 import { bucketOf, masteryPct, masteryStats, requiredDimsForBank } from "../core/mastery";
-import { enPart, isSynonymWord } from "../core/quiz";
+import { enPart, isSynonymBank } from "../core/quiz";
 import { useLearningStore } from "../stores/learning";
 
 type CatKey = BankKey | "custom";
@@ -244,7 +244,7 @@ function countOf(k: CatKey): number {
 }
 /** 导入生词的词库短名（手动添加无 bank 字段） */
 function bankLabelOf(bank: string): string {
-  return bankMeta.value[bank]?.short || bank;
+  return bankShortLabel(bank, bankMeta.value);
 }
 
 // 掌握度查询
@@ -317,11 +317,8 @@ function exOf(w: PlanWord): { en: string; cn: string } {
 }
 
 /* ---------- 同义替换库：展示「原短语 ↔ 同义短语」配对 ---------- */
-/** 整库都是同义词（tongyi / ksyn）时启用同义展示 */
-const isSynBank = computed(
-  () => currentBankKey.value !== "" && (banks.value[currentBankKey.value] ?? []).length > 0
-    && (banks.value[currentBankKey.value] ?? []).every(isSynonymWord),
-);
+/** 同义词库（tongyi / ksyn）按词库 id 判定，避免个别脏数据把整库降级成普通词表 */
+const isSynBank = computed(() => isSynonymBank(String(currentBankKey.value)));
 
 /** 词条字段里的中英对照拆开：「make something to take home 制作可带回家的物品」→ 英文 + 中文 */
 function altEnOf(w: PlanWord): string {

@@ -2,7 +2,8 @@
  * 单词掌握度：把 mastery / mistakes 折算成「已掌握 / 学习中 / 未学习」。
  *
  * mastered_dims 是并集；某词只有覆盖该词库要求的全部维度才算「已掌握」。
- * 必考维度与计划测试一致：必默三型；高频/固搭/同义两型；KET 两型。
+ * 必考维度与计划测试一致：必默三型；高频/固搭/同义两型；
+ * KET 走 bankMeta.dims（必默三型、其余两型）。
  */
 import { testDimsForBank } from "./quiz";
 

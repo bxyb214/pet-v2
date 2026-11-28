@@ -54,14 +54,23 @@ export type SpeakData = {
   zhen34?: { no: number; title: string; page: number }[];
 };
 
-let cache: SpeakData | null = null;
+const caches = new Map<string, SpeakData>();
 
-export async function loadSpeak(): Promise<SpeakData> {
-  if (cache) return cache;
-  const res = await fetch("/data/speak.json", { cache: "no-cache" });
+/** 口语数据地址：PET 沿用 /data/speak.json，其余级别放 /data/<exam>/speak.json。 */
+export function speakUrl(exam = "pet"): string {
+  const key = exam || "pet";
+  return key === "pet" ? "/data/speak.json" : `/data/${key}/speak.json`;
+}
+
+export async function loadSpeak(exam = "pet"): Promise<SpeakData> {
+  const key = exam || "pet";
+  const hit = caches.get(key);
+  if (hit) return hit;
+  const res = await fetch(speakUrl(key), { cache: "no-cache" });
   if (!res.ok) throw new Error("口语数据加载失败");
-  cache = (await res.json()) as SpeakData;
-  return cache;
+  const data = (await res.json()) as SpeakData;
+  caches.set(key, data);
+  return data;
 }
 
 /** 90 天计划的某一天该做什么（来自阶段表） */
@@ -194,6 +203,12 @@ export function planDayScenes(data: SpeakData | null | undefined, pd: PlanDayVie
 /** 原始天范围文案：第 3 天 / 第 3–5 天 */
 export function sourceRangeText(pd: PlanDayView): string {
   return pd.from === pd.to ? `第 ${pd.from} 天` : `第 ${pd.from}–${pd.to} 天`;
+}
+
+/** 页面已显示「第 N 天」时，避免再重复一遍相同的范围。 */
+export function sourceRangeSuffix(pd: PlanDayView): string {
+  const range = sourceRangeText(pd);
+  return range === `第 ${pd.day} 天` ? "" : ` · ${range}`;
 }
 
 /** shadow JSON 回复容错解析 */

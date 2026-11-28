@@ -11,7 +11,12 @@ export interface RSentence {
 export interface RPart { part: number; kind: string; focus: string; sentences: RSentence[] }
 export interface RTest { no: number; book: string; title: string; note?: string; parts: RPart[] }
 export interface RBook { id: string; name: string; desc: string }
-export interface RGrammar { book: string; days: { day: number; name: string; points: { c: number; name: string }[] }[] }
+export interface RGrammar {
+  book: string;
+  days: { day: number; name: string; points: { c: number; name: string }[] }[];
+  /** 语法书例句（只用于语法专项出题，不出现在阅读列表） */
+  examples?: RSentence[];
+}
 export interface ReadingData {
   grammar: RGrammar; books: RBook[]; tests: RTest[];
   meta: { sentences: number; gq: number; points_covered: number; built: string };
@@ -26,20 +31,34 @@ export interface QuizItem {
   options: { label: string; correct: boolean }[];
 }
 
-let cache: ReadingData | null = null;
-let loading: Promise<ReadingData> | null = null;
+const caches = new Map<string, ReadingData>();
+const loadings = new Map<string, Promise<ReadingData>>();
 
-export function loadReading(): Promise<ReadingData> {
-  if (cache) return Promise.resolve(cache);
-  if (!loading) {
-    loading = fetch("/data/reading.json", { cache: "no-cache" })
+/** 各级别数据路径：PET 沿用旧文件，KET 用单独目录。 */
+export function readingUrl(exam = "pet"): string {
+  return exam === "ket" ? "/data/ket/reading.json" : "/data/reading.json";
+}
+
+export function loadReading(exam = "pet"): Promise<ReadingData> {
+  const hit = caches.get(exam);
+  if (hit) return Promise.resolve(hit);
+  let pending = loadings.get(exam);
+  if (!pending) {
+    pending = fetch(readingUrl(exam), { cache: "no-cache" })
       .then((r) => {
         if (!r.ok) throw new Error("阅读数据加载失败");
         return r.json() as Promise<ReadingData>;
       })
-      .then((d) => { cache = d; return d; });
+      .then((d) => {
+        caches.set(exam, d);
+        return d;
+      })
+      .finally(() => {
+        loadings.delete(exam);
+      });
+    loadings.set(exam, pending);
   }
-  return loading;
+  return pending;
 }
 
 export function bookOf(data: ReadingData, test: RTest): RBook | undefined {
@@ -102,10 +121,10 @@ export function buildQuizItems(
   return shuffle(out, rnd).slice(0, cap);
 }
 
-/** 42 考点索引：c → grammar 题列表。 */
-export function grammarIndex(tests: RTest[]): Record<number, QuizItem[]> {
+/** 考点索引：c → 语法题列表；可选传入语法书例句。 */
+export function grammarIndex(tests: RTest[], examples: RSentence[] = []): Record<number, QuizItem[]> {
   const idx: Record<number, QuizItem[]> = {};
-  for (const t of tests) for (const p of t.parts) for (const s of p.sentences) {
+  const add = (s: RSentence): void => {
     for (const q of s.gq || []) {
       if (q.c == null) continue;
       (idx[q.c] = idx[q.c] || []).push({
@@ -113,7 +132,9 @@ export function grammarIndex(tests: RTest[]): Record<number, QuizItem[]> {
         options: q.opts.map((o, i) => ({ label: o, correct: i === q.a })),
       });
     }
-  }
+  };
+  for (const t of tests) for (const p of t.parts) for (const s of p.sentences) add(s);
+  for (const s of examples) add(s);
   return idx;
 }
 

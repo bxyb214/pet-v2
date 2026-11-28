@@ -20,13 +20,15 @@ import { computed } from "vue";
 import { useRoute } from "vue-router";
 import { NIcon } from "naive-ui";
 import { modulesForSubject } from "../layouts/navModules";
+import { useAuthStore } from "../stores/auth";
 
 /**
  * 手机（≤767px）底部二级导航：当前学科的板块（单词/阅读/…）。
  * 桌面和平板不渲染；无板块（首页、语文）也不渲染。
  */
 const route = useRoute();
-const modules = computed(() => modulesForSubject(route.meta.subject));
+const auth = useAuthStore();
+const modules = computed(() => modulesForSubject(route.meta.subject, auth.exam));
 const subjectName = computed(() => (route.meta.subject === "math" ? "数学" : "英语"));
 const current = computed(() => route.meta.module ?? "");
 

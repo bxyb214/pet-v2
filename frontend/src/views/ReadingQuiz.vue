@@ -202,7 +202,7 @@ function reviewItems(sentences: RSentence[], pool: RSentence[]): QuizItem[] {
 onMounted(async () => {
   let d: ReadingData;
   try {
-    const base = await loadReading();
+    const base = await loadReading(auth.exam);
     d = withCustomSentences(base, learning.data.custom_sentences);
   } catch {
     setEmpty("阅读题库加载失败", "请检查网络后刷新重试。");
@@ -228,7 +228,7 @@ onMounted(async () => {
     }
   } else if (gc != null) {
     // 语法专项
-    const pool = grammarIndex(d.tests)[gc] ?? [];
+    const pool = grammarIndex(d.tests, d.grammar.examples ?? [])[gc] ?? [];
     items.value = pool.slice(0, 20);
     label.value = `语法专项 · ${route.query.label ?? "考点 " + gc}（20 题上限）`;
     if (!items.value.length) {
@@ -341,7 +341,7 @@ function finishBookkeeping(): void {
   if (partRef.value && learning.data.plan.reading_length > 0) {
     // 与计划页同源：同一组教材 + 同一套切分函数，避免两边算出不同的天
     const books = learning.data.plan.reading_books ?? [];
-    void loadReading().then((d) => {
+    void loadReading(auth.exam).then((d) => {
       const plan = buildReadingPlan(readingParts(d.tests, books), learning.data.plan.reading_length);
       const day = readingDayOf(plan, partKey(partRef.value!));
       if (day) learning.markReadingDayDone(day);

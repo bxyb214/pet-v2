@@ -6,24 +6,37 @@ from sqlalchemy.orm import Session
 
 from app.models.extra import CustomWord
 
-# 允许的级别与词库（FCE 当前为敬请期待，仍允许预导入）
+# 允许的级别与词库（FCE 当前为敬请期待，仍允许预导入；KET 核心词/易混词已并入必默）
 IMPORT_EXAMS = {
     "pet": {"bimo", "gaopin", "guding", "tongyi"},
-    "ket": {"kword", "kcore", "kphrase", "kconfuse", "ksyn"},
+    "ket": {"kword", "kcore", "kphrase", "ksyn"},
     "fce": {"bimo", "gaopin", "guding", "tongyi"},
 }
 # Excel 模板列名
 IMPORT_HEADERS = ["单词", "词库", "词性", "释义", "英文例句", "中文翻译"]
-# 词库中文短名 → bank key
-BANK_NAME_MAP = {
+# 词库中文短名 → bank key（按级别解析：KET 的「必默/核心词/易混词」都落到 kword）
+_PET_BANK_NAMES = {
     "必默": "bimo", "必默词": "bimo", "必默词700": "bimo",
     "高频": "gaopin", "高频词": "gaopin",
     "固搭": "guding", "固定搭配": "guding",
     "同义": "tongyi", "同义替换": "tongyi",
+}
+_KET_BANK_NAMES = {
+    "必默": "kword", "必默词": "kword",
     "核心词": "kword", "核心词表": "kword",
+    "易混词": "kword", "易混词组": "kword",
+    "高频": "kcore", "高频词": "kcore",
     "生难词": "kcore", "生难词200": "kcore",
+    "固搭": "kphrase", "固定搭配": "kphrase",
     "短语": "kphrase", "动词短语": "kphrase",
-    "易混词": "kconfuse", "易混词组": "kconfuse",
+    "同义": "ksyn", "同义替换": "ksyn",
+}
+BANK_NAME_MAPS = {"pet": _PET_BANK_NAMES, "fce": _PET_BANK_NAMES, "ket": _KET_BANK_NAMES}
+# 错误提示里展示的推荐词库名
+BANK_HINTS = {
+    "pet": "必默/高频/固搭/同义",
+    "fce": "必默/高频/固搭/同义",
+    "ket": "必默/高频/固搭/同义（旧表的核心词/生难词/短语/易混词也认）",
 }
 
 
@@ -32,12 +45,22 @@ def _norm_cell(v: object) -> str:
     return str(v).strip() if v is not None else ""
 
 
-def _bank_of(name: str) -> str:
-    """词库列（中文名）→ bank key；未知词库报错让用户改表。"""
-    key = BANK_NAME_MAP.get(name)
-    if key is None:
-        raise HTTPException(400, f"词库「{name}」无法识别，请使用模板中的词库名（必默/高频/固搭/同义…）")
-    return key
+def _bank_of(name: str, exam: str) -> str | None:
+    """词库列（中文名）→ bank key。
+
+    - 当前级别认得的名字 → 返回 key；
+    - 其它级别才认得的名字 → 返回 None，调用方按「词库不属于该级别」跳过该行；
+    - 谁都不认 → 400，让用户改表。
+    """
+    names = BANK_NAME_MAPS[exam]
+    if name in names:
+        return names[name]
+    if any(name in mapping for mapping in BANK_NAME_MAPS.values()):
+        return None
+    raise HTTPException(
+        400,
+        f"词库「{name}」无法识别，请使用模板中的词库名（{BANK_HINTS[exam]}）",
+    )
 
 
 def import_words_from_excel(db: Session, user_id: int, exam: str, data: bytes) -> dict:
@@ -76,7 +99,10 @@ def import_words_from_excel(db: Session, user_id: int, exam: str, data: bytes) -
         if not vals["词库"]:
             skipped.append(f"第{i}行「{word}」缺词库")
             continue
-        bank = _bank_of(vals["词库"])
+        bank = _bank_of(vals["词库"], exam)
+        if bank is None:
+            skipped.append(f"第{i}行「{word}」的词库不属于 {exam.upper()}")
+            continue
         if bank not in allowed:
             skipped.append(f"第{i}行「{word}」的词库不属于 {exam.upper()}")
             continue

@@ -9,7 +9,7 @@ import {
 const DIMS = ["w2m", "m2w", "spell"];
 
 describe("requiredDimsForBank", () => {
-  it("与计划测试题型规则一致：必默三型、其他 PET 库两型、KET 两型", () => {
+  it("与计划测试题型规则一致：必默三型、其他 PET 库两型、KET 按 bankMeta.dims", () => {
     expect(requiredDimsForBank("bimo")).toEqual(["spell", "w2m", "m2w"]);
     expect(requiredDimsForBank("gaopin")).toEqual(["w2m", "m2w"]);
     expect(requiredDimsForBank("kword", ["m2w", "w2m"])).toEqual(["m2w", "w2m"]);

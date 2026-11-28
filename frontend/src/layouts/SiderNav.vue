@@ -33,7 +33,7 @@
       <div class="divider"></div>
       <div class="sider-title">英语 · 板块</div>
       <router-link
-        v-for="m in EN_MODULES"
+        v-for="m in enModules"
         :key="m.key"
         :to="m.first"
         class="nav-item"
@@ -75,7 +75,7 @@ import { computed } from "vue";
 import { NIcon } from "naive-ui";
 import { HomeOutline } from "@vicons/ionicons5";
 import { useAuthStore } from "../stores/auth";
-import { EN_MODULES, MATH_MODULES, SUBJECTS } from "./navModules";
+import { MATH_MODULES, SUBJECTS, modulesForSubject } from "./navModules";
 
 /** 手机抽屉只放一级导航（首页 + 学科），二级板块交给底部导航栏 */
 withDefaults(defineProps<{ showModules?: boolean }>(), { showModules: true });
@@ -99,6 +99,8 @@ const subjects = computed(() =>
 
 const subject = computed(() => (route.meta.subject as string | undefined) ?? "");
 const module = computed(() => (route.meta.module as string | undefined) ?? "");
+/** KET 已开放单词/阅读/听力；按级别过滤后，没内容的板块不显示 */
+const enModules = computed(() => modulesForSubject("english", auth.exam));
 </script>
 
 <style scoped>

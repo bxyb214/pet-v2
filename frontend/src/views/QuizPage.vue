@@ -54,7 +54,7 @@
           :key="d"
           :checked="selectedDims.includes(d)"
           @update:checked="toggleDim(d, $event)"
-        >{{ DIM_LABEL[d] }}</n-checkbox>
+        >{{ bankDimLabel(d, bankIsSyn) }}</n-checkbox>
         <span v-if="!selectedDims.length" class="hint">至少选一种</span>
       </div>
       <div class="setrow">
@@ -285,7 +285,8 @@ import { availableBankKeys, loadBanks, type BankMeta } from "../core/banks";
 import { useAuthStore } from "../stores/auth";
 import {
   makeRound, makeTestRound, seedFrom, testDimsForBank, stemOf, isSynonymWord,
-  checkAnswer, DIM_LABEL, SYN_DIM_LABEL, type QuizDim, type QuizQuestion,
+  bankDimLabel, checkAnswer, DIM_LABEL, SYN_DIM_LABEL, isSynonymBank,
+  type QuizDim, type QuizQuestion,
 } from "../core/quiz";
 import { splitPlan, type WordBanks, type BankKey, type PlanWord } from "../core/plan";
 import { englishOnly, audioPending, playWordAudio, say } from "../core/say";
@@ -300,7 +301,7 @@ const auth = useAuthStore();
 const ownerName = computed(() => learning.owner || auth.username);
 const banks = ref<WordBanks>({});
 const bankMeta = ref<Record<string, BankMeta>>({});
-/** 当前级别下的词库标签（PET 四库 / KET 五库） */
+/** 当前级别下的词库标签（PET / KET 均为四库） */
 const BANK_TABS = computed<Array<{ key: BankKey; label: string }>>(() =>
   availableBankKeys(banks.value, bankMeta.value, auth.exam).map((k) => ({
     key: k,
@@ -966,6 +967,8 @@ const ALL_DIMS = computed<QuizDim[]>(() => {
 
 /** 随机学习可选的考核方式：按该词库允许的维度展示（顺序固定） */
 const DIM_ORDER: QuizDim[] = ["spell", "w2m", "m2w"];
+/** 当前词库是否为同义替换库（整库都是成对短语），题型标签改用英英配对说法 */
+const bankIsSyn = computed(() => isSynonymBank(String(bank.value)));
 const dimOptions = computed<QuizDim[]>(() => {
   const allowed = new Set(ALL_DIMS.value);
   return DIM_ORDER.filter((d) => allowed.has(d));

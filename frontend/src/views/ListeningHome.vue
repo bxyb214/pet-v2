@@ -1,7 +1,7 @@
 <template>
   <main class="page">
     <h1>听力</h1>
-    <p class="sub">官方真题 · 听音频 · 对照字幕（可隐藏）· 0.8–1.2 倍速</p>
+    <p class="sub">官方真题 · 听音频 · 有原文的显示字幕 · 0.8–1.2 倍速</p>
 
     <LoadingBlock v-if="!data" />
     <template v-else>
@@ -26,7 +26,7 @@
                   @click="goPart(t.no, p.part)"
                 >
                   <span class="plabel">Part {{ p.part }} · {{ p.label || p.kind }}</span>
-                  <span class="pmeta">{{ p.qRange }} · {{ p.items.length }} 题</span>
+                  <span class="pmeta">{{ p.qRange }} · {{ p.items.length ? p.items.length + " 题" : p.sentences.length ? p.sentences.length + " 句原文" : "音频" }}</span>
                   <svg class="pgo" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6" /></svg>
                 </button>
               </div>
@@ -42,14 +42,16 @@
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import { loadListening, type ListeningData, type LTest } from "../core/listening";
+import { useAuthStore } from "../stores/auth";
 import LoadingBlock from "../components/LoadingBlock.vue";
 
 const router = useRouter();
+const auth = useAuthStore();
 const data = ref<ListeningData | null>(null);
 const openMap = reactive<Record<string, boolean>>({});
 
 onMounted(async () => {
-  const d = await loadListening();
+  const d = await loadListening(auth.exam);
   data.value = d;
   // 单本教材默认展开（05 规范）
   if (d.books.length === 1) openMap[d.books[0].id] = true;

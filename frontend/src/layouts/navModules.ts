@@ -1,9 +1,10 @@
 import type { Component } from "vue";
 import {
-  BookOutline, CalculatorOutline, CreateOutline, HeadsetOutline,
+  BookOutline, CalculatorOutline, HeadsetOutline,
   LanguageOutline, LibraryOutline, MicOutline, PlayCircleOutline,
   ReaderOutline, StatsChartOutline,
 } from "@vicons/ionicons5";
+import { englishModulesFor } from "../core/examContent";
 
 /** 侧栏 / 手机底栏共用的导航定义（唯一来源） */
 
@@ -33,7 +34,6 @@ export const SUBJECTS: Subject[] = [
 export const EN_MODULES: Module[] = [
   { key: "words", name: "单词", icon: ReaderOutline, first: "/english/words/browse" },
   { key: "reading", name: "阅读", icon: LibraryOutline, first: "/english/reading/home" },
-  { key: "grammar", name: "语法", icon: CreateOutline, first: "/english/grammar" },
   { key: "listening", name: "听力", icon: HeadsetOutline, first: "/english/listening/home" },
   { key: "speak", name: "口语", icon: MicOutline, first: "/english/speak" },
 ];
@@ -43,9 +43,13 @@ export const MATH_MODULES: Module[] = [
   { key: "progress", name: "学习进度", icon: StatsChartOutline, first: "/math/progress" },
 ];
 
-/** 手机底栏：按当前路由学科取二级板块；无板块（首页 / 语文）返回空数组 */
-export function modulesForSubject(subject?: string): Module[] {
-  if (subject === "english") return EN_MODULES;
+/** 手机底栏 / 侧栏：按当前路由学科取二级板块；无板块（首页 / 语文）返回空数组。
+ *  英语按级别过滤：KET 已开放单词/阅读/听力，没内容的板块不展示。 */
+export function modulesForSubject(subject?: string, exam = "pet"): Module[] {
+  if (subject === "english") {
+    const allowed = new Set<string>(englishModulesFor(exam));
+    return EN_MODULES.filter((m) => allowed.has(m.key));
+  }
   if (subject === "math") return MATH_MODULES;
   return [];
 }

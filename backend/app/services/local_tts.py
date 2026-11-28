@@ -17,7 +17,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.models.user import User
-from app.services import dev_mock, tts_cache
+from app.services import tts_cache
 from app.services.tts_text import has_cjk, normalize_for_tts, truncate_text
 
 DEFAULT_SIDECAR = "http://tts:8100"
@@ -204,7 +204,9 @@ def _call_sidecar(cfg: dict, text: str, voice: str = "") -> tuple[bytes, int]:
         resp = httpx.post(
             f"{cfg['sidecar']}/synth",
             json={"text": text, "voice": voice or cfg["voice"], "speed": cfg["speed"]},
-            timeout=60.0,
+            # 连接失败（sidecar 未启动）要尽快报错，让前端及时回退浏览器朗读；
+            # 合成本身可以慢一些。容器网络内 1s 连不上就是没起。
+            timeout=httpx.Timeout(60.0, connect=1.0),
         )
     except httpx.HTTPError as e:
         raise RuntimeError(f"本地 TTS 连接失败：{e}") from e
@@ -224,14 +226,9 @@ def synthesize(db: Session, cfg: dict, text: str) -> dict:
     f = d / f"{cache_key(cfg, voice, norm)}.wav"
     if f.is_file() and f.stat().st_size >= MIN_WAV_BYTES:
         return _out(f, True, norm, 0, lang, voice)
-    if dev_mock.is_dev():
-        # 开发模式仍优先用真实 sidecar（本地合成不花钱）；没起 sidecar 时退回提示音。
-        try:
-            data, ms = _call_sidecar(cfg, norm, voice)
-        except (LocalTtsBusy, RuntimeError):
-            data, ms = dev_mock.beep_wav_bytes(), 0
-    else:
-        data, ms = _call_sidecar(cfg, norm, voice)
+    # 开发模式也走真实 sidecar：sidecar 没起时直接失败（502），
+    # 让前端回退浏览器朗读；不要返回提示音假装成功。
+    data, ms = _call_sidecar(cfg, norm, voice)
     if len(data) < MIN_WAV_BYTES:
         raise RuntimeError("本地合成返回的音频过小")
     tts_cache.store_atomic(f, data)

@@ -151,7 +151,7 @@ def test_import_roundtrip_and_list():
 
 def test_import_rejects_wrong_exam_bank_and_duplicates():
     admin_head, student_id = _setup_admin()
-    # KET 级别导 PET 的必默词 → 整行跳过
+    # KET 新映射：高频→kcore、核心词→kword；第二个 shadow 与前面的行重复被跳过
     data = _xlsx([
         ["单词", "词库", "词性", "释义", "英文例句", "中文翻译"],
         ["shadow", "高频", "n.", "影子", "", ""],
@@ -165,9 +165,8 @@ def test_import_rejects_wrong_exam_bank_and_duplicates():
     )
     assert r.status_code == 200
     body = r.json()
-    # shadow（高频）不属于 KET 被跳过、不计入去重；第二个 shadow（核心词）+ guest 都入库
     assert body["added"] == 2
-    assert any("不属于 KET" in s for s in body["skipped"])
+    assert any("重复" in s for s in body["skipped"])
 
     # 再传一次：已存在的跳过
     r2 = client.post(
@@ -186,6 +185,39 @@ def test_import_rejects_wrong_exam_bank_and_duplicates():
         files={"file": ("w.xlsx", data)},
     )
     assert r3.status_code == 400
+
+
+def test_ket_bank_names_merge_into_four_banks():
+    """KET 旧名与新名都落到四库：必默/高频/固搭/同义。"""
+    admin_head, student_id = _setup_admin()
+    data = _xlsx([
+        ["单词", "词库", "词性", "释义", "英文例句", "中文翻译"],
+        ["look", "易混词", "v.", "看", "", ""],
+        ["achieve", "生难词", "v.", "实现", "", ""],
+        ["get up", "短语", "phr.", "起床", "", ""],
+        ["on foot", "同义", "", "走路", "", ""],
+        ["camera", "必默", "n.", "照相机", "", ""],
+        ["absolutely", "高频", "adv.", "完全地", "", ""],
+    ])
+    r = client.post(
+        f"/api/v1/admin/users/{student_id}/words/import?exam=ket",
+        headers=admin_head,
+        files={"file": ("w.xlsx", data)},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["added"] == 6
+
+    stu = client.post("/api/v1/auth/login", json={"username": "imp-student", "password": "pet-test-pass"}).json()
+    stu_head = {"Authorization": f"Bearer {stu['access_token']}"}
+    by_word = {w["word"]: w["bank"] for w in client.get("/api/v1/words/custom", headers=stu_head).json()}
+    assert by_word == {
+        "look": "kword",
+        "achieve": "kcore",
+        "get up": "kphrase",
+        "on foot": "ksyn",
+        "camera": "kword",
+        "absolutely": "kcore",
+    }
 
 
 def test_import_template_download():

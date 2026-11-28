@@ -56,12 +56,13 @@
         <div v-for="r in shown" :key="r.id" class="row" :class="{ due: r.due }">
           <div class="left">
             <span class="w">{{ r.en }}</span>
+            <span v-if="r.alt" class="w-alt">↔ {{ r.alt }}</span>
             <n-tag size="small" :bordered="false" class="banktag">{{ r.bank }}</n-tag>
-            <span class="muted">{{ r.cn }}</span>
+            <span class="muted">{{ r.cn || r.alt_cn }}</span>
           </div>
           <div class="dims">
             <n-tag v-for="d in r.dims" :key="d" size="small" type="warning" :bordered="false" round>
-              {{ (DIM_LABEL as Record<string, string>)[d] ?? d }}
+              {{ dimLabelOf(r, d) }}
             </n-tag>
             <n-tag v-if="!r.dims.length" size="small" type="success" :bordered="false" round>✓ 全部划掉</n-tag>
           </div>
@@ -88,7 +89,7 @@ import { useRouter } from "vue-router";
 import { NButton, NCard, NEmpty, NRadioButton, NRadioGroup, NTag } from "naive-ui";
 import { useLearningStore } from "../stores/learning";
 import { loadBanks, EMPTY_BANKS, type BankMeta } from "../core/banks";
-import { DIM_LABEL } from "../core/quiz";
+import { DIM_LABEL, SYN_DIM_LABEL } from "../core/quiz";
 import type { WordBanks, BankKey, PlanWord } from "../core/plan";
 
 const learning = useLearningStore();
@@ -115,7 +116,9 @@ const wordIndex = computed(() => {
 interface Row {
   id: string;
   en: string;
+  alt: string;
   cn: string;
+  alt_cn: string;
   bank: string;
   dims: string[];
   stage: number;
@@ -130,7 +133,9 @@ const rows = computed<Row[]>(() =>
     return {
       id: m.word_id,
       en: hit?.w.en ?? m.word_id,
+      alt: String(hit?.w.alt ?? ""),
       cn: hit?.w.cn ?? "",
+      alt_cn: String(hit?.w.alt_cn ?? ""),
       bank: hit?.bank ?? "—",
       dims: m.dims,
       stage: m.stage,
@@ -139,6 +144,12 @@ const rows = computed<Row[]>(() =>
     };
   }),
 );
+
+/** 同义库的题型标签用「原短语 ↔ 同义短语」说法，普通库用看词/看义 */
+function dimLabelOf(r: Row, dim: string): string {
+  const table: Record<string, string> = r.alt ? SYN_DIM_LABEL : DIM_LABEL;
+  return table[dim] ?? dim;
+}
 const dueRows = computed(() => rows.value.filter((r) => r.due));
 const shown = computed(() => (filter.value === "due" ? dueRows.value : rows.value));
 const graduated = computed(() => rows.value.filter((r) => !r.dims.length).length);
@@ -171,6 +182,7 @@ function goStudy(): void {
 .row.due { background: rgba(217, 119, 6, 0.04); }
 .left { display: flex; align-items: center; gap: 8px; min-width: 260px; }
 .w { font-weight: 800; font-size: 15px; }
+.w-alt { font-weight: 700; font-size: 14px; color: var(--c-primary-strong, #15803d); }
 .banktag { background: var(--c-primary-soft, #e7f6ec); color: var(--c-primary-strong, #15803d); }
 .dims { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
 .right { display: flex; gap: 14px; margin-left: auto; }

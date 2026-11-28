@@ -89,6 +89,7 @@ import { NButton, NCheckbox, NCheckboxGroup, NInputNumber, NTag } from "naive-ui
 import PlanWall from "../components/PlanWall.vue";
 import DeletePlanModal from "../components/DeletePlanModal.vue";
 import { useLearningStore } from "../stores/learning";
+import { useAuthStore } from "../stores/auth";
 import { loadReading, type RBook, type RTest } from "../core/reading";
 import {
   buildReadingPlan, readingParts, validateReadingPlan,
@@ -96,6 +97,7 @@ import {
 } from "../core/plan";
 
 const learning = useLearningStore();
+const auth = useAuthStore();
 const router = useRouter();
 
 const plan = computed(() => learning.data.plan);
@@ -108,7 +110,7 @@ const tests = ref<RTest[]>([]);
 const books = ref<(RBook & { parts: number })[]>([]);
 
 onMounted(async () => {
-  const d = await loadReading();
+  const d = await loadReading(auth.exam);
   tests.value = d.tests;
   const all: ReadingPartRef[] = readingParts(d.tests);
   books.value = d.books
