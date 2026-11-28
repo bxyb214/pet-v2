@@ -276,13 +276,29 @@ export function scoreVocabTest(
 
 /* ---------- 本地结果（不进同步通道） ---------- */
 
-const STORE_PREFIX = "pet_vocab_test_v1";
+/** 2026-11-28 题库版：存储键升到 v2，旧的 24 题结果一律清理 */
+const STORE_PREFIX = "pet_vocab_test_v2";
+const LEGACY_PREFIX = "pet_vocab_test_v1:";
+
+function clearLegacyResults(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(LEGACY_PREFIX)) keys.push(k);
+    }
+    for (const k of keys) localStorage.removeItem(k);
+  } catch {
+    /* 隐私模式：忽略 */
+  }
+}
 
 export function vocabResultKey(owner: string): string {
   return `${STORE_PREFIX}:${owner || "guest"}`;
 }
 
 export function loadVocabResult(owner: string): VocabResult | null {
+  clearLegacyResults();
   try {
     const raw = localStorage.getItem(vocabResultKey(owner));
     if (!raw) return null;
@@ -295,6 +311,7 @@ export function loadVocabResult(owner: string): VocabResult | null {
 }
 
 export function saveVocabResult(owner: string, result: VocabResult): void {
+  clearLegacyResults();
   try {
     localStorage.setItem(vocabResultKey(owner), JSON.stringify(result));
   } catch {

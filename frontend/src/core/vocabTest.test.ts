@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import {
   allocateQuota, buildVocabTest, loadVocabResult, saveVocabResult,
-  scoreVocabTest, EXAM_SHARE, PER_EXAM,
+  scoreVocabTest, vocabResultKey, EXAM_SHARE, PER_EXAM,
   type ExamId, type VocabBank, type VocabBankPool, type VocabQuestion,
 } from "./vocabTest";
 import { fromWordBanks } from "./vocabBank";
@@ -219,7 +219,7 @@ describe("评测结果本地存取", () => {
     expect(loadVocabResult("other")).toBeNull();
   });
 
-  it("旧版 24 题结果仍可读取", () => {
+  it("旧版 24 题结果被清理，不再展示", () => {
     const legacy = {
       at: 1,
       ket: { exam: "ket", correct: 10, total: 12, accuracy: 0.83, estimated: 900, bankTotal: 1100, verdict: "reached", weak: [] },
@@ -228,11 +228,15 @@ describe("评测结果本地存取", () => {
       estimated: 900,
     };
     localStorage.setItem("pet_vocab_test_v1:kid", JSON.stringify(legacy));
-    expect(loadVocabResult("kid")?.ket.total).toBe(12);
+    localStorage.setItem("pet_vocab_test_v1:other", "{}");
+    expect(loadVocabResult("kid")).toBeNull();
+    expect(localStorage.getItem("pet_vocab_test_v1:kid")).toBeNull();
+    expect(localStorage.getItem("pet_vocab_test_v1:other")).toBeNull();
+    expect(vocabResultKey("kid")).toBe("pet_vocab_test_v2:kid");
   });
 
   it("坏数据返回 null，不抛错", () => {
-    localStorage.setItem("pet_vocab_test_v1:kid", "{not json");
+    localStorage.setItem(vocabResultKey("kid"), "{not json");
     expect(loadVocabResult("kid")).toBeNull();
   });
 });
