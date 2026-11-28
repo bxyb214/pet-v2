@@ -22,9 +22,11 @@ data-src/
 | 数学 | `node tools/build_math.js` | `data-src/math/yongle.json` | `math.json`（schema 2） |
 | 英语模板（PET 已回填） | `tools/check_content.py` | `data-src/english/<exam>/*.xlsx` | —（校验） |
 | KET 阅读/语法/听力 | `python tools/build_ket_content.py --exam ket` | `data-src/english/ket/{reading,grammar,listening}.xlsx` | `data/ket/reading.json`、`data/ket/listening.json` |
+| 单词评测题库 | `python tools/build_vocab_test.py` | `data-src/english/{ket,pet}/words.xlsx` + `data-src/教材/*真题`（仅本地） | `vocab-test.json`；待补清单 `_work/真题生词待补.md` |
 | 模板回填现有数据 | `tools/export_content.py` | `frontend/public/data/*.json` | 写回 `data-src/english/pet|ket/*.xlsx` |
 
 - 脚本支持 `--dry`（只校验、不写文件）。
+- 评测题库只取 `words.xlsx` 的必默/高频/固搭（同义不计入）；`data-src/教材/` 不入库，缺失时真题标注为 0、构建仍成功，前端回退 `banks.json` 抽样。
 - 音频/图片（`frontend/public/audio`、`public/img`）体积大，不进 git，由部署阶段整目录同步。
 - 详细口语数据说明见 [speak/README.md](speak/README.md)。
 

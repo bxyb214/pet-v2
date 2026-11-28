@@ -5,22 +5,24 @@
       <p class="eyebrow">单词量评测</p>
       <h1>你现在是 KET 还是 PET 水平？</h1>
       <p class="lead">
-        从 KET / PET 词库分层抽 {{ PER_EXAM * 2 }} 个词，看英文选中文，约 5 分钟。
+        从 KET / PET 题库分层抽 {{ PER_EXAM * 2 }} 个词<template v-if="realReady">，其中约
+        {{ Math.round(EXAM_SHARE * 100) }}% 优先来自真题原文</template>，看英文选中文，约 8–10 分钟。
         测的是「认不认识」，不是拼写，不用紧张。
       </p>
       <ul class="facts">
         <li><b>{{ PER_EXAM * 2 }}</b> 道题</li>
         <li><b>KET {{ PER_EXAM }}</b> + <b>PET {{ PER_EXAM }}</b></li>
+        <li v-if="realReady"><b>约 {{ Math.round(EXAM_SHARE * 100) }}%</b> 真题词</li>
         <li>覆盖 <b>{{ Math.round(PASS_RATE * 100) }}%</b> 视为达到该级别</li>
       </ul>
       <div class="actions">
-        <n-button type="primary" size="large" :disabled="!banksReady" @click="start">
+        <n-button type="primary" size="large" :disabled="!banksReady || !bank" @click="start">
           开始评测
         </n-button>
         <BackButton to="/english/words/browse" label="返回词库" variant="text" />
       </div>
       <p v-if="!banksReady" class="muted">词库加载中…</p>
-      <p v-else-if="failed" class="muted">词库加载失败，请刷新页面重试。</p>
+      <p v-else-if="failed || !bank" class="muted">题库加载失败，请刷新页面重试。</p>
       <div v-else-if="last" class="lastbox">
         <span class="lastk">上次评测</span>
         <b>{{ headlineOf(last) }}</b>
@@ -36,6 +38,7 @@
         <span class="exam" :class="q.item.exam">
           {{ q.item.exam === "ket" ? "KET" : "PET" }} · {{ BANK_SHORT[q.item.bank] ?? "词汇" }}
         </span>
+        <span v-if="q.item.hits" class="real" title="该词在真题原文中出现过">真题</span>
       </header>
       <n-progress
         type="line"
@@ -95,6 +98,9 @@
             答对 {{ e.correct }} / {{ e.total }} · 估算认识
             {{ e.estimated.toLocaleString() }} / {{ e.bankTotal.toLocaleString() }} 词
           </p>
+          <p v-if="e.tagged && e.tagged.total" class="realstat">
+            真题词 {{ e.tagged.correct }} / {{ e.tagged.total }} 正确
+          </p>
           <p v-if="e.weak.length" class="weak">
             薄弱：{{ e.weak.map((w) => w.label).join(" / ") }}
           </p>
@@ -121,12 +127,12 @@ import { useRouter } from "vue-router";
 import { NButton, NCard, NProgress, NTag } from "naive-ui";
 import BackButton from "../components/BackButton.vue";
 import LoadingBlock from "../components/LoadingBlock.vue";
-import { loadBanks, EMPTY_BANKS } from "../core/banks";
-import type { WordBanks } from "../core/plan";
+import { loadBanks } from "../core/banks";
+import { fromWordBanks, loadVocabBank } from "../core/vocabBank";
 import {
-  BANK_SHORT, PASS_RATE, PER_EXAM, VERDICT_LABEL, buildVocabTest, loadVocabResult,
-  saveVocabResult, scoreVocabTest, type ExamScore, type VocabQuestion, type VocabResult,
-  type Verdict,
+  BANK_SHORT, EXAM_SHARE, PASS_RATE, PER_EXAM, VERDICT_LABEL, buildVocabTest, loadVocabResult,
+  saveVocabResult, scoreVocabTest, type ExamScore, type VocabBank, type VocabQuestion,
+  type VocabResult, type Verdict,
 } from "../core/vocabTest";
 import { useAuthStore } from "../stores/auth";
 import { useLearningStore } from "../stores/learning";
@@ -135,7 +141,7 @@ const router = useRouter();
 const auth = useAuthStore();
 const learning = useLearningStore();
 
-const banks = ref<WordBanks>(EMPTY_BANKS);
+const bank = ref<VocabBank | null>(null);
 const banksReady = ref(false);
 const stage = ref<"intro" | "quiz" | "result">("intro");
 const questions = ref<VocabQuestion[]>([]);
@@ -150,22 +156,29 @@ let timer = 0;
 
 const owner = computed(() => learning.owner || auth.username || "");
 const q = computed(() => questions.value[index.value] ?? null);
+const realReady = computed(() =>
+  !!bank.value && [...bank.value.ket, ...bank.value.pet].some((p) => p.words.some((w) => w.hits > 0)),
+);
 const examCards = computed<ExamScore[]>(() =>
   result.value ? [result.value.ket, result.value.pet] : [],
 );
 
 onMounted(async () => {
   last.value = loadVocabResult(owner.value);
-  const r = await loadBanks().catch(() => null);
-  if (r) banks.value = r.banks;
+  let b = await loadVocabBank();
+  if (!b) {
+    const r = await loadBanks().catch(() => null);
+    if (r) b = fromWordBanks(r.banks, r.bankMeta);
+  }
+  bank.value = b;
   banksReady.value = true;
 });
 onUnmounted(() => window.clearTimeout(timer));
 
 function start(): void {
-  if (!banksReady.value) return;
+  if (!banksReady.value || !bank.value) return;
   window.clearTimeout(timer);
-  const qs = buildVocabTest(banks.value);
+  const qs = buildVocabTest(bank.value);
   failed.value = qs.length === 0;
   if (!qs.length) return;
   questions.value = qs;
@@ -179,12 +192,14 @@ function start(): void {
 
 function answer(opt: string | null): void {
   if (locked.value || !q.value) return;
+  const b = bank.value;
+  if (!b) return;
   locked.value = true;
   picked.value = opt;
   chosen.value[index.value] = opt;
   timer = window.setTimeout(() => {
     if (index.value >= questions.value.length - 1) {
-      const r = scoreVocabTest(questions.value, chosen.value, banks.value);
+      const r = scoreVocabTest(questions.value, chosen.value, b);
       result.value = r;
       last.value = r;
       saveVocabResult(owner.value, r);
@@ -259,6 +274,7 @@ function goStudy(): void {
 .cnt { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--c-text-2); }
 .exam { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: var(--r-pill); background: var(--c-info-soft); color: var(--c-info); }
 .exam.pet { background: var(--c-accent-soft); color: var(--c-accent); }
+.real { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: var(--r-pill); background: var(--c-primary-soft); color: var(--c-primary-strong); }
 .qprog { margin-bottom: 12px; }
 .qcard { text-align: center; padding: 10px 4px 4px; }
 .qword {
@@ -307,6 +323,7 @@ function goStudy(): void {
 .acc { margin: 8px 0 2px; font-size: 30px; font-weight: 800; color: var(--c-text); line-height: 1.1; }
 .acc small { font-size: 15px; color: var(--c-text-3); margin-left: 2px; }
 .weak { margin: 8px 0 0; font-size: 12px; color: var(--c-accent); }
+.realstat { margin: 6px 0 0; font-size: 12px; color: var(--c-primary-strong); font-weight: 700; }
 .note { margin: 14px 2px 0; font-size: 12.5px; color: var(--c-text-3); line-height: 1.6; }
 .muted { color: var(--c-text-2); font-size: 13px; }
 

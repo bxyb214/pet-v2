@@ -172,7 +172,7 @@ const hasModule = (m: string) => moduleAvailable(auth.exam, m);
 /** 首页评测入口：显示上次结果，没测过就给一句说明 */
 const levelSub = computed(() => {
   const r = vocabLast.value;
-  if (!r) return `${PER_EXAM * 2} 道题，看看有没有达到 KET / PET 标准`;
+  if (!r) return `${PER_EXAM * 2} 道题 · 约 8 分钟 · 看看 KET / PET 水平`;
   const lv = r.level === "pet" ? "PET 水平" : r.level === "ket" ? "KET 水平" : "KET 以下";
   const d = new Date(r.at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
   return `上次：${lv} · ${d} · 约 ${r.estimated.toLocaleString()} 词`;
